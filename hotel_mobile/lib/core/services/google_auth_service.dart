@@ -1,0 +1,66 @@
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:google_sign_in/google_sign_in.dart';
+import 'package:flutter/foundation.dart';
+
+class GoogleAuthService {
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+  final GoogleSignIn _googleSignIn = GoogleSignIn();
+
+  // Đăng nhập bằng Google
+  Future<UserCredential?> signInWithGoogle() async {
+    try {
+      // Kiểm tra nếu đang chạy trên web
+      if (kIsWeb) {
+        // Đăng nhập trên web
+        GoogleAuthProvider googleProvider = GoogleAuthProvider();
+        googleProvider.addScope('email');
+        googleProvider.addScope('profile');
+
+        return await _auth.signInWithPopup(googleProvider);
+      } else {
+        // Đăng nhập trên mobile (Android/iOS)
+        final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
+
+        if (googleUser == null) {
+          // Người dùng đã hủy đăng nhập
+          return null;
+        }
+
+        // Lấy thông tin xác thực từ Google
+        final GoogleSignInAuthentication googleAuth =
+            await googleUser.authentication;
+
+        // Tạo credential cho Firebase
+        final credential = GoogleAuthProvider.credential(
+          accessToken: googleAuth.accessToken,
+          idToken: googleAuth.idToken,
+        );
+
+        // Đăng nhập vào Firebase
+        return await _auth.signInWithCredential(credential);
+      }
+    } catch (e) {
+      print('Lỗi đăng nhập Google: $e');
+      throw Exception('Đăng nhập Google thất bại: $e');
+    }
+  }
+
+  // Đăng xuất
+  Future<void> signOut() async {
+    try {
+      await Future.wait([_auth.signOut(), _googleSignIn.signOut()]);
+    } catch (e) {
+      print('Lỗi đăng xuất: $e');
+      throw Exception('Đăng xuất thất bại: $e');
+    }
+  }
+
+  // Lấy thông tin user hiện tại
+  User? get currentUser => _auth.currentUser;
+
+  // Stream để lắng nghe thay đổi trạng thái đăng nhập
+  Stream<User?> get authStateChanges => _auth.authStateChanges();
+
+  // Kiểm tra xem user đã đăng nhập chưa
+  bool get isSignedIn => _auth.currentUser != null;
+}

@@ -1,0 +1,208 @@
+# =====================================
+# FULL STACK PROJECT GITIGNORE
+# Trip Hotel - Flutter Mobile + Node.js Backend
+# =====================================
+
+# ==================== GLOBAL ====================
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDEs and editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment files
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# ==================== NODE.JS BACKEND ====================
+# Dependencies
+hotel-booking-backend/node_modules/
+hotel-booking-backend/.npm
+hotel-booking-backend/.yarn-integrity
+
+# Runtime data
+hotel-booking-backend/pids
+hotel-booking-backend/*.pid
+hotel-booking-backend/*.seed
+hotel-booking-backend/*.pid.lock
+
+# Coverage directory used by tools like istanbul
+hotel-booking-backend/coverage/
+hotel-booking-backend/.nyc_output
+
+# Grunt intermediate storage
+hotel-booking-backend/.grunt
+
+# Bower dependency directory
+hotel-booking-backend/bower_components
+
+# node-waf configuration
+hotel-booking-backend/.lock-wscript
+
+# Compiled binary addons
+hotel-booking-backend/build/Release
+
+# Dependency directories
+hotel-booking-backend/jspm_packages/
+
+# Optional npm cache directory
+hotel-booking-backend/.npm
+
+# Optional REPL history
+hotel-booking-backend/.node_repl_history
+
+# Output of 'npm pack'
+hotel-booking-backend/*.tgz
+
+# Yarn Integrity file
+hotel-booking-backend/.yarn-integrity
+
+# Backend uploads
+hotel-booking-backend/uploads/
+hotel-booking-backend/public/uploads/
+
+# Database config (sensitive)
+hotel-booking-backend/config/database.js
+hotel-booking-backend/.env
+
+# ==================== FLUTTER MOBILE ====================
+# Flutter/Dart/Pub related
+hotel_mobile/.dart_tool/
+hotel_mobile/.flutter-plugins
+hotel_mobile/.flutter-plugins-dependencies
+hotel_mobile/.packages
+hotel_mobile/.pub-cache/
+hotel_mobile/.pub/
+hotel_mobile/build/
+hotel_mobile/flutter_*.log
+
+# Web related
+hotel_mobile/web/flutter_service_worker.js
+
+# iOS related
+hotel_mobile/ios/Flutter/Generated.xcconfig
+hotel_mobile/ios/Flutter/flutter_export_environment.sh
+hotel_mobile/ios/Flutter/Flutter.framework
+hotel_mobile/ios/Flutter/Flutter.podspec
+hotel_mobile/ios/Pods/
+hotel_mobile/ios/.symlinks/
+hotel_mobile/ios/Flutter/App.framework
+hotel_mobile/ios/Flutter/engine/
+hotel_mobile/ios/ServiceDefinitions.json
+hotel_mobile/ios/Runner/GeneratedPluginRegistrant.*
+
+# Android related
+hotel_mobile/android/.gradle/
+hotel_mobile/android/captures/
+hotel_mobile/android/gradlew
+hotel_mobile/android/gradlew.bat
+hotel_mobile/android/local.properties
+hotel_mobile/android/app/debug/
+hotel_mobile/android/app/profile/
+hotel_mobile/android/app/release/
+hotel_mobile/android/.idea/
+hotel_mobile/android/build/
+
+# Windows, macOS, Linux
+hotel_mobile/linux/flutter/
+hotel_mobile/macos/Flutter/
+hotel_mobile/windows/flutter/
+
+# Generated plugin registrant
+hotel_mobile/lib/generated_plugin_registrant.dart
+
+# ==================== SECURITY - NEVER COMMIT ====================
+# Firebase configurations
+hotel_mobile/android/app/google-services.json
+hotel_mobile/ios/Runner/GoogleService-Info.plist
+hotel_mobile/lib/firebase_options.dart
+
+# API Keys
+hotel_mobile/lib/core/config/api_keys.dart
+
+# Keystore files
+hotel_mobile/android/app/*.keystore
+hotel_mobile/android/app/*.jks
+hotel_mobile/*.keystore
+hotel_mobile/*.jks
+
+# Database credentials
+hotel-booking-backend/config/db.js
+
+# Social auth secrets
+hotel_mobile/web/facebook_config.js
+
+# ==================== BUILD ARTIFACTS ====================
+# Flutter build outputs
+hotel_mobile/build/
+hotel_mobile/.dart_tool/
+hotel_mobile/.packages
+
+# Node.js build outputs
+hotel-booking-backend/dist/
+hotel-booking-backend/build/
+
+# ==================== TEMPORARY FILES ====================
+# Temporary files
+*.tmp
+*.temp
+*_temp
+temp/
+
+# Editor backups
+*~
+*.orig
+*.rej
+
+# Test files
+hotel_mobile/test_driver/
+hotel_mobile/integration_test/screenshots/
+
+# Coverage reports
+hotel_mobile/coverage/
+hotel-booking-backend/coverage/
+
+# ==================== PROJECT SPECIFIC ====================
+# Images folder (if large)
+images/
+!images/logo.png
+!images/Defaut.jpg
+
+# Documentation drafts
+docs/drafts/
+
+# Scripts for deployment
+deploy/
+scripts/deploy/
+
+# Local database backups
+*.sql
+*.db
+*.sqlite
+*.sqlite3
+
+# ==================== CACHE ====================
+# Various caches
+.cache/
+.tmp/
+.sass-cache/
+.eslintcache
