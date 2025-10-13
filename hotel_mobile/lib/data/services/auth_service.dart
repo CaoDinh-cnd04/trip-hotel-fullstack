@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../models/user.dart';
 
 class AuthService {
@@ -10,10 +11,37 @@ class AuthService {
   AuthService._internal();
 
   final GoogleSignIn _googleSignIn = GoogleSignIn();
+  final FlutterSecureStorage _secureStorage = const FlutterSecureStorage();
   User? _currentUser;
+
+  // Constants for session management
+  static const int _sessionDurationDays = 5; // 5 days session
+  static const String _userDataKey = 'user_data';
+  static const String _loginTimeKey = 'login_time';
+  static const String _sessionTokenKey = 'session_token';
 
   // Getter cho current user
   User? get currentUser => _currentUser;
+
+  // Check if user session is still valid
+  Future<bool> get isSessionValid async {
+    final loginTime = await _getLoginTime();
+    if (loginTime == null) return false;
+
+    final currentTime = DateTime.now();
+    final sessionDuration = currentTime.difference(loginTime);
+
+    return sessionDuration.inDays < _sessionDurationDays;
+  }
+
+  // Check if user is authenticated and session is valid
+  Future<bool> get isAuthenticated async {
+    if (_currentUser == null) {
+      await _loadUserFromStorage();
+    }
+
+    return _currentUser != null && await isSessionValid;
+  }
 
   // Đăng nhập bằng Google với error handling tốt hơn
   Future<User?> signInWithGoogle() async {
@@ -28,7 +56,7 @@ class AuthService {
 
       if (googleUser == null) {
         print('Google Sign In cancelled by user');
-        return null;
+        throw Exception('Đăng nhập Google bị hủy bởi người dùng');
       }
 
       print('Google user: ${googleUser.email}');
@@ -44,11 +72,12 @@ class AuthService {
       );
 
       _currentUser = user;
-      await _saveUserData(user);
+      await _saveUserDataWithTimestamp(user);
+      print('Google Sign In successful for: ${user.email}');
       return user;
     } catch (e) {
       print('Error signing in with Google: $e');
-      return null;
+      throw Exception('Đăng nhập Google thất bại: $e');
     }
   }
 
@@ -68,7 +97,10 @@ class AuthService {
 
         // Tạo user với field names đúng theo model
         final user = User(
-          id: userData['id'].hashCode, // Convert string to int
+          id:
+              (userData['id'] ??
+                      DateTime.now().millisecondsSinceEpoch.toString())
+                  .hashCode,
           hoTen: userData['name'] ?? 'Facebook User',
           email: userData['email'] ?? 'facebook@example.com',
           anhDaiDien: userData['picture']?['data']?['url'],
@@ -78,14 +110,15 @@ class AuthService {
 
         _currentUser = user;
         await _saveUserData(user);
+        print('Facebook Sign In successful for: ${user.email}');
         return user;
       } else {
         print('Facebook login failed: ${loginResult.message}');
-        return null;
+        throw Exception('Đăng nhập Facebook thất bại: ${loginResult.message}');
       }
     } catch (e) {
       print('Error signing in with Facebook: $e');
-      return null;
+      throw Exception('Đăng nhập Facebook thất bại: $e');
     }
   }
 
@@ -105,7 +138,7 @@ class AuthService {
         );
 
         _currentUser = user;
-        await _saveUserData(user);
+        await _saveUserDataWithTimestamp(user);
         return user;
       }
 
@@ -136,7 +169,7 @@ class AuthService {
         );
 
         _currentUser = user;
-        await _saveUserData(user);
+        await _saveUserDataWithTimestamp(user);
         return user;
       }
 
@@ -152,8 +185,7 @@ class AuthService {
     try {
       await _googleSignIn.signOut();
       await FacebookAuth.instance.logOut();
-      await _clearUserData();
-      _currentUser = null;
+      await _clearAllUserData();
       print('User signed out');
     } catch (e) {
       print('Error signing out: $e');
@@ -162,16 +194,118 @@ class AuthService {
 
   // Kiểm tra trạng thái đăng nhập
   Future<bool> isSignedIn() async {
-    if (_currentUser != null) return true;
+    return await isAuthenticated;
+  }
 
-    // Kiểm tra shared preferences
-    final userData = await _getUserData();
-    if (userData != null) {
-      _currentUser = userData;
-      return true;
+  // Lấy thông tin provider hiện tại của user
+  List<String> getCurrentProviders() {
+    if (_currentUser == null) return [];
+
+    // Dựa vào thông tin user để xác định provider
+    // Nếu có Google ID hoặc email từ Google
+    if (_currentUser!.email.contains('@gmail.com')) {
+      return ['Google'];
     }
 
-    return false;
+    // Có thể thêm logic khác để detect Facebook
+    // Hiện tại chỉ return generic provider
+    return ['Email/Password'];
+  }
+
+  // Lấy tên provider chính (provider đầu tiên)
+  String? getPrimaryProvider() {
+    final providers = getCurrentProviders();
+    return providers.isNotEmpty ? providers.first : null;
+  }
+
+  // Session management methods
+  Future<void> _saveUserDataWithTimestamp(User user) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final userJson = json.encode(user.toJson());
+      final currentTime = DateTime.now().toIso8601String();
+
+      // Save user data
+      await prefs.setString(_userDataKey, userJson);
+
+      // Save login timestamp
+      await prefs.setString(_loginTimeKey, currentTime);
+
+      // Generate and save session token
+      final sessionToken = _generateSessionToken(user);
+      await _secureStorage.write(key: _sessionTokenKey, value: sessionToken);
+
+      print('User data and session saved successfully');
+    } catch (e) {
+      print('Error saving user data with timestamp: $e');
+    }
+  }
+
+  Future<DateTime?> _getLoginTime() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final loginTimeStr = prefs.getString(_loginTimeKey);
+
+      if (loginTimeStr != null) {
+        return DateTime.parse(loginTimeStr);
+      }
+
+      return null;
+    } catch (e) {
+      print('Error getting login time: $e');
+      return null;
+    }
+  }
+
+  Future<void> _loadUserFromStorage() async {
+    try {
+      // Check if session is valid first
+      if (!await isSessionValid) {
+        print('Session expired, clearing user data');
+        await _clearAllUserData();
+        return;
+      }
+
+      final prefs = await SharedPreferences.getInstance();
+      final userJson = prefs.getString(_userDataKey);
+
+      if (userJson != null) {
+        final userMap = json.decode(userJson) as Map<String, dynamic>;
+        _currentUser = User.fromJson(userMap);
+        print('User loaded from storage: ${_currentUser?.email}');
+      }
+    } catch (e) {
+      print('Error loading user from storage: $e');
+      await _clearAllUserData();
+    }
+  }
+
+  String _generateSessionToken(User user) {
+    final timestamp = DateTime.now().millisecondsSinceEpoch;
+    final data = '${user.id}_${user.email}_$timestamp';
+    return base64Encode(utf8.encode(data));
+  }
+
+  Future<void> _clearAllUserData() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_userDataKey);
+      await prefs.remove(_loginTimeKey);
+      await _secureStorage.delete(key: _sessionTokenKey);
+
+      _currentUser = null;
+      print('All user data cleared');
+    } catch (e) {
+      print('Error clearing all user data: $e');
+    }
+  }
+
+  // Auto logout when session expires
+  Future<void> checkAndHandleExpiredSession() async {
+    if (_currentUser != null && !await isSessionValid) {
+      print('Session expired, logging out user');
+      await signOut();
+    }
   }
 
   // Lưu thông tin user vào SharedPreferences
@@ -186,42 +320,16 @@ class AuthService {
     }
   }
 
-  // Lấy thông tin user từ SharedPreferences
-  Future<User?> _getUserData() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final userJson = prefs.getString('user_data');
-
-      if (userJson != null) {
-        final userMap = json.decode(userJson) as Map<String, dynamic>;
-        return User.fromJson(userMap);
-      }
-
-      return null;
-    } catch (e) {
-      print('Error getting user data: $e');
-      return null;
-    }
-  }
-
-  // Xóa thông tin user khỏi SharedPreferences
-  Future<void> _clearUserData() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.remove('user_data');
-      print('User data cleared from SharedPreferences');
-    } catch (e) {
-      print('Error clearing user data: $e');
-    }
-  }
-
   // Khởi tạo và kiểm tra user khi app start
   Future<void> initialize() async {
     try {
-      final userData = await _getUserData();
-      if (userData != null) {
-        _currentUser = userData;
-        print('User restored from SharedPreferences: ${userData.email}');
+      await _loadUserFromStorage();
+      await checkAndHandleExpiredSession();
+
+      if (_currentUser != null) {
+        print('User session restored: ${_currentUser!.email}');
+      } else {
+        print('No valid user session found');
       }
     } catch (e) {
       print('Error initializing AuthService: $e');

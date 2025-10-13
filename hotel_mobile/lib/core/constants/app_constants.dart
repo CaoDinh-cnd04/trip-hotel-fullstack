@@ -1,6 +1,21 @@
 class AppConstants {
-  // API Base URL
-  static const String baseUrl = 'http://localhost:5000/api/v2';
+  // API Base URL Configuration
+  // For different environments
+  static const String _localhostUrl = 'http://localhost:5000/api/v2';
+  static const String _emulatorUrl = 'http://10.0.2.2:5000/api/v2';
+  static const String _iosSimulatorUrl = 'http://127.0.0.1:5000/api/v2';
+
+  // Auto-detect environment or set manually
+  static String get baseUrl {
+    // You can also check Platform.isAndroid, Platform.isIOS here
+    // For now, default to emulator URL which works for Android emulator
+    return _emulatorUrl;
+  }
+
+  // Alternative URLs for different scenarios
+  static const String localhostBaseUrl = _localhostUrl;
+  static const String emulatorBaseUrl = _emulatorUrl;
+  static const String iosSimulatorBaseUrl = _iosSimulatorUrl;
 
   // API Endpoints
   static const String loginEndpoint = '/auth/login';
@@ -9,6 +24,7 @@ class AppConstants {
   static const String hotelsEndpoint = '/khachsan';
   static const String searchHotelsEndpoint = '/khachsan/search';
   static const String bookingEndpoint = '/phieudatphong';
+  static const String promotionsEndpoint = '/khuyenmai';
 
   // Storage Keys
   static const String tokenKey = 'auth_token';

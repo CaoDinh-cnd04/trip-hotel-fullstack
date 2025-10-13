@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:hotel_mobile/data/services/auth_service.dart';
+import 'package:hotel_mobile/core/services/firebase_auth_service.dart';
 import '../../data/services/backend_auth_service.dart';
-import '../../core/services/google_auth_service.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -11,9 +10,8 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final AuthService _authService = AuthService();
+  final FirebaseAuthService _authService = FirebaseAuthService();
   final BackendAuthService _backendAuthService = BackendAuthService();
-  final GoogleAuthService _googleAuthService = GoogleAuthService();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   bool _isLoading = false;
@@ -49,7 +47,7 @@ class _LoginScreenState extends State<LoginScreen> {
             backgroundColor: Colors.green,
           ),
         );
-        Navigator.pushReplacementNamed(context, '/home');
+        Navigator.pushReplacementNamed(context, '/main');
       } else if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -73,18 +71,32 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => _isLoading = true);
 
     try {
-      final userCredential = await _googleAuthService.signInWithGoogle();
+      // Sử dụng Firebase Auth Service
+      final result = await _authService.signInWithGoogle();
 
-      if (userCredential != null && userCredential.user != null && mounted) {
+      if (result.isSuccess && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(
-              'Chào mừng ${userCredential.user!.displayName ?? userCredential.user!.email}!',
-            ),
+            content: Text('Chào mừng ${result.displayName ?? result.email}!'),
             backgroundColor: Colors.green,
           ),
         );
-        Navigator.pushReplacementNamed(context, '/home');
+        Navigator.pushReplacementNamed(context, '/main');
+      } else if (result.isCancelled && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Đăng nhập bị hủy bỏ'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      } else if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(result.error ?? 'Đăng nhập Google thất bại'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 4),
+          ),
+        );
       }
     } catch (e) {
       if (mounted) {
@@ -92,6 +104,7 @@ class _LoginScreenState extends State<LoginScreen> {
           SnackBar(
             content: Text('Lỗi đăng nhập Google: $e'),
             backgroundColor: Colors.red,
+            duration: const Duration(seconds: 4),
           ),
         );
       }
@@ -104,16 +117,17 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => _isLoading = true);
 
     try {
-      final result = await _backendAuthService.signInWithFacebook();
+      // Sử dụng Firebase Auth Service
+      final result = await _authService.signInWithFacebook();
 
       if (result.isSuccess && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Chào mừng ${result.user?.hoTen}!'),
+            content: Text('Chào mừng ${result.displayName ?? result.email}!'),
             backgroundColor: Colors.green,
           ),
         );
-        Navigator.pushReplacementNamed(context, '/home');
+        Navigator.pushReplacementNamed(context, '/main');
       } else if (result.isCancelled && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -126,6 +140,7 @@ class _LoginScreenState extends State<LoginScreen> {
           SnackBar(
             content: Text(result.error ?? 'Đăng nhập Facebook thất bại'),
             backgroundColor: Colors.red,
+            duration: const Duration(seconds: 4),
           ),
         );
       }
@@ -133,8 +148,9 @@ class _LoginScreenState extends State<LoginScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Lỗi kết nối: $e'),
+            content: Text('Lỗi đăng nhập Facebook: $e'),
             backgroundColor: Colors.red,
+            duration: const Duration(seconds: 4),
           ),
         );
       }
@@ -446,7 +462,7 @@ class _LoginScreenState extends State<LoginScreen> {
   Widget _buildGuestModeButton() {
     return TextButton(
       onPressed: () {
-        Navigator.pushReplacementNamed(context, '/home');
+        Navigator.pushReplacementNamed(context, '/main');
       },
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),

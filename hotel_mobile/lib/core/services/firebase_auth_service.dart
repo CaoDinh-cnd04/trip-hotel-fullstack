@@ -1,6 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
-import 'package:flutter/foundation.dart';
+import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
 
 class FirebaseAuthService {
   static final FirebaseAuthService _instance = FirebaseAuthService._internal();
@@ -46,9 +46,65 @@ class FirebaseAuthService {
       print('🔐 Đã tạo Firebase credential');
 
       // Sign in to Firebase with Google credential
-      final UserCredential userCredential = await _auth.signInWithCredential(
-        credential,
-      );
+      UserCredential userCredential;
+      try {
+        userCredential = await _auth.signInWithCredential(credential);
+      } on FirebaseAuthException catch (e) {
+        print('� Firebase Auth Exception: ${e.code}');
+
+        if (e.code == 'account-exists-with-different-credential') {
+          // Account already exists with different credential
+          print('⚠️ Account đã tồn tại với credential khác');
+
+          if (e.email != null) {
+            final List<String> signInMethods = await _auth
+                .fetchSignInMethodsForEmail(e.email!);
+
+            print('📧 Email: ${e.email}');
+            print('🔗 Existing sign-in methods: $signInMethods');
+
+            return FirebaseAuthResult.error(
+              'Tài khoản với email ${e.email} đã tồn tại.\n'
+              'Hãy đăng nhập bằng: ${signInMethods.join(", ")}',
+            );
+          }
+
+          return FirebaseAuthResult.error(
+            'Tài khoản đã tồn tại với phương thức đăng nhập khác.',
+          );
+        }
+
+        return FirebaseAuthResult.error('Lỗi Firebase: ${e.message}');
+      } catch (firebaseError) {
+        print('💥 Lỗi Firebase credential: $firebaseError');
+
+        // Handle PigeonUserDetails error
+        if (firebaseError.toString().contains('PigeonUserDetails')) {
+          print('🐦 Lỗi PigeonUserDetails - checking if auth succeeded...');
+
+          // Wait a moment for auth state to update
+          await Future.delayed(const Duration(milliseconds: 500));
+
+          final User? currentUser = _auth.currentUser;
+          if (currentUser != null) {
+            print(
+              '✅ Authentication thành công despite PigeonUserDetails error',
+            );
+            print('👤 User: ${currentUser.displayName}');
+            print('📧 Email: ${currentUser.email}');
+            print('🆔 UID: ${currentUser.uid}');
+
+            return FirebaseAuthResult.success(currentUser);
+          } else {
+            print('❌ No current user found');
+            return FirebaseAuthResult.error(
+              'Lỗi kết nối Google. Hãy thử lại sau.',
+            );
+          }
+        }
+
+        return FirebaseAuthResult.error('Lỗi Firebase: $firebaseError');
+      }
 
       final User? user = userCredential.user;
 
@@ -68,6 +124,122 @@ class FirebaseAuthService {
     } catch (error) {
       print('💥 Lỗi đăng nhập Google: $error');
       return FirebaseAuthResult.error('Lỗi đăng nhập Google: $error');
+    }
+  }
+
+  /// Đăng nhập bằng Facebook với Firebase
+  Future<FirebaseAuthResult> signInWithFacebook() async {
+    try {
+      print('🚀 Bắt đầu đăng nhập Facebook với Firebase...');
+
+      // Trigger Facebook authentication flow
+      final LoginResult loginResult = await FacebookAuth.instance.login(
+        permissions: ['email', 'public_profile'],
+      );
+
+      if (loginResult.status == LoginStatus.cancelled) {
+        print('❌ User đã hủy đăng nhập Facebook');
+        return FirebaseAuthResult.cancelled();
+      }
+
+      if (loginResult.status == LoginStatus.success) {
+        print('✅ Facebook Sign-In thành công');
+
+        // Create a credential from the access token
+        final OAuthCredential facebookAuthCredential =
+            FacebookAuthProvider.credential(loginResult.accessToken!.token);
+
+        print('🔐 Đã tạo Firebase credential từ Facebook token');
+
+        try {
+          // Sign in to Firebase with Facebook credential
+          final UserCredential userCredential = await _auth
+              .signInWithCredential(facebookAuthCredential);
+
+          final User? user = userCredential.user;
+
+          if (user != null) {
+            print('🎉 Firebase đăng nhập Facebook thành công!');
+            print('👤 User: ${user.displayName}');
+            print('📧 Email: ${user.email}');
+            print('🆔 UID: ${user.uid}');
+
+            return FirebaseAuthResult.success(user);
+          } else {
+            print('❌ Firebase user là null');
+            return FirebaseAuthResult.error(
+              'Không thể lấy thông tin user từ Firebase',
+            );
+          }
+        } on FirebaseAuthException catch (e) {
+          print('🔥 Firebase Auth Exception: ${e.code}');
+
+          if (e.code == 'account-exists-with-different-credential') {
+            // Account already exists with different credential
+            print('⚠️ Account đã tồn tại với credential khác');
+
+            // Thử link credential nếu người dùng đăng nhập bằng phương thức cũ
+            if (e.email != null) {
+              final List<String> methods =
+                  await _auth.fetchSignInMethodsForEmail(e.email!);
+
+              print('📧 Email: ${e.email}');
+              print('🔗 Existing sign-in methods: $methods');
+
+              // Nếu là password: yêu cầu người dùng đăng nhập email trước, sau đó link
+              if (methods.contains('password')) {
+                return FirebaseAuthResult.error(
+                  'Email ${e.email} đã đăng ký bằng Email/Password.\n'
+                  'Hãy đăng nhập bằng Email, sau đó vào hồ sơ để liên kết Facebook.',
+                );
+              }
+
+              // Nếu là Google: thử đăng nhập Google rồi link Facebook
+              if (methods.contains('google.com')) {
+                try {
+                  final googleProvider = GoogleAuthProvider();
+                  final googleCred = await _auth.signInWithProvider(googleProvider);
+                  if (googleCred.user != null) {
+                    await googleCred.user!.linkWithCredential(facebookAuthCredential);
+                    return FirebaseAuthResult.success(googleCred.user!);
+                  }
+                } catch (linkErr) {
+                  print('❌ Link Facebook->Google thất bại: $linkErr');
+                }
+                return FirebaseAuthResult.error(
+                  'Email đã đăng ký bằng Google. Hãy đăng nhập Google rồi liên kết Facebook.',
+                );
+              }
+
+              // Trường hợp khác: trả về hướng dẫn chung
+              return FirebaseAuthResult.error(
+                'Email đã tồn tại với phương thức khác: ${methods.join(', ')}.',
+              );
+            }
+
+            return FirebaseAuthResult.error('Tài khoản đã tồn tại với phương thức khác.');
+          }
+
+          return FirebaseAuthResult.error('Lỗi Firebase: ${e.message}');
+        }
+      } else {
+        print('❌ Facebook login thất bại: ${loginResult.message}');
+        return FirebaseAuthResult.error(
+          'Đăng nhập Facebook thất bại: ${loginResult.message}',
+        );
+      }
+    } catch (error) {
+      print('💥 Lỗi đăng nhập Facebook: $error');
+
+      // Handle specific PigeonUserDetails error
+      if (error.toString().contains('PigeonUserDetails')) {
+        print('🐦 Lỗi PigeonUserDetails - thử lại với cách khác');
+        return FirebaseAuthResult.error(
+          'Lỗi kết nối Facebook. Hãy thử lại sau.',
+        );
+      }
+
+      return FirebaseAuthResult.error('Lỗi đăng nhập Facebook: $error');
     }
   }
 
@@ -168,15 +340,54 @@ class FirebaseAuthService {
     try {
       print('🚪 Đăng xuất...');
 
+      // Lấy thông tin user hiện tại để biết đang dùng provider nào
+      final User? currentUser = _auth.currentUser;
+      List<String> activeProviders = [];
+
+      if (currentUser != null) {
+        // Check which providers are currently linked
+        for (final providerData in currentUser.providerData) {
+          switch (providerData.providerId) {
+            case 'google.com':
+              activeProviders.add('Google');
+              break;
+            case 'facebook.com':
+              activeProviders.add('Facebook');
+              break;
+            case 'password':
+              activeProviders.add('Email/Password');
+              break;
+            default:
+              activeProviders.add(providerData.providerId);
+          }
+        }
+
+        if (activeProviders.isNotEmpty) {
+          print('👤 Đang đăng xuất khỏi: ${activeProviders.join(", ")}');
+        }
+      }
+
       // Đăng xuất khỏi Google
       if (await _googleSignIn.isSignedIn()) {
         await _googleSignIn.signOut();
         print('✅ Đã đăng xuất Google');
       }
 
+      // Đăng xuất khỏi Facebook
+      try {
+        await FacebookAuth.instance.logOut();
+        print('✅ Đã đăng xuất Facebook');
+      } catch (fbError) {
+        print('⚠️ Lỗi đăng xuất Facebook: $fbError');
+      }
+
       // Đăng xuất khỏi Firebase
       await _auth.signOut();
-      print('✅ Đã đăng xuất Firebase');
+      print('✅ Đã đăng xuất khỏi Firebase');
+
+      if (activeProviders.isNotEmpty) {
+        print('🎉 Đăng xuất thành công khỏi ${activeProviders.join(", ")}');
+      }
     } catch (e) {
       print('❌ Lỗi đăng xuất: $e');
     }
@@ -184,6 +395,36 @@ class FirebaseAuthService {
 
   /// Kiểm tra xem user đã đăng nhập chưa
   bool get isSignedIn => _auth.currentUser != null;
+
+  /// Lấy thông tin provider hiện tại của user
+  List<String> getCurrentProviders() {
+    final User? currentUser = _auth.currentUser;
+    if (currentUser == null) return [];
+
+    List<String> providers = [];
+    for (final providerData in currentUser.providerData) {
+      switch (providerData.providerId) {
+        case 'google.com':
+          providers.add('Google');
+          break;
+        case 'facebook.com':
+          providers.add('Facebook');
+          break;
+        case 'password':
+          providers.add('Email/Password');
+          break;
+        default:
+          providers.add(providerData.providerId);
+      }
+    }
+    return providers;
+  }
+
+  /// Lấy tên provider chính (provider đầu tiên)
+  String? getPrimaryProvider() {
+    final providers = getCurrentProviders();
+    return providers.isNotEmpty ? providers.first : null;
+  }
 
   /// Lấy Firebase ID Token (để gửi lên backend)
   Future<String?> getIdToken() async {

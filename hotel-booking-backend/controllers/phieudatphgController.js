@@ -1,6 +1,7 @@
 const PhieuDatPhong = require('../models/phieudatphg');
 const Phong = require('../models/phong');
 const { validationResult } = require('express-validator');
+const nodemailer = require('nodemailer');
 
 const phieudatphgController = {
     // Lấy tất cả phiếu đặt phòng (Admin only)
@@ -130,6 +131,45 @@ const phieudatphgController = {
             }
 
             const newBooking = await phieuDatPhong.createBooking(bookingData);
+
+            // Gửi email thông báo (không chặn response nếu lỗi email)
+            (async () => {
+                try {
+                    if (process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS) {
+                        const transporter = nodemailer.createTransport({
+                            host: process.env.SMTP_HOST,
+                            port: parseInt(process.env.SMTP_PORT || '587'),
+                            secure: process.env.SMTP_SECURE === 'true',
+                            auth: {
+                                user: process.env.SMTP_USER,
+                                pass: process.env.SMTP_PASS
+                            }
+                        });
+
+                        const toEmail = req.user?.email || bookingData.email; // fallback nếu gửi từ body
+                        if (toEmail) {
+                            await transporter.sendMail({
+                                from: process.env.SMTP_FROM || 'no-reply@trip-hotel.local',
+                                to: toEmail,
+                                subject: 'Xác nhận đặt phòng thành công',
+                                html: `
+                                    <h2>Đặt phòng thành công</h2>
+                                    <p>Mã phiếu: <b>${newBooking.ma_phieu_dat_phong || newBooking.id}</b></p>
+                                    <p>Phòng: ${bookingData.ma_phong}</p>
+                                    <p>Nhận phòng: ${bookingData.ngay_checkin}</p>
+                                    <p>Trả phòng: ${bookingData.ngay_checkout}</p>
+                                    <p>Số khách: ${bookingData.so_khach}</p>
+                                    <p>Tổng tiền: ${bookingData.tong_tien}</p>
+                                    <hr/>
+                                    <p>Cảm ơn bạn đã đặt phòng tại Trip Hotel.</p>
+                                `
+                            });
+                        }
+                    }
+                } catch (mailErr) {
+                    console.error('Email booking notification error:', mailErr);
+                }
+            })();
 
             res.status(201).json({
                 success: true,

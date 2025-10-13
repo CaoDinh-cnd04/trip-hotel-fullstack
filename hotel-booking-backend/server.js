@@ -2,6 +2,9 @@
 const express = require('express');
 const dotenv = require('dotenv');
 const cors = require('./middleware/cors');
+const helmet = require('helmet');
+const morgan = require('morgan');
+const rateLimit = require('express-rate-limit');
 const path = require('path');
 const { connect } = require('./config/db');
 
@@ -12,7 +15,18 @@ dotenv.config();
 const app = express();
 
 // Middleware
+app.use(helmet());
 app.use(cors);
+if (process.env.NODE_ENV !== 'test') {
+  app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
+}
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 1000, // limit each IP
+  standardHeaders: true,
+  legacyHeaders: false
+});
+app.use('/api', apiLimiter);
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 

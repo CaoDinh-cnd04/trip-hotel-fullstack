@@ -23,12 +23,17 @@ class GoogleAuthService {
 
         if (googleUser == null) {
           // Người dùng đã hủy đăng nhập
+          print('Google Sign-In cancelled by user');
           return null;
         }
 
         // Lấy thông tin xác thực từ Google
         final GoogleSignInAuthentication googleAuth =
             await googleUser.authentication;
+
+        if (googleAuth.accessToken == null || googleAuth.idToken == null) {
+          throw Exception('Không thể lấy access token hoặc id token từ Google');
+        }
 
         // Tạo credential cho Firebase
         final credential = GoogleAuthProvider.credential(
@@ -37,8 +42,13 @@ class GoogleAuthService {
         );
 
         // Đăng nhập vào Firebase
-        return await _auth.signInWithCredential(credential);
+        final userCredential = await _auth.signInWithCredential(credential);
+        print('Google Sign-In successful: ${userCredential.user?.email}');
+        return userCredential;
       }
+    } on FirebaseAuthException catch (e) {
+      print('Firebase Auth Error: ${e.code} - ${e.message}');
+      throw Exception('Lỗi Firebase Auth: ${e.message}');
     } catch (e) {
       print('Lỗi đăng nhập Google: $e');
       throw Exception('Đăng nhập Google thất bại: $e');
