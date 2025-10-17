@@ -47,12 +47,16 @@ class NguoiDung extends BaseModel {
         email: userData.email,
         mat_khau: hashedPassword,
         sdt: userData.sdt,
-        ngay_sinh: userData.ngay_sinh || null,
         gioi_tinh: userData.gioi_tinh || 'Khác',
         chuc_vu: userData.chuc_vu || 'User',
         anh_dai_dien: userData.anh_dai_dien || '/images/users/default.jpg',
         trang_thai: 1
       };
+      
+      // Only add ngay_sinh if it's provided
+      if (userData.ngay_sinh) {
+        newUser.ngay_sinh = userData.ngay_sinh;
+      }
 
       return await this.create(newUser);
     } catch (error) {

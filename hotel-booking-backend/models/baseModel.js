@@ -3,21 +3,22 @@ const { sql } = require('../config/db');
 
 class BaseModel {
   constructor(tableName, primaryKey = 'id') {
-    this.tableName = tableName;
+    // Add dbo. prefix if not already present
+    this.tableName = tableName.startsWith('dbo.') ? tableName : `dbo.${tableName}`;
     this.primaryKey = primaryKey;
   }
 
   // Execute query with parameters
   async executeQuery(query, params = {}) {
     try {
-      const { connect } = require('../config/db');
-      const pool = await connect();
+      const { getPool } = require('../config/db');
+      const pool = getPool();
       const request = pool.request();
       
       // Add parameters to request
       Object.keys(params).forEach(key => {
         const value = params[key];
-        if (value !== null && value !== undefined) {
+        if (value !== null && value !== undefined && value !== '') {
           request.input(key, value);
         }
       });

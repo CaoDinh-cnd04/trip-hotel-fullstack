@@ -8,6 +8,7 @@ const axios = require('axios');
 
 // Generate JWT Token
 const generateToken = (user) => {
+  const secret = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
   return jwt.sign(
     { 
       id: user.id,
@@ -15,9 +16,41 @@ const generateToken = (user) => {
       chuc_vu: user.chuc_vu,
       ho_ten: user.ho_ten
     },
-    process.env.JWT_SECRET,
+    secret,
     { expiresIn: '24h' }
   );
+};
+
+// Get role permissions
+const getRolePermissions = (role) => {
+  const roleMap = {
+    'admin': [
+      'user:read', 'user:write', 'user:delete',
+      'hotel:read', 'hotel:write', 'hotel:delete',
+      'booking:read', 'booking:write', 'booking:delete',
+      'system:admin'
+    ],
+    'hotelmanager': [
+      'hotel:read', 'hotel:write',
+      'booking:read', 'booking:write',
+      'room:read', 'room:write',
+      'promotion:read', 'promotion:write'
+    ],
+    'hotel_manager': [
+      'hotel:read', 'hotel:write',
+      'booking:read', 'booking:write',
+      'room:read', 'room:write',
+      'promotion:read', 'promotion:write'
+    ],
+    'user': [
+      'booking:read', 'booking:write',
+      'hotel:read',
+      'room:read'
+    ]
+  };
+
+  const normalizedRole = (role || 'user').toLowerCase();
+  return roleMap[normalizedRole] || roleMap['user'];
 };
 
 // Đăng ký
@@ -80,13 +113,20 @@ exports.register = [
       // Remove password from response
       const { mat_khau: _, ...userResponse } = newUser;
 
+      // Prepare role data
+      const roleData = {
+        role: newUser.chuc_vu || 'user',
+        is_active: newUser.trang_thai === 1,
+        permissions: getRolePermissions(newUser.chuc_vu || 'user'),
+        hotel_id: newUser.khach_san_id || null
+      };
+
       res.status(201).json({
         success: true,
         message: 'Đăng ký thành công',
-        data: {
-          user: userResponse,
-          token
-        }
+        user: userResponse,
+        token: token,
+        role: roleData
       });
 
     } catch (error) {
@@ -125,6 +165,7 @@ exports.login = [
       // Check validation errors
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
+        console.log('Validation errors:', errors.array());
         return res.status(400).json({
           success: false,
           message: 'Dữ liệu không hợp lệ',
@@ -133,11 +174,14 @@ exports.login = [
       }
 
       const { email, mat_khau } = req.body;
+      console.log('Login attempt for:', email);
 
       // Verify credentials
       const result = await NguoiDung.verifyPassword(email.toLowerCase(), mat_khau);
+      console.log('Verify password result:', result);
       
       if (!result.success) {
+        console.log('Login failed:', result.message);
         return res.status(401).json({
           success: false,
           message: result.message
@@ -147,13 +191,20 @@ exports.login = [
       // Generate token
       const token = generateToken(result.user);
 
+      // Prepare role data
+      const roleData = {
+        role: result.user.chuc_vu || 'user',
+        is_active: result.user.trang_thai === 1,
+        permissions: getRolePermissions(result.user.chuc_vu || 'user'),
+        hotel_id: result.user.khach_san_id || null
+      };
+
       res.json({
         success: true,
         message: 'Đăng nhập thành công',
-        data: {
-          user: result.user,
-          token
-        }
+        user: result.user,
+        token: token,
+        role: roleData
       });
 
     } catch (error) {
