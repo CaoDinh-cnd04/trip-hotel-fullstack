@@ -3,7 +3,10 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
 import '../models/user.dart';
+import '../models/user_role_model.dart';
+import 'user_role_service.dart';
 
 class AuthService {
   static final AuthService _instance = AuthService._internal();
@@ -12,7 +15,9 @@ class AuthService {
 
   final GoogleSignIn _googleSignIn = GoogleSignIn();
   final FlutterSecureStorage _secureStorage = const FlutterSecureStorage();
+  final UserRoleService _userRoleService = UserRoleService();
   User? _currentUser;
+  UserRoleModel? _currentUserRole;
 
   // Constants for session management
   static const int _sessionDurationDays = 5; // 5 days session
@@ -22,6 +27,7 @@ class AuthService {
 
   // Getter cho current user
   User? get currentUser => _currentUser;
+  UserRoleModel? get currentUserRole => _currentUserRole;
 
   // Check if user session is still valid
   Future<bool> get isSessionValid async {
@@ -43,10 +49,10 @@ class AuthService {
     return _currentUser != null && await isSessionValid;
   }
 
-  // Đăng nhập bằng Google với error handling tốt hơn
+  // Đăng nhập bằng Google với error handling tốt hơn và role management
   Future<User?> signInWithGoogle() async {
     try {
-      print('Starting Google Sign In...');
+      print('🚀 Bắt đầu đăng nhập Google với Firebase...');
 
       // Sign out trước để force chọn account
       await _googleSignIn.signOut();
@@ -55,28 +61,71 @@ class AuthService {
       final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
 
       if (googleUser == null) {
-        print('Google Sign In cancelled by user');
+        print('❌ User đã hủy đăng nhập Google');
         throw Exception('Đăng nhập Google bị hủy bởi người dùng');
       }
 
-      print('Google user: ${googleUser.email}');
+      print('✅ Google Sign-In thành công: ${googleUser.email}');
+
+      // Get auth details from the request
+      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+      print('🔑 Đã lấy được Google auth tokens');
+
+      // Create a new credential
+      final credential = firebase_auth.GoogleAuthProvider.credential(
+        accessToken: googleAuth.accessToken,
+        idToken: googleAuth.idToken,
+      );
+      print('🔐 Đã tạo Firebase credential');
+
+      // Sign in to Firebase with the Google credential
+      final firebase_auth.UserCredential userCredential = 
+          await firebase_auth.FirebaseAuth.instance.signInWithCredential(credential);
+      
+      final firebaseUser = userCredential.user;
+      if (firebaseUser == null) {
+        throw Exception('Firebase authentication failed');
+      }
+
+      print('👤 User: ${firebaseUser.displayName}');
+      print('📧 Email: ${firebaseUser.email}');
+      print('🆔 UID: ${firebaseUser.uid}');
+
+      // Check if user role exists in Firestore
+      UserRoleModel? userRole = await _userRoleService.getCurrentUserRole();
+      
+      if (userRole == null) {
+        // First time login - create user role
+        print('🆕 Tạo user role mới cho lần đầu đăng nhập');
+        userRole = await _userRoleService.createUserRole(
+          uid: firebaseUser.uid,
+          email: firebaseUser.email!,
+          displayName: firebaseUser.displayName ?? 'Google User',
+          photoURL: firebaseUser.photoURL,
+          role: UserRole.user, // Default role
+        );
+      } else {
+        print('✅ User role đã tồn tại: ${userRole.role.displayName}');
+      }
+
+      _currentUserRole = userRole;
 
       // Tạo user với field names đúng theo model
       final user = User(
-        id: googleUser.id.hashCode, // Convert string to int
-        hoTen: googleUser.displayName ?? 'Google User',
-        email: googleUser.email,
-        anhDaiDien: googleUser.photoUrl,
+        id: firebaseUser.uid.hashCode, // Use Firebase UID hash
+        hoTen: firebaseUser.displayName ?? 'Google User',
+        email: firebaseUser.email!,
+        anhDaiDien: firebaseUser.photoURL,
         trangThai: 1,
         createdAt: DateTime.now(),
       );
 
       _currentUser = user;
       await _saveUserDataWithTimestamp(user);
-      print('Google Sign In successful for: ${user.email}');
+      print('✅ Google Sign In hoàn tất với role: ${userRole?.role.displayName ?? 'Unknown'}');
       return user;
     } catch (e) {
-      print('Error signing in with Google: $e');
+      print('❌ Error signing in with Google: $e');
       throw Exception('Đăng nhập Google thất bại: $e');
     }
   }

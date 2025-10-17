@@ -10,8 +10,14 @@ class PersonalOffersCard extends StatelessWidget {
     required this.promoCode,
   });
 
+  bool get hasPersonalData => points > 0 || promoCode.isNotEmpty;
+
   @override
   Widget build(BuildContext context) {
+    if (!hasPersonalData) {
+      return _buildEmptyState(context);
+    }
+
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
       padding: const EdgeInsets.all(20),
@@ -24,7 +30,7 @@ class PersonalOffersCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.blue.withOpacity(0.3),
+            color: Colors.blue.withValues(alpha: 0.3),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),
@@ -38,7 +44,7 @@ class PersonalOffersCard extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.2),
+                  color: Colors.white.withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: const Icon(
@@ -58,21 +64,22 @@ class PersonalOffersCard extends StatelessWidget {
                   ),
                 ),
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: Colors.orange,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Text(
-                  'MỚI',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 10,
-                    fontWeight: FontWeight.bold,
+              if (points > 0 || promoCode.isNotEmpty)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.orange,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Text(
+                    'MỚI',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
-              ),
             ],
           ),
           const SizedBox(height: 16),
@@ -84,21 +91,21 @@ class PersonalOffersCard extends StatelessWidget {
                 child: _buildInfoSection(
                   icon: Icons.stars,
                   title: 'Điểm thưởng',
-                  value: '$points điểm',
-                  subtitle: 'Có thể sử dụng ngay',
+                  value: points > 0 ? '$points điểm' : 'Chưa có điểm',
+                  subtitle: points > 0 ? 'Có thể sử dụng ngay' : 'Đặt phòng để tích điểm',
                 ),
               ),
               Container(
                 width: 1,
                 height: 40,
-                color: Colors.white.withOpacity(0.3),
+                color: Colors.white.withValues(alpha: 0.3),
               ),
               Expanded(
                 child: _buildInfoSection(
                   icon: Icons.local_offer,
                   title: 'Mã giảm giá',
-                  value: promoCode,
-                  subtitle: 'Giảm 15% đơn từ 1M',
+                  value: promoCode.isNotEmpty ? promoCode : 'Chưa có mã',
+                  subtitle: promoCode.isNotEmpty ? 'Giảm 15% đơn từ 1M' : 'Sử dụng mã để tiết kiệm',
                 ),
               ),
             ],
@@ -133,6 +140,77 @@ class PersonalOffersCard extends StatelessWidget {
     );
   }
 
+  Widget _buildEmptyState(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.grey[100],
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey[300]!),
+      ),
+      child: Column(
+        children: [
+          Icon(
+            Icons.account_balance_wallet_outlined,
+            size: 48,
+            color: Colors.grey[400],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'Chưa có ưu đãi cá nhân',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              color: Colors.grey[600],
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Đặt phòng để tích điểm và nhận ưu đãi độc quyền',
+            style: TextStyle(
+              fontSize: 14,
+              color: Colors.grey[500],
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: () {
+                // Navigate to hotel search
+                Navigator.pushNamed(
+                  context,
+                  '/search-results',
+                  arguments: {
+                    'location': 'Tất cả khách sạn',
+                    'checkInDate': DateTime.now().add(const Duration(days: 1)),
+                    'checkOutDate': DateTime.now().add(const Duration(days: 3)),
+                    'guestCount': 2,
+                    'roomCount': 1,
+                  },
+                );
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF2196F3),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              child: const Text(
+                'Khám phá khách sạn',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildInfoSection({
     required IconData icon,
     required String title,
@@ -151,7 +229,7 @@ class PersonalOffersCard extends StatelessWidget {
               Text(
                 title,
                 style: TextStyle(
-                  color: Colors.white.withOpacity(0.9),
+                  color: Colors.white.withValues(alpha: 0.9),
                   fontSize: 12,
                 ),
               ),
@@ -169,7 +247,7 @@ class PersonalOffersCard extends StatelessWidget {
           Text(
             subtitle,
             style: TextStyle(
-              color: Colors.white.withOpacity(0.8),
+              color: Colors.white.withValues(alpha: 0.8),
               fontSize: 11,
             ),
           ),

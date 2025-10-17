@@ -249,6 +249,7 @@ class _ProfileScreenState extends State<ProfileScreen>
     return AccountMenu(authService: _authService, onLogout: _handleLogout);
   }
 
+
   void _showBookingDetail(Booking booking) {
     showModalBottomSheet(
       context: context,

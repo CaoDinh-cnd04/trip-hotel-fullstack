@@ -1,7 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:hotel_mobile/data/services/auth_service.dart';
 import '../screens/profile/my_vouchers_screen.dart';
-import '../screens/demo/promotion_test_screen.dart';
+import '../screens/profile/personal_info_screen.dart';
+import '../screens/profile/favorites_screen.dart';
+import '../screens/profile/search_history_screen.dart';
+import '../screens/profile/security_screen.dart';
+import '../screens/profile/notifications_screen.dart';
+import '../screens/profile/payment_management_screen.dart';
+import '../screens/profile/booking_history_screen.dart';
 
 class AccountMenu extends StatelessWidget {
   final AuthService authService;
@@ -18,25 +24,36 @@ class AccountMenu extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
+        // Bookings Section
+        _buildSectionHeader('Đặt phòng'),
+        _buildMenuItem(
+          icon: Icons.hotel,
+          title: 'Lịch sử đặt phòng',
+          subtitle: 'Xem các đặt phòng đã thực hiện',
+          onTap: () => _navigateToBookingHistory(context),
+        ),
+
+        const SizedBox(height: 24),
+
         // Personal Section
         _buildSectionHeader('Cá nhân'),
         _buildMenuItem(
           icon: Icons.person_outline,
           title: 'Thông tin cá nhân',
           subtitle: 'Chỉnh sửa thông tin và ảnh đại diện',
-          onTap: () => _showComingSoon(context),
+          onTap: () => _navigateToPersonalInfo(context),
         ),
         _buildMenuItem(
           icon: Icons.history,
           title: 'Lịch sử tìm kiếm',
           subtitle: 'Xem các tìm kiếm gần đây',
-          onTap: () => _showComingSoon(context),
+          onTap: () => _navigateToSearchHistory(context),
         ),
         _buildMenuItem(
           icon: Icons.favorite_outline,
           title: 'Danh sách yêu thích',
           subtitle: 'Khách sạn đã lưu',
-          onTap: () => _showComingSoon(context),
+          onTap: () => _navigateToFavorites(context),
         ),
 
         const SizedBox(height: 24),
@@ -47,7 +64,7 @@ class AccountMenu extends StatelessWidget {
           icon: Icons.payment,
           title: 'Quản lý thanh toán',
           subtitle: 'Thẻ tín dụng và phương thức thanh toán',
-          onTap: () => _showComingSoon(context),
+          onTap: () => _navigateToPaymentManagement(context),
         ),
         _buildMenuItem(
           icon: Icons.local_offer,
@@ -90,28 +107,22 @@ class AccountMenu extends StatelessWidget {
         // Settings Section
         _buildSectionHeader('Cài đặt'),
         _buildMenuItem(
-          icon: Icons.bug_report,
-          title: 'Test API (Debug)',
-          subtitle: 'Test promotion và voucher API',
-          onTap: () => _navigateToPromotionTest(context),
-        ),
-        _buildMenuItem(
           icon: Icons.notifications,
           title: 'Thông báo',
           subtitle: 'Cài đặt thông báo và email',
-          onTap: () => _showComingSoon(context),
+          onTap: () => _navigateToNotifications(context),
         ),
         _buildMenuItem(
           icon: Icons.language,
           title: 'Ngôn ngữ',
           subtitle: 'Tiếng Việt',
-          onTap: () => _showComingSoon(context),
+          onTap: () => _showLanguageDialog(context),
         ),
         _buildMenuItem(
           icon: Icons.security,
           title: 'Bảo mật',
           subtitle: 'Đổi mật khẩu và bảo mật tài khoản',
-          onTap: () => _showComingSoon(context),
+          onTap: () => _navigateToSecurity(context),
         ),
 
         const SizedBox(height: 32),
@@ -331,10 +342,96 @@ class AccountMenu extends StatelessWidget {
     );
   }
 
-  void _navigateToPromotionTest(BuildContext context) {
+  void _navigateToPersonalInfo(BuildContext context) {
     Navigator.push(
       context,
-      MaterialPageRoute(builder: (context) => const PromotionTestScreen()),
+      MaterialPageRoute(builder: (context) => const PersonalInfoScreen()),
+    );
+  }
+
+  void _navigateToFavorites(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const FavoritesScreen()),
+    );
+  }
+
+  void _navigateToSearchHistory(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const SearchHistoryScreen()),
+    );
+  }
+
+  void _navigateToSecurity(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const SecurityScreen()),
+    );
+  }
+
+  void _navigateToNotifications(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const NotificationsScreen()),
+    );
+  }
+
+  void _navigateToPaymentManagement(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const PaymentManagementScreen()),
+    );
+  }
+
+  void _navigateToBookingHistory(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const BookingHistoryScreen()),
+    );
+  }
+
+  void _showLanguageDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Chọn ngôn ngữ'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            RadioListTile<String>(
+              title: const Text('Tiếng Việt'),
+              subtitle: const Text('Vietnamese'),
+              value: 'vi',
+              groupValue: 'vi',
+              onChanged: (value) {
+                Navigator.of(context).pop();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Đã chọn Tiếng Việt')),
+                );
+              },
+            ),
+            RadioListTile<String>(
+              title: const Text('English'),
+              subtitle: const Text('English'),
+              value: 'en',
+              groupValue: 'vi',
+              onChanged: (value) {
+                Navigator.of(context).pop();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('English selected')),
+                );
+              },
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Hủy'),
+          ),
+        ],
+      ),
     );
   }
 }

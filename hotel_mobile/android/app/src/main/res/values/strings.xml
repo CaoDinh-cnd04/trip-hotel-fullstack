@@ -8,5 +8,5 @@
     <string name="facebook_client_token">fc8b15717a4dbf3e51fdc602226abb78</string>
     
     <!-- Google Maps API Key (thay bằng key thật của bạn) -->
-    <string name="google_maps_api_key">YOUR_GOOGLE_MAPS_API_KEY</string>
+    <string name="google_maps_api_key">AIzaSyBzK9QAJOGHd5VQEwczU02fEm31GQpJj7k</string>
 </resources>

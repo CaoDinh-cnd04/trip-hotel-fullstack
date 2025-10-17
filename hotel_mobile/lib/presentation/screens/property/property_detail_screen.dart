@@ -6,6 +6,7 @@ import 'package:hotel_mobile/presentation/widgets/property_info_section.dart';
 import 'package:hotel_mobile/presentation/widgets/amenities_section.dart';
 import 'package:hotel_mobile/presentation/widgets/room_selection_section.dart';
 import 'package:hotel_mobile/presentation/widgets/bottom_cta_bar.dart';
+import 'package:hotel_mobile/presentation/screens/payment/payment_screen.dart';
 
 class PropertyDetailScreen extends StatefulWidget {
   final Hotel hotel;
@@ -30,6 +31,10 @@ class _PropertyDetailScreenState extends State<PropertyDetailScreen> {
   List<Room> _rooms = [];
   bool _isLoadingRooms = true;
   double? _lowestPrice;
+  
+  // Price selection state
+  int _selectedPriceOption = 0; // 0: non-refundable, 1: with breakfast
+  double _selectedPrice = 0;
 
   @override
   void initState() {
@@ -103,7 +108,7 @@ class _PropertyDetailScreenState extends State<PropertyDetailScreen> {
 
       setState(() => _isLoadingRooms = false);
     } catch (e) {
-      print('Error loading rooms: $e');
+      // Error loading rooms: $e
       setState(() => _isLoadingRooms = false);
     }
   }
@@ -118,74 +123,110 @@ class _PropertyDetailScreenState extends State<PropertyDetailScreen> {
     );
   }
 
+  void _navigateToPayment(Room room, double selectedPrice) {
+    // Calculate number of nights
+    final checkInDate = widget.checkInDate ?? DateTime.now().add(const Duration(days: 1));
+    final checkOutDate = widget.checkOutDate ?? DateTime.now().add(const Duration(days: 2));
+    final nights = checkOutDate.difference(checkInDate).inDays;
+    
+    // Navigate to payment screen with selected price
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => PaymentScreen(
+          hotel: widget.hotel,
+          room: room,
+          checkInDate: checkInDate,
+          checkOutDate: checkOutDate,
+          guestCount: widget.guestCount,
+          nights: nights,
+          roomPrice: selectedPrice, // Use selected price instead of room base price
+        ),
+      ),
+    );
+  }
+
   Widget _buildRoomOptionsBottomSheet(Room room) {
-    return Container(
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Center(
-            child: Container(
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: Colors.grey[300],
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
+    // Initialize selected price with room's base price
+    if (_selectedPrice == 0) {
+      _selectedPrice = room.giaPhong ?? 0;
+    }
+    
+    return StatefulBuilder(
+      builder: (context, setModalState) {
+        return Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
           ),
-          const SizedBox(height: 24),
-          Text(
-            room.tenLoaiPhong ?? 'Phòng',
-            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 16),
-          _buildPriceOption(
-            'Không hoàn tiền',
-            room.giaPhong ?? 0,
-            'Giá tốt nhất • Không thể hủy',
-            false,
-          ),
-          const SizedBox(height: 12),
-          _buildPriceOption(
-            'Kèm bữa sáng',
-            (room.giaPhong ?? 0) + 200000,
-            'Hủy miễn phí • Bao gồm bữa sáng',
-            true,
-          ),
-          const SizedBox(height: 24),
-          SizedBox(
-            width: double.infinity,
-            height: 50,
-            child: ElevatedButton(
-              onPressed: () {
-                Navigator.pop(context);
-                // Navigate to booking confirmation
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.blue,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[300],
+                    borderRadius: BorderRadius.circular(2),
+                  ),
                 ),
               ),
-              child: const Text(
-                'Tiếp tục đặt phòng',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.white,
+              const SizedBox(height: 24),
+              Text(
+                room.tenLoaiPhong ?? 'Phòng',
+                style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 16),
+              _buildPriceOption(
+                'Không hoàn tiền',
+                room.giaPhong ?? 0,
+                'Giá tốt nhất • Không thể hủy',
+                false,
+                0,
+                setModalState,
+              ),
+              const SizedBox(height: 12),
+              _buildPriceOption(
+                'Kèm bữa sáng',
+                (room.giaPhong ?? 0) + 200000,
+                'Hủy miễn phí • Bao gồm bữa sáng',
+                true,
+                1,
+                setModalState,
+              ),
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                height: 50,
+                child: ElevatedButton(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    _navigateToPayment(room, _selectedPrice);
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blue,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  child: const Text(
+                    'Tiếp tục đặt phòng',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white,
+                    ),
+                  ),
                 ),
               ),
-            ),
+              SizedBox(height: MediaQuery.of(context).padding.bottom),
+            ],
           ),
-          SizedBox(height: MediaQuery.of(context).padding.bottom),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -194,58 +235,94 @@ class _PropertyDetailScreenState extends State<PropertyDetailScreen> {
     double price,
     String description,
     bool recommended,
+    int optionIndex,
+    StateSetter setModalState,
   ) {
-    return Container(
-      decoration: BoxDecoration(
-        border: Border.all(
-          color: recommended ? Colors.blue : Colors.grey[300]!,
-          width: recommended ? 2 : 1,
+    final isSelected = _selectedPriceOption == optionIndex;
+    
+    return GestureDetector(
+      onTap: () {
+        setModalState(() {
+          _selectedPriceOption = optionIndex;
+          _selectedPrice = price;
+        });
+      },
+      child: Container(
+        decoration: BoxDecoration(
+          border: Border.all(
+            color: isSelected 
+                ? Colors.blue 
+                : (recommended ? Colors.orange : Colors.grey[300]!),
+            width: isSelected ? 2 : (recommended ? 2 : 1),
+          ),
+          borderRadius: BorderRadius.circular(12),
+          color: isSelected ? Colors.blue.withOpacity(0.05) : Colors.white,
         ),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: ListTile(
-        contentPadding: const EdgeInsets.all(16),
-        title: Row(
-          children: [
-            Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
-            if (recommended) ...[
-              const SizedBox(width: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                decoration: BoxDecoration(
-                  color: Colors.blue,
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: const Text(
-                  'Khuyến nghị',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 10,
-                    fontWeight: FontWeight.w500,
+        child: ListTile(
+          contentPadding: const EdgeInsets.all(16),
+          title: Row(
+            children: [
+              Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
+              if (recommended) ...[
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: Colors.blue,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: const Text(
+                    'Khuyến nghị',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
                 ),
+              ],
+            ],
+          ),
+          subtitle: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SizedBox(height: 4),
+              Text(
+                description,
+                style: TextStyle(color: Colors.grey[600], fontSize: 12),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    '${_formatPrice(price)}/đêm',
+                    style: const TextStyle(
+                      color: Colors.blue,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  if (isSelected)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.blue,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: const Text(
+                        'Đã chọn',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                ],
               ),
             ],
-          ],
-        ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const SizedBox(height: 4),
-            Text(
-              description,
-              style: TextStyle(color: Colors.grey[600], fontSize: 12),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              '${_formatPrice(price)}/đêm',
-              style: const TextStyle(
-                color: Colors.blue,
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );

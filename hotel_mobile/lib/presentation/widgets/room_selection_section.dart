@@ -23,6 +23,8 @@ class RoomSelectionSection extends StatefulWidget {
 
 class _RoomSelectionSectionState extends State<RoomSelectionSection> {
   final Map<int, bool> _expandedStates = {};
+  int? _selectedRoomId;
+  int? _selectedPricingOption; // 0: Không hoàn tiền, 1: Kèm bữa sáng
 
   int? get _numberOfNights {
     if (widget.checkInDate != null && widget.checkOutDate != null) {
@@ -88,37 +90,51 @@ class _RoomSelectionSectionState extends State<RoomSelectionSection> {
 
   Widget _buildRoomCard(Room room, int index) {
     final roomImages = room.hinhAnhPhong ?? [];
+    final isSelected = _selectedRoomId == room.id;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey[300]!),
+        border: Border.all(
+          color: isSelected ? Colors.blue : Colors.grey[300]!,
+          width: isSelected ? 2 : 1,
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
-            blurRadius: 4,
+            color: isSelected 
+                ? Colors.blue.withValues(alpha: 0.1) 
+                : Colors.grey.withValues(alpha: 0.1),
+            blurRadius: isSelected ? 8 : 4,
             offset: const Offset(0, 2),
           ),
         ],
       ),
-      child: ExpansionTile(
-        tilePadding: EdgeInsets.zero,
-        childrenPadding: EdgeInsets.zero,
-        onExpansionChanged: (expanded) {
+      child: InkWell(
+        onTap: () {
           setState(() {
-            _expandedStates[index] = expanded;
+            _selectedRoomId = room.id;
           });
         },
-        leading: null,
-        title: _buildRoomHeader(room, roomImages),
-        children: [_buildRoomDetails(room)],
+        borderRadius: BorderRadius.circular(12),
+        child: ExpansionTile(
+          tilePadding: EdgeInsets.zero,
+          childrenPadding: EdgeInsets.zero,
+          onExpansionChanged: (expanded) {
+            setState(() {
+              _expandedStates[index] = expanded;
+            });
+          },
+          leading: null,
+          title: _buildRoomHeader(room, roomImages, isSelected),
+          children: [_buildRoomDetails(room)],
+        ),
       ),
     );
   }
 
-  Widget _buildRoomHeader(Room room, List<String> roomImages) {
+  Widget _buildRoomHeader(Room room, List<String> roomImages, bool isSelected) {
     return Container(
       padding: const EdgeInsets.all(16),
       child: Row(
@@ -184,6 +200,22 @@ class _RoomSelectionSectionState extends State<RoomSelectionSection> {
               ],
             ),
           ),
+          
+          // Selection indicator
+          if (isSelected)
+            Container(
+              width: 24,
+              height: 24,
+              decoration: const BoxDecoration(
+                color: Colors.blue,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.check,
+                color: Colors.white,
+                size: 16,
+              ),
+            ),
         ],
       ),
     );
@@ -275,6 +307,7 @@ class _RoomSelectionSectionState extends State<RoomSelectionSection> {
             'Giá tốt nhất • Không thể hủy',
             false,
             room,
+            0,
           ),
           const SizedBox(height: 8),
           _buildPricingOption(
@@ -283,6 +316,7 @@ class _RoomSelectionSectionState extends State<RoomSelectionSection> {
             'Hủy miễn phí • Bao gồm bữa sáng',
             true,
             room,
+            1,
           ),
         ],
       ),
@@ -338,14 +372,17 @@ class _RoomSelectionSectionState extends State<RoomSelectionSection> {
     String description,
     bool recommended,
     Room room,
+    int optionIndex,
   ) {
+    final isSelected = _selectedRoomId == room.id && _selectedPricingOption == optionIndex;
+    
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
-          color: recommended ? Colors.blue : Colors.grey[300]!,
-          width: recommended ? 2 : 1,
+          color: isSelected ? Colors.blue : (recommended ? Colors.orange : Colors.grey[300]!),
+          width: isSelected ? 2 : (recommended ? 2 : 1),
         ),
       ),
       child: ListTile(
@@ -403,18 +440,24 @@ class _RoomSelectionSectionState extends State<RoomSelectionSection> {
                 SizedBox(
                   height: 32,
                   child: ElevatedButton(
-                    onPressed: () => widget.onRoomSelected(room),
+                    onPressed: () {
+                      setState(() {
+                        _selectedRoomId = room.id;
+                        _selectedPricingOption = optionIndex;
+                      });
+                      widget.onRoomSelected(room);
+                    },
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blue,
+                      backgroundColor: isSelected ? Colors.green : Colors.blue,
                       foregroundColor: Colors.white,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(6),
                       ),
                       padding: const EdgeInsets.symmetric(horizontal: 16),
                     ),
-                    child: const Text(
-                      'Chọn',
-                      style: TextStyle(
+                    child: Text(
+                      isSelected ? 'Đã chọn' : 'Chọn',
+                      style: const TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
                       ),
@@ -435,6 +478,6 @@ class _RoomSelectionSectionState extends State<RoomSelectionSection> {
     } else if (price >= 1000) {
       return '${(price / 1000).toStringAsFixed(0)}K';
     }
-    return '${price.toStringAsFixed(0)}';
+    return price.toStringAsFixed(0);
   }
 }

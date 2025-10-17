@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-enum PaymentMethod { creditCard, eWallet, hotelPayment }
+enum PaymentMethod { creditCard, eWallet, hotelPayment, vnpay, vietqr }
 
 class PaymentOptions extends StatefulWidget {
   final PaymentMethod selectedMethod;
@@ -88,6 +88,28 @@ class _PaymentOptionsState extends State<PaymentOptions> {
               iconColor: Colors.orange[600]!,
             ),
 
+            const SizedBox(height: 12),
+
+            // VNPay
+            _buildPaymentOption(
+              method: PaymentMethod.vnpay,
+              title: 'VNPay',
+              subtitle: 'Thanh toán qua VNPay Gateway',
+              icon: Icons.payment,
+              iconColor: Colors.red[600]!,
+            ),
+
+            const SizedBox(height: 12),
+
+            // VietQR
+            _buildPaymentOption(
+              method: PaymentMethod.vietqr,
+              title: 'VietQR',
+              subtitle: 'Quét mã QR để thanh toán',
+              icon: Icons.qr_code,
+              iconColor: Colors.purple[600]!,
+            ),
+
             const SizedBox(height: 16),
 
             // Thông tin bổ sung cho phương thức được chọn
@@ -97,6 +119,10 @@ class _PaymentOptionsState extends State<PaymentOptions> {
               _buildEWalletInfo(),
             if (widget.selectedMethod == PaymentMethod.hotelPayment)
               _buildHotelPaymentInfo(),
+            if (widget.selectedMethod == PaymentMethod.vnpay)
+              _buildVNPayInfo(),
+            if (widget.selectedMethod == PaymentMethod.vietqr)
+              _buildVietQRInfo(),
           ],
         ),
       ),
@@ -277,6 +303,94 @@ class _PaymentOptionsState extends State<PaymentOptions> {
                 child: Text(
                   'Có thể hủy miễn phí trước 24h',
                   style: TextStyle(fontSize: 11, color: Colors.orange[600]),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildVNPayInfo() {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.red[50],
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.red[200]!),
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Icon(Icons.payment, color: Colors.red[600], size: 20),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Thanh toán qua VNPay Gateway an toàn',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.red[700],
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Icon(Icons.security, color: Colors.red[600], size: 16),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  'Hỗ trợ thẻ ATM, Internet Banking, Ví điện tử',
+                  style: TextStyle(fontSize: 11, color: Colors.red[600]),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildVietQRInfo() {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.purple[50],
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.purple[200]!),
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Icon(Icons.qr_code, color: Colors.purple[600], size: 20),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Quét mã QR để thanh toán nhanh chóng',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.purple[700],
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Icon(Icons.speed, color: Colors.purple[600], size: 16),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  'Thanh toán tức thì, không cần nhập thông tin',
+                  style: TextStyle(fontSize: 11, color: Colors.purple[600]),
                 ),
               ),
             ],

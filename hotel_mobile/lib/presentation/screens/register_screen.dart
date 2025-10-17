@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:hotel_mobile/data/services/auth_service.dart';
+import 'package:hotel_mobile/data/services/backend_auth_service.dart';
+import 'package:hotel_mobile/data/models/user_role_model.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -9,7 +10,7 @@ class RegisterScreen extends StatefulWidget {
 }
 
 class _RegisterScreenState extends State<RegisterScreen> {
-  final AuthService _authService = AuthService();
+  final BackendAuthService _authService = BackendAuthService();
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
@@ -53,27 +54,78 @@ class _RegisterScreenState extends State<RegisterScreen> {
       return;
     }
 
+    // Kiểm tra mật khẩu có chứa chữ hoa, chữ thường và số
+    if (!RegExp(r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)').hasMatch(_passwordController.text)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Mật khẩu phải chứa ít nhất 1 chữ hoa, 1 chữ thường và 1 số')),
+      );
+      return;
+    }
+
+    // Kiểm tra email hợp lệ
+    if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(_emailController.text)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Email không hợp lệ')),
+      );
+      return;
+    }
+
+    // Kiểm tra tên không được quá ngắn
+    if (_nameController.text.trim().length < 2) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Họ và tên phải có ít nhất 2 ký tự')),
+      );
+      return;
+    }
+
     setState(() => _isLoading = true);
 
     try {
-      final user = await _authService.registerWithEmailPassword(
-        _emailController.text,
-        _passwordController.text,
-        _nameController.text,
+      final result = await _authService.signUp(
+        hoTen: _nameController.text,
+        email: _emailController.text,
+        matKhau: _passwordController.text,
+        sdt: '0123456789', // Số điện thoại mặc định để tránh lỗi validation
       );
 
-      if (user != null && mounted) {
+      if (result.isSuccess && mounted) {
+        // Get role information
+        String roleMessage = '';
+        if (result.userRole != null) {
+          switch (result.userRole!.role) {
+            case UserRole.admin:
+              roleMessage = ' (Quản trị viên)';
+              break;
+            case UserRole.hotelManager:
+              roleMessage = ' (Quản lý khách sạn)';
+              break;
+            case UserRole.user:
+              roleMessage = ' (Người dùng)';
+              break;
+          }
+        }
+
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Đăng ký thành công!'),
+          SnackBar(
+            content: Text(
+              'Đăng ký thành công! Chào mừng ${result.user?.hoTen}$roleMessage!',
+            ),
             backgroundColor: Colors.green,
           ),
         );
-        Navigator.pushReplacementNamed(context, '/home');
+
+        // Navigate based on role
+        if (result.userRole?.role == UserRole.admin) {
+          Navigator.pushReplacementNamed(context, '/admin/dashboard');
+        } else if (result.userRole?.role == UserRole.hotelManager) {
+          Navigator.pushReplacementNamed(context, '/hotel-manager/dashboard');
+        } else {
+          Navigator.pushReplacementNamed(context, '/main');
+        }
       } else {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('Đăng ký thất bại')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(result.error ?? 'Đăng ký thất bại')),
+        );
       }
     } catch (e) {
       ScaffoldMessenger.of(
@@ -88,9 +140,58 @@ class _RegisterScreenState extends State<RegisterScreen> {
     setState(() => _isLoading = true);
 
     try {
-      final user = await _authService.signInWithGoogle();
-      if (user != null && mounted) {
-        Navigator.pushReplacementNamed(context, '/home');
+      // Sử dụng Backend Auth Service cho Google
+      final result = await _authService.signInWithGoogle();
+
+      if (result.isSuccess && mounted) {
+        // Get role information
+        String roleMessage = '';
+        if (result.userRole != null) {
+          switch (result.userRole!.role) {
+            case UserRole.admin:
+              roleMessage = ' (Quản trị viên)';
+              break;
+            case UserRole.hotelManager:
+              roleMessage = ' (Quản lý khách sạn)';
+              break;
+            case UserRole.user:
+              roleMessage = ' (Người dùng)';
+              break;
+          }
+        }
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Đăng ký thành công! Chào mừng ${result.user?.hoTen}$roleMessage!',
+            ),
+            backgroundColor: Colors.green,
+          ),
+        );
+
+        // Navigate based on role
+        if (result.userRole?.role == UserRole.admin) {
+          Navigator.pushReplacementNamed(context, '/admin/dashboard');
+        } else if (result.userRole?.role == UserRole.hotelManager) {
+          Navigator.pushReplacementNamed(context, '/hotel-manager/dashboard');
+        } else {
+          Navigator.pushReplacementNamed(context, '/main');
+        }
+      } else if (result.isCancelled && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Đăng ký bị hủy bỏ'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      } else if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(result.error ?? 'Đăng ký Google thất bại'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 4),
+          ),
+        );
       }
     } catch (e) {
       if (mounted) {
@@ -107,9 +208,58 @@ class _RegisterScreenState extends State<RegisterScreen> {
     setState(() => _isLoading = true);
 
     try {
-      final user = await _authService.signInWithFacebook();
-      if (user != null && mounted) {
-        Navigator.pushReplacementNamed(context, '/home');
+      // Sử dụng Backend Auth Service cho Facebook
+      final result = await _authService.signInWithFacebook();
+
+      if (result.isSuccess && mounted) {
+        // Get role information
+        String roleMessage = '';
+        if (result.userRole != null) {
+          switch (result.userRole!.role) {
+            case UserRole.admin:
+              roleMessage = ' (Quản trị viên)';
+              break;
+            case UserRole.hotelManager:
+              roleMessage = ' (Quản lý khách sạn)';
+              break;
+            case UserRole.user:
+              roleMessage = ' (Người dùng)';
+              break;
+          }
+        }
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Đăng ký thành công! Chào mừng ${result.user?.hoTen}$roleMessage!',
+            ),
+            backgroundColor: Colors.green,
+          ),
+        );
+
+        // Navigate based on role
+        if (result.userRole?.role == UserRole.admin) {
+          Navigator.pushReplacementNamed(context, '/admin/dashboard');
+        } else if (result.userRole?.role == UserRole.hotelManager) {
+          Navigator.pushReplacementNamed(context, '/hotel-manager/dashboard');
+        } else {
+          Navigator.pushReplacementNamed(context, '/main');
+        }
+      } else if (result.isCancelled && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Đăng ký bị hủy bỏ'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      } else if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(result.error ?? 'Đăng ký Facebook thất bại'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 4),
+          ),
+        );
       }
     } catch (e) {
       if (mounted) {
@@ -176,7 +326,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         Container(
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.2),
+            color: Colors.white.withValues(alpha: 0.2),
             shape: BoxShape.circle,
           ),
           child: const Icon(Icons.hotel, size: 60, color: Colors.white),
@@ -195,7 +345,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         Text(
           'Tham gia cùng chúng tôi để khám phá thế giới',
           style: TextStyle(
-            color: Colors.white.withOpacity(0.9),
+            color: Colors.white.withValues(alpha: 0.9),
             fontSize: 16,
             fontWeight: FontWeight.w300,
           ),
@@ -213,7 +363,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.1),
+            color: Colors.black.withValues(alpha: 0.1),
             blurRadius: 20,
             offset: const Offset(0, 10),
           ),
@@ -349,18 +499,22 @@ class _RegisterScreenState extends State<RegisterScreen> {
       children: [
         Row(
           children: [
-            Expanded(child: Divider(color: Colors.white.withOpacity(0.5))),
+            Expanded(
+              child: Divider(color: Colors.white.withValues(alpha: 0.5)),
+            ),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Text(
                 'Hoặc đăng ký với',
                 style: TextStyle(
-                  color: Colors.white.withOpacity(0.9),
+                  color: Colors.white.withValues(alpha: 0.9),
                   fontWeight: FontWeight.w500,
                 ),
               ),
             ),
-            Expanded(child: Divider(color: Colors.white.withOpacity(0.5))),
+            Expanded(
+              child: Divider(color: Colors.white.withValues(alpha: 0.5)),
+            ),
           ],
         ),
         const SizedBox(height: 24),
@@ -431,7 +585,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
       children: [
         Text(
           'Đã có tài khoản? ',
-          style: TextStyle(color: Colors.white.withOpacity(0.9), fontSize: 16),
+          style: TextStyle(
+            color: Colors.white.withValues(alpha: 0.9),
+            fontSize: 16,
+          ),
         ),
         TextButton(
           onPressed: () {
@@ -459,7 +616,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
         decoration: BoxDecoration(
-          border: Border.all(color: Colors.white.withOpacity(0.5)),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.5)),
           borderRadius: BorderRadius.circular(25),
         ),
         child: Row(
@@ -467,14 +624,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
           children: [
             Icon(
               Icons.person_outline,
-              color: Colors.white.withOpacity(0.9),
+              color: Colors.white.withValues(alpha: 0.9),
               size: 20,
             ),
             const SizedBox(width: 8),
             Text(
               'Tiếp tục với tư cách khách',
               style: TextStyle(
-                color: Colors.white.withOpacity(0.9),
+                color: Colors.white.withValues(alpha: 0.9),
                 fontSize: 14,
                 fontWeight: FontWeight.w500,
               ),

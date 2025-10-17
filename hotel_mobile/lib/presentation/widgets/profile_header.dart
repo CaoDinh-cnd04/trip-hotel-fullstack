@@ -219,7 +219,11 @@ class ProfileHeader extends StatelessWidget {
   }
 
   String _getMembershipLevel() {
-    // Mock membership level based on user status or bookings
-    return 'Thành viên Vàng';
+    // Determine membership level based on user data
+    if (user?.id != null) {
+      // In a real app, you would check user's booking history, points, etc.
+      return 'Thành viên Vàng';
+    }
+    return 'Thành viên Mới';
   }
 }

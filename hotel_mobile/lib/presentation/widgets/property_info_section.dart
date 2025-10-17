@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:hotel_mobile/data/models/hotel.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class PropertyInfoSection extends StatelessWidget {
   final Hotel hotel;
@@ -261,20 +262,75 @@ class PropertyInfoSection extends StatelessWidget {
     );
   }
 
-  void _showOnMap(BuildContext context) {
-    // TODO: Implement map view
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Xem trên bản đồ'),
-        content: Text('Hiển thị vị trí của ${hotel.ten} trên bản đồ'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Đóng'),
+  void _showOnMap(BuildContext context) async {
+    try {
+      // Get hotel address
+      final address = hotel.diaChi ?? '${hotel.tenViTri ?? ''}, ${hotel.tenTinhThanh ?? ''}, ${hotel.tenQuocGia ?? ''}';
+      
+      // Show loading dialog
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const AlertDialog(
+          content: Row(
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(width: 16),
+              Text('Đang mở bản đồ...'),
+            ],
           ),
-        ],
-      ),
-    );
+        ),
+      );
+
+      // Try to open Google Maps
+      final url = Uri.encodeFull('https://www.google.com/maps/search/?api=1&query=$address');
+      
+      // Use url_launcher to open the map
+      if (await canLaunchUrl(Uri.parse(url))) {
+        await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+        // Close loading dialog
+        if (context.mounted) Navigator.pop(context);
+      } else {
+        // Close loading dialog
+        if (context.mounted) Navigator.pop(context);
+        
+        // Show error dialog
+        if (context.mounted) {
+          showDialog(
+            context: context,
+            builder: (context) => AlertDialog(
+              title: const Text('Lỗi'),
+              content: const Text('Không thể mở bản đồ. Vui lòng cài đặt ứng dụng Google Maps.'),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Đóng'),
+                ),
+              ],
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      // Close loading dialog if still open
+      if (context.mounted) Navigator.pop(context);
+      
+      // Show error dialog
+      if (context.mounted) {
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Lỗi'),
+            content: Text('Không thể mở bản đồ: $e'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Đóng'),
+              ),
+            ],
+          ),
+        );
+      }
+    }
   }
 }

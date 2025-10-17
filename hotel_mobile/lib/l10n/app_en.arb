@@ -1,0 +1,86 @@
+{
+  "@@locale": "en",
+  "appTitle": "Hotel Booking",
+  "@appTitle": {
+    "description": "The title of the application"
+  },
+  
+  "login": "Login",
+  "register": "Register",
+  "email": "Email",
+  "password": "Password",
+  "confirmPassword": "Confirm Password",
+  "fullName": "Full Name",
+  "phoneNumber": "Phone Number",
+  "forgotPassword": "Forgot Password?",
+  "dontHaveAccount": "Don't have an account?",
+  "alreadyHaveAccount": "Already have an account?",
+  "loginWithGoogle": "Login with Google",
+  "loginWithFacebook": "Login with Facebook",
+  
+  "welcome": "Welcome",
+  "searchHotels": "Search Hotels",
+  "popularDestinations": "Popular Destinations",
+  "featuredHotels": "Featured Hotels",
+  "viewAll": "View All",
+  
+  "loading": "Loading...",
+  "error": "Error",
+  "retry": "Retry",
+  "cancel": "Cancel",
+  "ok": "OK",
+  "save": "Save",
+  "edit": "Edit",
+  "delete": "Delete",
+  "search": "Search",
+  
+  "emailRequired": "Please enter email",
+  "emailInvalid": "Invalid email",
+  "passwordRequired": "Please enter password",
+  "passwordTooShort": "Password must be at least 6 characters",
+  "passwordMismatch": "Passwords do not match",
+  "fullNameRequired": "Please enter full name",
+  "phoneRequired": "Please enter phone number",
+  
+  "hotels": "Hotels",
+  "rooms": "Rooms",
+  "bookings": "Bookings",
+  "promotions": "Promotions",
+  "users": "Users",
+  "settings": "Settings",
+  "logout": "Logout",
+  
+  "hotelManagement": "Hotel Management",
+  "roomManagement": "Room Management",
+  "bookingManagement": "Booking Management",
+  "userManagement": "User Management",
+  "promotionManagement": "Promotion Management",
+  
+  "addHotel": "Add Hotel",
+  "addRoom": "Add Room",
+  "addPromotion": "Add Promotion",
+  "addUser": "Add User",
+  
+  "editHotel": "Edit Hotel",
+  "editRoom": "Edit Room",
+  "editPromotion": "Edit Promotion",
+  "editUser": "Edit User",
+  
+  "deleteHotel": "Delete Hotel",
+  "deleteRoom": "Delete Room",
+  "deletePromotion": "Delete Promotion",
+  "deleteUser": "Delete User",
+  
+  "confirmDelete": "Confirm Delete",
+  "areYouSureDelete": "Are you sure you want to delete this item?",
+  
+  "success": "Success",
+  "errorOccurred": "An error occurred",
+  "networkError": "Network error",
+  "pleaseCheckConnection": "Please check your internet connection",
+  
+  "language": "Language",
+  "vietnamese": "Vietnamese",
+  "english": "English",
+  "changeLanguage": "Change Language"
+}

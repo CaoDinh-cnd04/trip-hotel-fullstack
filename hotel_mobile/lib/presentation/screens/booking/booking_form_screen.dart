@@ -120,26 +120,30 @@ class _BookingFormScreenState extends State<BookingFormScreen> {
     // Nếu AuthService (demo) chưa đăng nhập, thử đọc Firebase user
     final bool isFirebaseLoggedIn = FirebaseAuth.instance.currentUser != null;
     if (!isLoggedIn && !isFirebaseLoggedIn) {
-      final snackBar = SnackBar(
-        content: const Text('Vui lòng đăng nhập để tiếp tục thanh toán'),
-        action: SnackBarAction(
-          label: 'Đăng nhập',
-          onPressed: () {
-            Navigator.pushNamed(context, '/login');
-          },
-        ),
-      );
-      ScaffoldMessenger.of(context).showSnackBar(snackBar);
+      if (mounted) {
+        final snackBar = SnackBar(
+          content: const Text('Vui lòng đăng nhập để tiếp tục thanh toán'),
+          action: SnackBarAction(
+            label: 'Đăng nhập',
+            onPressed: () {
+              Navigator.pushNamed(context, '/login');
+            },
+          ),
+        );
+        ScaffoldMessenger.of(context).showSnackBar(snackBar);
+      }
       return;
     }
 
     final currentUser = _authService.currentUser;
     if ((currentUser?.id == null) && !isFirebaseLoggedIn) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Không thể xác định thông tin người dùng'),
-        ),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Không thể xác định thông tin người dùng'),
+          ),
+        );
+      }
       return;
     }
 
@@ -165,17 +169,21 @@ class _BookingFormScreenState extends State<BookingFormScreen> {
       final response = await _apiService.createBooking(booking);
 
       if (response.success) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('Đặt phòng thành công!')));
-        Navigator.of(context).pop(true);
+        if (mounted) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('Đặt phòng thành công!')));
+          Navigator.of(context).pop(true);
+        }
       } else {
         throw Exception(response.message);
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Lỗi khi đặt phòng: ${e.toString()}')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Lỗi khi đặt phòng: ${e.toString()}')),
+        );
+      }
     } finally {
       setState(() {
         _isLoading = false;

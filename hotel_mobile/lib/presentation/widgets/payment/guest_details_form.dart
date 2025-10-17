@@ -4,14 +4,12 @@ class GuestDetailsForm extends StatefulWidget {
   final TextEditingController nameController;
   final TextEditingController emailController;
   final TextEditingController phoneController;
-  final GlobalKey<FormState> formKey;
 
   const GuestDetailsForm({
     super.key,
     required this.nameController,
     required this.emailController,
     required this.phoneController,
-    required this.formKey,
   });
 
   @override
@@ -19,6 +17,12 @@ class GuestDetailsForm extends StatefulWidget {
 }
 
 class _GuestDetailsFormState extends State<GuestDetailsForm> {
+  final _formKey = GlobalKey<FormState>();
+
+  bool validateForm() {
+    return _formKey.currentState?.validate() ?? false;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -41,7 +45,7 @@ class _GuestDetailsFormState extends State<GuestDetailsForm> {
       child: Padding(
         padding: const EdgeInsets.all(20),
         child: Form(
-          key: widget.formKey,
+          key: _formKey,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [

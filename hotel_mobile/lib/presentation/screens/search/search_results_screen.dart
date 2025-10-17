@@ -64,8 +64,11 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
       // Simulate API call with search parameters
       await Future.delayed(const Duration(milliseconds: 800));
 
-      // Mock data - replace with actual API call
-      final response = await _apiService.getHotels();
+      // Call API with location search parameter
+      final response = await _apiService.getHotels(
+        search: widget.location,
+        limit: 50,
+      );
 
       setState(() {
         _hotels = response.data ?? [];

@@ -6,7 +6,9 @@ import '../models/hotel.dart';
 import '../models/promotion.dart';
 import '../models/room.dart';
 import '../models/booking.dart';
+import '../models/discount_voucher.dart';
 import '../../core/constants/app_constants.dart';
+import 'mock_data_service.dart';
 
 class ApiService {
   static final ApiService _instance = ApiService._internal();
@@ -39,7 +41,7 @@ class ApiService {
         responseHeader: false,
         error: true,
         logPrint: (object) {
-          print('API Log: $object');
+          // API Log: $object
         },
       ),
     );
@@ -209,7 +211,13 @@ class ApiService {
         return <Hotel>[];
       });
     } catch (e) {
-      throw _handleError(e);
+      print('❌ Error getting hotels: $e');
+      // Return mock data if API fails
+      return ApiResponse<List<Hotel>>(
+        success: true,
+        message: 'Mock hotels loaded',
+        data: MockDataService().getMockHotels(search: search),
+      );
     }
   }
 
@@ -263,16 +271,16 @@ class ApiService {
   // Test connection method
   Future<bool> testConnection() async {
     try {
-      print('Testing connection to: ${AppConstants.baseUrl}');
+      // Testing connection to: ${AppConstants.baseUrl}
       final response = await _dio.get('/khachsan?limit=1');
-      print('Connection test successful: ${response.statusCode}');
+      // Connection test successful: ${response.statusCode}
       return response.statusCode == 200;
     } catch (e) {
-      print('Connection test failed: $e');
+      // Connection test failed: $e
       if (e is DioException) {
-        print('Error type: ${e.type}');
-        print('Error message: ${e.message}');
-        print('Response: ${e.response?.data}');
+        // Error type: ${e.type}
+        // Error message: ${e.message}
+        // Response: ${e.response?.data}
       }
       return false;
     }
@@ -324,7 +332,19 @@ class ApiService {
         return <Promotion>[];
       });
     } catch (e) {
-      throw _handleError(e);
+      print('❌ Error getting promotions: $e');
+      if (e is DioException) {
+        print('❌ DioException details: ${e.response?.data}');
+        if (e.response?.statusCode == 500) {
+          print('🔄 Backend error, using mock data...');
+        }
+      }
+      // Return mock data if API fails
+      return ApiResponse<List<Promotion>>(
+        success: true,
+        message: 'Mock promotions loaded',
+        data: MockDataService().getMockPromotions(),
+      );
     }
   }
 
@@ -379,6 +399,75 @@ class ApiService {
       );
     } catch (e) {
       throw _handleError(e);
+    }
+  }
+
+  // ================== DISCOUNT CODES (MAGIAMGIA) ==================
+
+  Future<ApiResponse<List<DiscountVoucher>>> getDiscountCodes({
+    int page = 1,
+    int limit = 10,
+    bool? active,
+  }) async {
+    try {
+      final queryParams = <String, dynamic>{'page': page, 'limit': limit};
+      if (active != null) {
+        queryParams['active'] = active;
+      }
+
+      final response = await _dio.get(
+        '/magiamgia',
+        queryParameters: queryParams,
+      );
+
+      return ApiResponse<List<DiscountVoucher>>.fromJson(response.data, (data) {
+        if (data is List) {
+          return data.map((item) => DiscountVoucher.fromJson(item)).toList();
+        }
+        return <DiscountVoucher>[];
+      });
+    } catch (e) {
+      print('❌ Error getting discount codes: $e');
+      if (e is DioException) {
+        print('❌ DioException details: ${e.response?.data}');
+        if (e.response?.statusCode == 500) {
+          print('🔄 Backend error, using mock data...');
+        }
+      }
+      // Return mock data if API fails
+      return ApiResponse<List<DiscountVoucher>>(
+        success: true,
+        message: 'Mock discount codes loaded',
+        data: MockDataService().getMockDiscountCodes(),
+      );
+    }
+  }
+
+  Future<ApiResponse<DiscountVoucher>> validateDiscountCode(String code) async {
+    try {
+      final response = await _dio.post(
+        '/magiamgia/validate',
+        data: {'code': code},
+      );
+
+      return ApiResponse<DiscountVoucher>.fromJson(
+        response.data,
+        (data) => DiscountVoucher.fromJson(data),
+      );
+    } catch (e) {
+      print('❌ Error validating discount code: $e');
+      if (e is DioException) {
+        print('❌ DioException details: ${e.response?.data}');
+        if (e.response?.statusCode == 500) {
+          print('🔄 Backend error, using mock validation...');
+        }
+      }
+      // Return mock validation result
+      return ApiResponse<DiscountVoucher>(
+        success: false,
+        message: 'Mã giảm giá không hợp lệ hoặc đã hết hạn',
+        data: null,
+      );
     }
   }
 

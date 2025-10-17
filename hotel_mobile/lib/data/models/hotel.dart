@@ -149,7 +149,8 @@ class Hotel {
       return hinhAnh!;
     }
 
-    return 'http://localhost:5000$hinhAnh';
+    // Use the same base URL as API
+    return 'http://10.0.2.2:5000$hinhAnh';
   }
 
   String get displayLocation {

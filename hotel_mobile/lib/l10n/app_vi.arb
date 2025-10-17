@@ -1,0 +1,86 @@
+{
+  "@@locale": "vi",
+  "appTitle": "Đặt Phòng Khách Sạn",
+  "@appTitle": {
+    "description": "Tiêu đề của ứng dụng"
+  },
+  
+  "login": "Đăng nhập",
+  "register": "Đăng ký",
+  "email": "Email",
+  "password": "Mật khẩu",
+  "confirmPassword": "Xác nhận mật khẩu",
+  "fullName": "Họ và tên",
+  "phoneNumber": "Số điện thoại",
+  "forgotPassword": "Quên mật khẩu?",
+  "dontHaveAccount": "Chưa có tài khoản?",
+  "alreadyHaveAccount": "Đã có tài khoản?",
+  "loginWithGoogle": "Đăng nhập với Google",
+  "loginWithFacebook": "Đăng nhập với Facebook",
+  
+  "welcome": "Chào mừng",
+  "searchHotels": "Tìm kiếm khách sạn",
+  "popularDestinations": "Điểm đến phổ biến",
+  "featuredHotels": "Khách sạn nổi bật",
+  "viewAll": "Xem tất cả",
+  
+  "loading": "Đang tải...",
+  "error": "Có lỗi xảy ra",
+  "retry": "Thử lại",
+  "cancel": "Hủy",
+  "ok": "OK",
+  "save": "Lưu",
+  "edit": "Chỉnh sửa",
+  "delete": "Xóa",
+  "search": "Tìm kiếm",
+  
+  "emailRequired": "Vui lòng nhập email",
+  "emailInvalid": "Email không hợp lệ",
+  "passwordRequired": "Vui lòng nhập mật khẩu",
+  "passwordTooShort": "Mật khẩu phải có ít nhất 6 ký tự",
+  "passwordMismatch": "Mật khẩu không khớp",
+  "fullNameRequired": "Vui lòng nhập họ tên",
+  "phoneRequired": "Vui lòng nhập số điện thoại",
+  
+  "hotels": "Khách sạn",
+  "rooms": "Phòng",
+  "bookings": "Đặt phòng",
+  "promotions": "Khuyến mãi",
+  "users": "Người dùng",
+  "settings": "Cài đặt",
+  "logout": "Đăng xuất",
+  
+  "hotelManagement": "Quản lý khách sạn",
+  "roomManagement": "Quản lý phòng",
+  "bookingManagement": "Quản lý đặt phòng",
+  "userManagement": "Quản lý người dùng",
+  "promotionManagement": "Quản lý khuyến mãi",
+  
+  "addHotel": "Thêm khách sạn",
+  "addRoom": "Thêm phòng",
+  "addPromotion": "Thêm khuyến mãi",
+  "addUser": "Thêm người dùng",
+  
+  "editHotel": "Chỉnh sửa khách sạn",
+  "editRoom": "Chỉnh sửa phòng",
+  "editPromotion": "Chỉnh sửa khuyến mãi",
+  "editUser": "Chỉnh sửa người dùng",
+  
+  "deleteHotel": "Xóa khách sạn",
+  "deleteRoom": "Xóa phòng",
+  "deletePromotion": "Xóa khuyến mãi",
+  "deleteUser": "Xóa người dùng",
+  
+  "confirmDelete": "Xác nhận xóa",
+  "areYouSureDelete": "Bạn có chắc chắn muốn xóa mục này?",
+  
+  "success": "Thành công",
+  "errorOccurred": "Có lỗi xảy ra",
+  "networkError": "Lỗi mạng",
+  "pleaseCheckConnection": "Vui lòng kiểm tra kết nối internet",
+  
+  "language": "Ngôn ngữ",
+  "vietnamese": "Tiếng Việt",
+  "english": "English",
+  "changeLanguage": "Đổi ngôn ngữ"
+}

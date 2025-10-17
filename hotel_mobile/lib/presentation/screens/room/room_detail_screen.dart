@@ -59,7 +59,7 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
         _roomDetails = widget.room;
         _isLoading = false;
       });
-      print('Error loading room details: $e');
+      // Error loading room details: $e
     }
   }
 
@@ -192,7 +192,7 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
                 color: Colors.white,
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.grey.withOpacity(0.3),
+                    color: Colors.grey.withValues(alpha: 0.3),
                     spreadRadius: 1,
                     blurRadius: 5,
                     offset: const Offset(0, -3),
@@ -294,7 +294,7 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
                       shape: BoxShape.circle,
                       color: _currentImageIndex == entry.key
                           ? Colors.white
-                          : Colors.white.withOpacity(0.5),
+                          : Colors.white.withValues(alpha: 0.5),
                     ),
                   );
                 }).toList(),
@@ -429,9 +429,9 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
                     vertical: 6,
                   ),
                   decoration: BoxDecoration(
-                    color: Colors.blue.withOpacity(0.1),
+                    color: Colors.blue.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: Colors.blue.withOpacity(0.3)),
+                    border: Border.all(color: Colors.blue.withValues(alpha: 0.3)),
                   ),
                   child: Text(
                     amenity,

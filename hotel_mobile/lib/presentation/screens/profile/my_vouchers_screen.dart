@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import '../../../data/models/discount_voucher.dart';
-import '../../../data/services/promotion_service.dart';
 
 class MyVouchersScreen extends StatefulWidget {
   const MyVouchersScreen({Key? key}) : super(key: key);
@@ -13,7 +12,6 @@ class MyVouchersScreen extends StatefulWidget {
 
 class _MyVouchersScreenState extends State<MyVouchersScreen>
     with TickerProviderStateMixin {
-  final PromotionService _promotionService = PromotionService();
   List<DiscountVoucher> _myVouchers = [];
   List<DiscountVoucher> _publicVouchers = [];
   bool _isLoading = true;
@@ -37,8 +35,10 @@ class _MyVouchersScreenState extends State<MyVouchersScreen>
 
     try {
       final futures = await Future.wait([
-        _promotionService.getMyDiscountVouchers(),
-        _promotionService.getActiveDiscountVouchers(),
+        // TODO: Implement my vouchers API
+        Future.value(<DiscountVoucher>[]),
+        // TODO: Implement active vouchers API
+        Future.value(<DiscountVoucher>[]),
       ]);
 
       setState(() {
@@ -206,13 +206,13 @@ class _MyVouchersScreenState extends State<MyVouchersScreen>
               ),
         border: Border.all(
           color: isUsable
-              ? Colors.blue.withOpacity(0.3)
-              : Colors.grey.withOpacity(0.3),
+              ? Colors.blue.withValues(alpha: 0.3)
+              : Colors.grey.withValues(alpha: 0.3),
           width: 1,
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),

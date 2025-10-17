@@ -15,16 +15,39 @@ class _PropertyImageGalleryState extends State<PropertyImageGallery> {
   int _currentIndex = 0;
 
   List<String> get _images {
-    // For demo purposes, return a list of sample images
-    // In real app, this would come from widget.hotel.images or similar
-    return [
-      widget.hotel.hinhAnh ??
-          'https://images.unsplash.com/photo-1566073771259-6a8506099945',
-      'https://images.unsplash.com/photo-1582719478250-c89cae4dc85b',
-      'https://images.unsplash.com/photo-1590490360182-c33d57733427',
-      'https://images.unsplash.com/photo-1591088398332-8a7791972843',
-      'https://images.unsplash.com/photo-1578683010236-d716f9a3f461',
-    ];
+    // Get hotel images - prioritize hotel.hinhAnh if it's a valid URL
+    List<String> images = [];
+    
+    // Add hotel's main image if it exists and is a valid URL
+    if (widget.hotel.hinhAnh != null && widget.hotel.hinhAnh!.isNotEmpty) {
+      if (widget.hotel.hinhAnh!.startsWith('http')) {
+        images.add(widget.hotel.hinhAnh!);
+      } else {
+        // If it's a relative path, construct full URL
+        images.add('http://10.0.2.2:5000${widget.hotel.hinhAnh}');
+      }
+    }
+    
+    // Add fallback images if no hotel image
+    if (images.isEmpty) {
+      images = [
+        'https://images.unsplash.com/photo-1566073771259-6a8506099945',
+        'https://images.unsplash.com/photo-1582719478250-c89cae4dc85b',
+        'https://images.unsplash.com/photo-1590490360182-c33d57733427',
+        'https://images.unsplash.com/photo-1591088398332-8a7791972843',
+        'https://images.unsplash.com/photo-1578683010236-d716f9a3f461',
+      ];
+    } else {
+      // Add additional sample images
+      images.addAll([
+        'https://images.unsplash.com/photo-1582719478250-c89cae4dc85b',
+        'https://images.unsplash.com/photo-1590490360182-c33d57733427',
+        'https://images.unsplash.com/photo-1591088398332-8a7791972843',
+        'https://images.unsplash.com/photo-1578683010236-d716f9a3f461',
+      ]);
+    }
+    
+    return images;
   }
 
   @override
@@ -45,7 +68,7 @@ class _PropertyImageGalleryState extends State<PropertyImageGallery> {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return SizedBox(
       height: 300,
       child: Stack(
         children: [
@@ -101,7 +124,7 @@ class _PropertyImageGalleryState extends State<PropertyImageGallery> {
                   vertical: 6,
                 ),
                 decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.7),
+                  color: Colors.black.withValues(alpha: 0.7),
                   borderRadius: BorderRadius.circular(16),
                 ),
                 child: Text(
@@ -126,7 +149,7 @@ class _PropertyImageGalleryState extends State<PropertyImageGallery> {
                 borderRadius: BorderRadius.circular(8),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.1),
+                    color: Colors.black.withValues(alpha: 0.1),
                     blurRadius: 4,
                     offset: const Offset(0, 2),
                   ),

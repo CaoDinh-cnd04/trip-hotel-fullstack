@@ -6,11 +6,23 @@ import 'package:hotel_mobile/core/services/firebase_auth_service.dart';
 import 'package:hotel_mobile/presentation/screens/room/room_detail_screen.dart';
 import 'package:hotel_mobile/presentation/screens/hotel/hotel_list_screen.dart';
 import 'package:hotel_mobile/presentation/screens/main_navigation_screen.dart';
+import 'package:hotel_mobile/presentation/screens/deals/deals_screen.dart';
+import 'package:hotel_mobile/presentation/screens/booking/booking_history_screen.dart';
+import 'package:hotel_mobile/presentation/screens/notification/notification_screen.dart';
+import 'package:hotel_mobile/presentation/widgets/hotel_card_with_favorite.dart';
+import 'package:hotel_mobile/presentation/widgets/notification_icon.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+  final bool isAuthenticated;
+  final VoidCallback? onAuthStateChanged;
+
+  const HomeScreen({
+    super.key,
+    this.isAuthenticated = false,
+    this.onAuthStateChanged,
+  });
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -44,9 +56,22 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     _serviceTabController = TabController(length: 2, vsync: this);
     _apiService.initialize();
     _testConnection();
+    _isLoggedIn = widget.isAuthenticated;
     _checkLoginStatus();
     _loadHotels();
     _loadPromotions();
+  }
+
+  @override
+  void didUpdateWidget(HomeScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.isAuthenticated != widget.isAuthenticated) {
+      if (mounted) {
+        setState(() {
+          _isLoggedIn = widget.isAuthenticated;
+        });
+      }
+    }
   }
 
   Future<void> _testConnection() async {
@@ -66,12 +91,18 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       if (firebaseUser != null) {
         _currentUser = firebaseUser;
         _isLoggedIn = true;
+        print('✅ User đã đăng nhập: ${firebaseUser.email}');
       } else {
         _currentUser = _authService.currentUser;
         _isLoggedIn = _currentUser != null;
+        if (_isLoggedIn) {
+          print('✅ User đã đăng nhập: ${_currentUser?.email}');
+        } else {
+          print('ℹ️ User chưa đăng nhập');
+        }
       }
     } catch (e) {
-      print('Error checking login status: $e');
+      print('❌ Error checking login status: $e');
       _isLoggedIn = false;
       _currentUser = null;
     }
@@ -113,22 +144,26 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           );
         }
 
-        setState(() {
-          _hotels = response.data!;
-          _promotionHotels = _hotels
-              .where((hotel) => (hotel.soSao ?? 0) >= 4)
-              .toList();
-          _isLoading = false;
-        });
+        if (mounted) {
+          setState(() {
+            _hotels = response.data!;
+            _promotionHotels = _hotels
+                .where((hotel) => (hotel.soSao ?? 0) >= 4)
+                .toList();
+            _isLoading = false;
+          });
+        }
         print('Promotion hotels: ${_promotionHotels.length}');
       } else {
         print('API Error: ${response.message}');
-        setState(() {
-          _error = response.message.isNotEmpty
-              ? response.message
-              : 'Không thể tải danh sách khách sạn';
-          _isLoading = false;
-        });
+        if (mounted) {
+          setState(() {
+            _error = response.message.isNotEmpty
+                ? response.message
+                : 'Không thể tải danh sách khách sạn';
+            _isLoading = false;
+          });
+        }
       }
     } catch (e) {
       print('Exception loading hotels: $e');
@@ -141,10 +176,12 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         return _loadHotels(retryCount: retryCount + 1);
       }
 
-      setState(() {
-        _error = 'Lỗi kết nối: Vui lòng kiểm tra mạng và thử lại';
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _error = 'Lỗi kết nối: Vui lòng kiểm tra mạng và thử lại';
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -324,59 +361,18 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               // Notification and Avatar
               Row(
                 children: [
-                  // Notification icon
-                  Stack(
-                    children: [
-                      IconButton(
-                        onPressed: () {
-                          // Handle notification tap
-                        },
-                        icon: const Icon(
-                          Icons.notifications_outlined,
-                          color: Colors.black87,
-                          size: 28,
+                  // Notification icon with badge
+                  NotificationIcon(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const NotificationScreen(),
                         ),
-                      ),
-                      // Notification badge
-                      Positioned(
-                        right: 8,
-                        top: 8,
-                        child: Container(
-                          width: 8,
-                          height: 8,
-                          decoration: const BoxDecoration(
-                            color: Colors.red,
-                            shape: BoxShape.circle,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-
-                  // Filter Demo Button
-                  IconButton(
-                    onPressed: () {
-                      Navigator.pushNamed(context, '/filter-demo');
+                      );
                     },
-                    icon: const Icon(
-                      Icons.tune,
-                      color: Colors.black87,
-                      size: 28,
-                    ),
-                    tooltip: 'Filter Demo',
-                  ),
-
-                  // Map Demo Button
-                  IconButton(
-                    onPressed: () {
-                      Navigator.pushNamed(context, '/map-demo');
-                    },
-                    icon: const Icon(
-                      Icons.map,
-                      color: Colors.black87,
-                      size: 28,
-                    ),
-                    tooltip: 'Map Demo',
+                    iconColor: Colors.black87,
+                    iconSize: 28,
                   ),
 
                   const SizedBox(width: 8),
@@ -425,7 +421,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.1),
+            color: Colors.black.withValues(alpha: 0.1),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -574,7 +570,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    hint,
+                    controller?.text.isNotEmpty == true ? controller!.text : hint,
                     style: TextStyle(
                       fontSize: 14,
                       color: controller?.text.isNotEmpty == true
@@ -610,9 +606,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             fontWeight: FontWeight.normal,
           ),
           onTap: (index) {
-            setState(() {
-              _selectedServiceIndex = index;
-            });
+            if (mounted) {
+              setState(() {
+                _selectedServiceIndex = index;
+              });
+            }
           },
           tabs: const [
             Tab(text: 'Khách sạn'),
@@ -658,8 +656,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                     borderRadius: BorderRadius.circular(12),
                     gradient: LinearGradient(
                       colors: [
-                        Colors.blue.withOpacity(0.8),
-                        Colors.purple.withOpacity(0.8),
+                        Colors.blue.withValues(alpha: 0.8),
+                        Colors.purple.withValues(alpha: 0.8),
                       ],
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
@@ -685,9 +683,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                           borderRadius: BorderRadius.circular(12),
                           gradient: LinearGradient(
                             colors: [
-                              Colors.black.withOpacity(0.3),
+                              Colors.black.withValues(alpha: 0.3),
                               Colors.transparent,
-                              Colors.black.withOpacity(0.5),
+                              Colors.black.withValues(alpha: 0.5),
                             ],
                             begin: Alignment.topCenter,
                             end: Alignment.bottomCenter,
@@ -795,119 +793,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   Widget _buildHotelCard(Hotel hotel) {
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          ClipRRect(
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
-            child: AspectRatio(
-              aspectRatio: 16 / 9,
-              child: hotel.hinhAnh?.isNotEmpty == true
-                  ? Image.network(
-                      hotel.hinhAnh!,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) => Container(
-                        color: Colors.grey[300],
-                        child: const Icon(Icons.hotel, size: 50),
-                      ),
-                    )
-                  : Container(
-                      color: Colors.grey[300],
-                      child: const Icon(Icons.hotel, size: 50),
-                    ),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  hotel.ten,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                if (hotel.diaChi?.isNotEmpty == true) ...[
-                  const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      const Icon(
-                        Icons.location_on,
-                        size: 14,
-                        color: Colors.grey,
-                      ),
-                      const SizedBox(width: 4),
-                      Expanded(
-                        child: Text(
-                          hotel.diaChi!,
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-                const SizedBox(height: 8),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Row(
-                      children: [
-                        ...List.generate(5, (starIndex) {
-                          return Icon(
-                            starIndex < (hotel.soSao ?? 0)
-                                ? Icons.star
-                                : Icons.star_border,
-                            size: 16,
-                            color: Colors.amber,
-                          );
-                        }),
-                        const SizedBox(width: 4),
-                        Text(
-                          '${hotel.soSao ?? 0}/5',
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey,
-                          ),
-                        ),
-                      ],
-                    ),
-                    ElevatedButton(
-                      onPressed: () => _viewHotelDetails(hotel),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.blue,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 6,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                      ),
-                      child: const Text(
-                        'Xem chi tiết',
-                        style: TextStyle(fontSize: 12),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
+    return HotelCardWithFavorite(
+      hotel: hotel,
+      width: double.infinity,
+      height: 280,
+      onTap: () => _viewHotelDetails(hotel),
     );
   }
 
@@ -970,10 +860,12 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             const SizedBox(height: 32),
             ElevatedButton.icon(
               onPressed: () {
-                setState(() {
-                  _error = null;
-                });
-                _loadHotels();
+                if (mounted) {
+                  setState(() {
+                    _error = null;
+                  });
+                  _loadHotels();
+                }
               },
               icon: const Icon(Icons.refresh_rounded),
               label: const Text('Thử lại'),
@@ -1068,9 +960,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                     leading: const Icon(Icons.location_on, color: Colors.blue),
                     title: Text(location),
                     onTap: () {
-                      setState(() {
-                        _locationController.text = location;
-                      });
+                      if (mounted) {
+                        setState(() {
+                          _locationController.text = location;
+                        });
+                      }
                       Navigator.pop(context);
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
@@ -1097,12 +991,14 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       lastDate: DateTime.now().add(const Duration(days: 365)),
     );
     if (picked != null) {
-      setState(() {
-        _checkInDate = picked;
-        if (_checkOutDate != null && !_checkOutDate!.isAfter(picked)) {
-          _checkOutDate = picked.add(const Duration(days: 1));
-        }
-      });
+      if (mounted) {
+        setState(() {
+          _checkInDate = picked;
+          if (_checkOutDate != null && !_checkOutDate!.isAfter(picked)) {
+            _checkOutDate = picked.add(const Duration(days: 1));
+          }
+        });
+      }
     }
   }
 
@@ -1117,9 +1013,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       lastDate: DateTime.now().add(const Duration(days: 365)),
     );
     if (picked != null) {
-      setState(() {
-        _checkOutDate = picked;
-      });
+      if (mounted) {
+        setState(() {
+          _checkOutDate = picked;
+        });
+      }
     }
   }
 
@@ -1147,7 +1045,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                         onPressed: _guestCount > 1
                             ? () {
                                 setModalState(() => _guestCount--);
-                                setState(() {});
+                                if (mounted) setState(() {});
                               }
                             : null,
                         icon: const Icon(Icons.remove),
@@ -1156,7 +1054,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                       IconButton(
                         onPressed: () {
                           setModalState(() => _guestCount++);
-                          setState(() {});
+                          if (mounted) setState(() {});
                         },
                         icon: const Icon(Icons.add),
                       ),
@@ -1195,7 +1093,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                         onPressed: _roomCount > 1
                             ? () {
                                 setModalState(() => _roomCount--);
-                                setState(() {});
+                                if (mounted) setState(() {});
                               }
                             : null,
                         icon: const Icon(Icons.remove),
@@ -1204,7 +1102,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                       IconButton(
                         onPressed: () {
                           setModalState(() => _roomCount++);
-                          setState(() {});
+                          if (mounted) setState(() {});
                         },
                         icon: const Icon(Icons.add),
                       ),
@@ -1273,7 +1171,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
-            'Chức năng nhanh',
+            'Tìm kiếm nhanh',
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,
@@ -1288,46 +1186,21 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   icon: Icons.location_city,
                   title: 'Khách sạn gần đây',
                   color: Colors.blue,
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) =>
-                            const HotelListScreen(location: 'Gần bạn'),
-                      ),
-                    );
-                  },
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _buildQuickActionItem(
-                  icon: Icons.local_offer,
-                  title: 'Khuyến mãi hot',
-                  color: Colors.orange,
-                  onTap: () {
-                    // Navigate to Promotions tab
-                    final navigator = Navigator.of(context);
-                    navigator.popUntil((route) => route.isFirst);
-                    // This will trigger the MainNavigationScreen to switch to Promotions tab
-                    // We need to access the parent state somehow
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Chuyển đến tab Khuyến mãi'),
-                        duration: Duration(seconds: 1),
-                      ),
-                    );
-                  },
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _buildQuickActionItem(
-                  icon: Icons.book_online,
-                  title: 'Đặt phòng nhanh',
-                  color: Colors.green,
-                  onTap: () {
-                    if (_isLoggedIn) {
+                  onTap: () async {
+                    // Try to get current location for nearby hotels
+                    try {
+                      // For now, use a default location (Ho Chi Minh City)
+                      // In a real app, you would use geolocation here
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const HotelListScreen(
+                            location: 'Thành phố Hồ Chí Minh',
+                          ),
+                        ),
+                      );
+                    } catch (e) {
+                      // Fallback to all hotels if location fails
                       Navigator.push(
                         context,
                         MaterialPageRoute(
@@ -1336,8 +1209,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                           ),
                         ),
                       );
-                    } else {
-                      _showLoginRequiredDialog();
                     }
                   },
                 ),
@@ -1352,8 +1223,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (context) =>
-                            const HotelListScreen(location: 'Đánh giá cao'),
+                        builder: (context) => const HotelListScreen(
+                          location: 'Khách sạn đánh giá cao',
+                        ),
                       ),
                     );
                   },
@@ -1377,9 +1249,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
         decoration: BoxDecoration(
-          color: color.withOpacity(0.1),
+          color: color.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: color.withOpacity(0.3)),
+          border: Border.all(color: color.withValues(alpha: 0.3)),
         ),
         child: Column(
           children: [
@@ -1402,12 +1274,12 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     );
   }
 
-  void _showLoginRequiredDialog() {
+  void _showLoginRequiredDialog({String? message}) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Yêu cầu đăng nhập'),
-        content: const Text('Bạn cần đăng nhập để sử dụng chức năng này.'),
+        content: Text(message ?? 'Bạn cần đăng nhập để sử dụng chức năng này.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
@@ -1430,19 +1302,39 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     if (result == true) {
       // Refresh login status if login was successful
       _checkLoginStatus();
+      // Notify parent about auth state change
+      widget.onAuthStateChanged?.call();
     }
+  }
+
+  Widget _buildMenuSection(String title) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8.0),
+      child: Text(
+        title,
+        style: const TextStyle(
+          fontSize: 16,
+          fontWeight: FontWeight.bold,
+          color: Colors.black87,
+        ),
+      ),
+    );
   }
 
   void _showProfileMenu() {
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (context) => Container(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(context).size.height * 0.8,
+        ),
+        child: ListView(
+          shrinkWrap: true,
+          padding: const EdgeInsets.all(20),
           children: [
             // User Info
             ListTile(
@@ -1473,47 +1365,92 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
             const Divider(),
 
-            // Menu items
+            // Authentication & Account Section
+            if (!_isLoggedIn) ...[
+              _buildMenuSection('Tài khoản'),
+              ListTile(
+                leading: const Icon(Icons.login, color: Colors.blue),
+                title: const Text('Đăng nhập'),
+                subtitle: const Text('Authentication feature'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _navigateToLogin();
+                },
+              ),
+              const Divider(),
+            ],
+
+            // Hotel & Booking Section
+            _buildMenuSection('Đặt phòng'),
             ListTile(
-              leading: const Icon(Icons.person_outline),
-              title: const Text('Thông tin cá nhân'),
+              leading: const Icon(Icons.hotel, color: Colors.blue),
+              title: const Text('Khách sạn'),
+              subtitle: const Text('Hotel booking feature'),
               onTap: () {
                 Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Chức năng đang được phát triển'),
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const HotelListScreen(
+                      location: 'Tất cả khách sạn',
+                    ),
                   ),
                 );
               },
             ),
-
             ListTile(
-              leading: const Icon(Icons.book_online),
-              title: const Text('Lịch sử đặt phòng'),
+              leading: const Icon(Icons.bed, color: Colors.green),
+              title: const Text('Phòng'),
+              subtitle: const Text('Room selection feature'),
               onTap: () {
                 Navigator.pop(context);
-                // Navigate to booking management (tab index 2)
-                if (context
-                        .findAncestorWidgetOfExactType<
-                          MainNavigationScreen
-                        >() !=
-                    null) {
-                  // This will be handled by the navigation
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Chuyển đến tab Đặt phòng')),
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const HotelListScreen(
+                      location: 'Tất cả khách sạn',
+                    ),
+                  ),
+                );
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.book_online, color: Colors.orange),
+              title: const Text('Đặt phòng'),
+              subtitle: const Text('Booking management feature'),
+              onTap: () {
+                Navigator.pop(context);
+                if (_isLoggedIn) {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const HotelListScreen(
+                        location: 'Tất cả khách sạn',
+                      ),
+                    ),
+                  );
+                } else {
+                  _showLoginRequiredDialog(
+                    message: 'Bạn cần đăng nhập để đặt phòng.',
                   );
                 }
               },
             ),
 
+            const Divider(),
+
+            // Promotions Section
+            _buildMenuSection('Ưu đãi'),
             ListTile(
-              leading: const Icon(Icons.settings),
-              title: const Text('Cài đặt'),
+              leading: const Icon(Icons.local_offer, color: Colors.red),
+              title: const Text('Khuyến mãi'),
+              subtitle: const Text('Promotions and deals feature'),
               onTap: () {
                 Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Chức năng đang được phát triển'),
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const DealsScreen(),
                   ),
                 );
               },
@@ -1521,17 +1458,90 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
             const Divider(),
 
+            // Additional Features
+            _buildMenuSection('Tính năng khác'),
             ListTile(
-              leading: const Icon(Icons.logout, color: Colors.red),
-              title: const Text(
-                'Đăng xuất',
-                style: TextStyle(color: Colors.red),
-              ),
+              leading: const Icon(Icons.tune, color: Colors.purple),
+              title: const Text('Bộ lọc'),
+              subtitle: const Text('Filter hotels'),
               onTap: () {
                 Navigator.pop(context);
-                _showLogoutConfirmation();
+                _showFilterDialog();
               },
             ),
+            ListTile(
+              leading: const Icon(Icons.map, color: Colors.teal),
+              title: const Text('Bản đồ'),
+              subtitle: const Text('Map view'),
+              onTap: () {
+                Navigator.pop(context);
+                _showMapView();
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.language, color: Colors.indigo),
+              title: const Text('Ngôn ngữ'),
+              subtitle: const Text('Language settings'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.pushNamed(context, '/language-demo');
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.feedback_outlined, color: Colors.amber),
+              title: const Text('Phản hồi'),
+              subtitle: const Text('Send feedback'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.pushNamed(context, '/feedback');
+              },
+            ),
+
+            if (_isLoggedIn) ...[
+              const Divider(),
+              _buildMenuSection('Tài khoản'),
+              ListTile(
+                leading: const Icon(Icons.person_outline),
+                title: const Text('Thông tin cá nhân'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _showPersonalInfo();
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.history, color: Colors.blue),
+                title: const Text('Lịch sử đặt phòng'),
+                subtitle: const Text('Xem các đặt phòng đã thực hiện'),
+                onTap: () {
+                  Navigator.pop(context);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const BookingHistoryScreen(),
+                    ),
+                  );
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.settings),
+                title: const Text('Cài đặt'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _showSettings();
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.logout, color: Colors.red),
+                title: const Text(
+                  'Đăng xuất',
+                  style: TextStyle(color: Colors.red),
+                ),
+                onTap: () {
+                  Navigator.pop(context);
+                  _showLogoutConfirmation();
+                },
+              ),
+            ],
           ],
         ),
       ),
@@ -1540,7 +1550,15 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   void _showLogoutConfirmation() {
     // Lấy thông tin provider hiện tại
-    final providers = _authService.getCurrentProviders();
+    List<String> providers = [];
+    try {
+      providers = _authService.getCurrentProviders();
+      print('🔍 Current providers: $providers');
+    } catch (e) {
+      print('❌ Error getting providers: $e');
+      providers = [];
+    }
+    
     final providerText = providers.isNotEmpty
         ? 'Bạn đang đăng nhập bằng ${providers.join(", ")}.\n\nBạn có chắc chắn muốn đăng xuất?'
         : 'Bạn có chắc chắn muốn đăng xuất?';
@@ -1568,11 +1586,25 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               );
 
               // Sign out
-              await _authService.signOut();
+              try {
+                await _authService.signOut();
+                print('✅ Đăng xuất thành công');
+              } catch (e) {
+                print('❌ Lỗi đăng xuất: $e');
+                // Vẫn tiếp tục xử lý ngay cả khi có lỗi
+              }
 
               // Close loading and refresh state
-              Navigator.of(context).pop();
-              _checkLoginStatus();
+              if (mounted) {
+                Navigator.of(context).pop();
+                
+                // Navigate to login screen after logout
+                print('🔄 Chuyển về màn hình đăng nhập...');
+                Navigator.pushReplacementNamed(context, '/login');
+                
+                // Notify parent about auth state change
+                widget.onAuthStateChanged?.call();
+              }
 
               final successMessage = providers.isNotEmpty
                   ? 'Đã đăng xuất thành công khỏi ${providers.join(", ")}'
@@ -1587,6 +1619,416 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           ),
         ],
       ),
+    );
+  }
+
+  void _showFilterDialog() {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => Container(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Bộ lọc khách sạn',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 20),
+            
+            // Price Range
+            const Text('Khoảng giá:', style: TextStyle(fontWeight: FontWeight.w600)),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(
+                  child: TextFormField(
+                    decoration: const InputDecoration(
+                      labelText: 'Từ',
+                      hintText: '0',
+                      border: OutlineInputBorder(),
+                    ),
+                    keyboardType: TextInputType.number,
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: TextFormField(
+                    decoration: const InputDecoration(
+                      labelText: 'Đến',
+                      hintText: '1000000',
+                      border: OutlineInputBorder(),
+                    ),
+                    keyboardType: TextInputType.number,
+                  ),
+                ),
+              ],
+            ),
+            
+            const SizedBox(height: 20),
+            
+            // Star Rating
+            const Text('Hạng sao:', style: TextStyle(fontWeight: FontWeight.w600)),
+            const SizedBox(height: 8),
+            Row(
+              children: List.generate(5, (index) {
+                return IconButton(
+                  onPressed: () {
+                    // Handle star rating selection
+                  },
+                  icon: Icon(
+                    Icons.star,
+                    color: index < 3 ? Colors.amber : Colors.grey,
+                  ),
+                );
+              }),
+            ),
+            
+            const SizedBox(height: 20),
+            
+            // Amenities
+            const Text('Tiện ích:', style: TextStyle(fontWeight: FontWeight.w600)),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              children: [
+                'WiFi', 'Parking', 'Pool', 'Gym', 'Spa', 'Restaurant'
+              ].map((amenity) => FilterChip(
+                label: Text(amenity),
+                selected: false,
+                onSelected: (selected) {
+                  // Handle amenity selection
+                },
+              )).toList(),
+            ),
+            
+            const SizedBox(height: 30),
+            
+            // Action Buttons
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('Hủy'),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: () {
+                      Navigator.pop(context);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Đã áp dụng bộ lọc'),
+                        ),
+                      );
+                    },
+                    child: const Text('Áp dụng'),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showMapView() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Bản đồ khách sạn'),
+        content: SizedBox(
+          width: double.maxFinite,
+          height: 300,
+          child: Container(
+            decoration: BoxDecoration(
+              color: Colors.grey[200],
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: const Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.map, size: 64, color: Colors.grey),
+                  SizedBox(height: 16),
+                  Text(
+                    'Bản đồ khách sạn',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.grey,
+                    ),
+                  ),
+                  SizedBox(height: 8),
+                  Text(
+                    'Hiển thị vị trí các khách sạn trên bản đồ',
+                    style: TextStyle(color: Colors.grey),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Đóng'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showPersonalInfo() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => Container(
+        padding: const EdgeInsets.all(20),
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(context).size.height * 0.8,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.person, size: 28, color: Colors.blue),
+                const SizedBox(width: 12),
+                const Text(
+                  'Thông tin cá nhân',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const Spacer(),
+                IconButton(
+                  onPressed: () => Navigator.pop(context),
+                  icon: const Icon(Icons.close),
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+            
+            // User Info Display
+            if (_currentUser != null) ...[
+              _buildInfoRow('Tên', _currentUser!.displayName ?? 'Chưa cập nhật'),
+              _buildInfoRow('Email', _currentUser!.email ?? 'Chưa cập nhật'),
+              _buildInfoRow('Ảnh đại diện', _currentUser!.photoURL != null ? 'Đã có' : 'Chưa có'),
+            ] else ...[
+              const Center(
+                child: Text(
+                  'Không có thông tin người dùng',
+                  style: TextStyle(color: Colors.grey),
+                ),
+              ),
+            ],
+            
+            const SizedBox(height: 20),
+            
+            // Edit Button
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: () {
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Chức năng chỉnh sửa thông tin sẽ được bổ sung sớm'),
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.edit),
+                label: const Text('Chỉnh sửa thông tin'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.blue,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildInfoRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 100,
+            child: Text(
+              label,
+              style: const TextStyle(
+                fontWeight: FontWeight.w600,
+                color: Colors.grey,
+              ),
+            ),
+          ),
+          const Text(': '),
+          Expanded(
+            child: Text(
+              value,
+              style: const TextStyle(fontWeight: FontWeight.w500),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showSettings() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => Container(
+        padding: const EdgeInsets.all(20),
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(context).size.height * 0.8,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.settings, size: 28, color: Colors.blue),
+                const SizedBox(width: 12),
+                const Text(
+                  'Cài đặt',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const Spacer(),
+                IconButton(
+                  onPressed: () => Navigator.pop(context),
+                  icon: const Icon(Icons.close),
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+            
+            // Settings Options
+            _buildSettingItem(
+              Icons.notifications,
+              'Thông báo',
+              'Quản lý thông báo',
+              () {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Cài đặt thông báo sẽ được bổ sung sớm'),
+                  ),
+                );
+              },
+            ),
+            
+            _buildSettingItem(
+              Icons.privacy_tip,
+              'Quyền riêng tư',
+              'Cài đặt quyền riêng tư',
+              () {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Cài đặt quyền riêng tư sẽ được bổ sung sớm'),
+                  ),
+                );
+              },
+            ),
+            
+            _buildSettingItem(
+              Icons.security,
+              'Bảo mật',
+              'Cài đặt bảo mật tài khoản',
+              () {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Cài đặt bảo mật sẽ được bổ sung sớm'),
+                  ),
+                );
+              },
+            ),
+            
+            _buildSettingItem(
+              Icons.help,
+              'Trợ giúp',
+              'Hướng dẫn sử dụng',
+              () {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Trung tâm trợ giúp sẽ được bổ sung sớm'),
+                  ),
+                );
+              },
+            ),
+            
+            _buildSettingItem(
+              Icons.info,
+              'Về ứng dụng',
+              'Thông tin phiên bản',
+              () {
+                showDialog(
+                  context: context,
+                  builder: (context) => AlertDialog(
+                    title: const Text('Về ứng dụng'),
+                    content: const Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Hotel Booking App'),
+                        SizedBox(height: 8),
+                        Text('Phiên bản: 1.0.0'),
+                        SizedBox(height: 8),
+                        Text('Phát triển bởi: Hotel Team'),
+                      ],
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: const Text('Đóng'),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSettingItem(IconData icon, String title, String subtitle, VoidCallback onTap) {
+    return ListTile(
+      leading: Icon(icon, color: Colors.blue),
+      title: Text(title),
+      subtitle: Text(subtitle),
+      trailing: const Icon(Icons.chevron_right),
+      onTap: onTap,
     );
   }
 }

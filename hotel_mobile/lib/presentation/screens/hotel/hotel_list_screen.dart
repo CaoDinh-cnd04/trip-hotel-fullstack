@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:hotel_mobile/data/models/hotel.dart';
 import 'package:hotel_mobile/data/services/api_service.dart';
 import 'package:hotel_mobile/presentation/screens/room/room_detail_screen.dart';
+import 'package:hotel_mobile/presentation/widgets/hotel_card_with_favorite.dart';
 import 'package:intl/intl.dart';
 
 class HotelListScreen extends StatefulWidget {
@@ -46,14 +47,39 @@ class _HotelListScreenState extends State<HotelListScreen> {
     });
 
     try {
+      // Handle special search cases
+      String searchQuery = widget.location;
+      bool sortByRating = false;
+
+      if (widget.location.contains('đánh giá cao') ||
+          widget.location.contains('rating') ||
+          widget.location.contains('Đánh giá cao')) {
+        searchQuery = ''; // Get all hotels to sort by rating
+        sortByRating = true;
+      } else if (widget.location.contains('Gần bạn') ||
+          widget.location.contains('gần đây')) {
+        searchQuery = 'Thành phố Hồ Chí Minh'; // Default to HCMC for nearby
+      }
+
       final response = await _apiService.getHotels(
-        search: widget.location,
+        search: searchQuery,
         limit: 50,
       );
 
       if (response.success && response.data != null) {
+        List<Hotel> hotels = response.data!;
+
+        // Sort by rating if needed
+        if (sortByRating) {
+          hotels.sort(
+            (a, b) => (b.diemDanhGiaTrungBinh ?? 0.0).compareTo(
+              a.diemDanhGiaTrungBinh ?? 0.0,
+            ),
+          );
+        }
+
         setState(() {
-          _hotels = response.data!;
+          _hotels = hotels;
           _isLoading = false;
         });
       } else {
@@ -120,11 +146,25 @@ class _HotelListScreenState extends State<HotelListScreen> {
     }
   }
 
+  String _getAppBarTitle() {
+    if (widget.location.contains('đánh giá cao') ||
+        widget.location.contains('Đánh giá cao')) {
+      return 'Khách sạn đánh giá cao';
+    } else if (widget.location.contains('Gần bạn') ||
+        widget.location.contains('gần đây')) {
+      return 'Khách sạn gần đây';
+    } else if (widget.location == 'Tất cả khách sạn') {
+      return 'Tất cả khách sạn';
+    } else {
+      return 'Khách sạn tại ${widget.location}';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Khách sạn tại ${widget.location}'),
+        title: Text(_getAppBarTitle()),
         backgroundColor: Colors.blue,
         foregroundColor: Colors.white,
         elevation: 0,
@@ -270,158 +310,13 @@ class _HotelListScreenState extends State<HotelListScreen> {
   }
 
   Widget _buildHotelCard(Hotel hotel) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 16),
-      elevation: 4,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: InkWell(
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: HotelCardWithFavorite(
+        hotel: hotel,
+        width: double.infinity,
+        height: 320,
         onTap: () => _viewHotelRooms(hotel),
-        borderRadius: BorderRadius.circular(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Hotel Image
-            Container(
-              height: 200,
-              width: double.infinity,
-              decoration: BoxDecoration(
-                borderRadius: const BorderRadius.vertical(
-                  top: Radius.circular(12),
-                ),
-                color: Colors.grey[200],
-              ),
-              child: hotel.hinhAnh?.isNotEmpty == true
-                  ? ClipRRect(
-                      borderRadius: const BorderRadius.vertical(
-                        top: Radius.circular(12),
-                      ),
-                      child: Image.network(
-                        hotel.hinhAnh!,
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) {
-                          return const Center(
-                            child: Icon(
-                              Icons.hotel,
-                              size: 64,
-                              color: Colors.grey,
-                            ),
-                          );
-                        },
-                      ),
-                    )
-                  : const Center(
-                      child: Icon(Icons.hotel, size: 64, color: Colors.grey),
-                    ),
-            ),
-
-            // Hotel Info
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Hotel Name and Rating
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          hotel.ten,
-                          style: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                      if (hotel.diemDanhGiaTrungBinh != null) ...[
-                        const Icon(Icons.star, color: Colors.amber, size: 20),
-                        const SizedBox(width: 4),
-                        Text(
-                          hotel.diemDanhGiaTrungBinh!.toStringAsFixed(1),
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-
-                  const SizedBox(height: 8),
-
-                  // Location
-                  if (hotel.diaChi?.isNotEmpty == true) ...[
-                    Row(
-                      children: [
-                        const Icon(
-                          Icons.location_on,
-                          size: 16,
-                          color: Colors.grey,
-                        ),
-                        const SizedBox(width: 4),
-                        Expanded(
-                          child: Text(
-                            hotel.diaChi!,
-                            style: const TextStyle(color: Colors.grey),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                  ],
-
-                  // Description
-                  if (hotel.moTa?.isNotEmpty == true) ...[
-                    Text(
-                      hotel.moTa!,
-                      style: const TextStyle(color: Colors.grey),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 12),
-                  ],
-
-                  // Price and Button
-                  Row(
-                    children: [
-                      if (hotel.yeuCauCoc != null) ...[
-                        const Text(
-                          'Từ ',
-                          style: TextStyle(fontSize: 14, color: Colors.grey),
-                        ),
-                        Text(
-                          currencyFormat.format(hotel.yeuCauCoc),
-                          style: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.blue,
-                          ),
-                        ),
-                        const Text(
-                          '/đêm',
-                          style: TextStyle(fontSize: 14, color: Colors.grey),
-                        ),
-                      ],
-                      const Spacer(),
-                      ElevatedButton(
-                        onPressed: () => _viewHotelRooms(hotel),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.blue,
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                        ),
-                        child: const Text('Xem phòng'),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }

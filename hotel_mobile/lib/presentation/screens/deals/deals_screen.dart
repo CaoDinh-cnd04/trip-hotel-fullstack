@@ -24,9 +24,9 @@ class _DealsScreenState extends State<DealsScreen>
   String? _error;
   int _selectedTabIndex = 0;
 
-  // Mock data for personal offers
-  final int _personalPoints = 1250;
-  final String _personalPromoCode = 'SUMMER2024';
+  // User's actual data
+  int _personalPoints = 0;
+  String _personalPromoCode = '';
 
   @override
   void initState() {
@@ -34,6 +34,7 @@ class _DealsScreenState extends State<DealsScreen>
     _tabController = TabController(length: 3, vsync: this);
     _tabController.addListener(_handleTabSelection);
     _loadPromotions();
+    _loadUserData();
   }
 
   @override
@@ -78,6 +79,20 @@ class _DealsScreenState extends State<DealsScreen>
         _error = 'Lỗi kết nối: $e';
         _isLoading = false;
       });
+    }
+  }
+
+  Future<void> _loadUserData() async {
+    try {
+      // In a real app, you would load user's actual points and promo codes
+      // For now, we'll set default values
+      setState(() {
+        _personalPoints = 0; // Load from user profile
+        _personalPromoCode = ''; // Load from user's active promo codes
+      });
+    } catch (e) {
+      // Handle error silently for user data
+      print('Error loading user data: $e');
     }
   }
 

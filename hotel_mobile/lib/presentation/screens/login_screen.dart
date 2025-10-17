@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:hotel_mobile/core/services/firebase_auth_service.dart';
+import '../../l10n/app_localizations.dart';
 import '../../data/services/backend_auth_service.dart';
+import '../../data/models/user_role_model.dart';
+import '../widgets/language_switcher.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -10,7 +12,6 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final FirebaseAuthService _authService = FirebaseAuthService();
   final BackendAuthService _backendAuthService = BackendAuthService();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
@@ -41,13 +42,37 @@ class _LoginScreenState extends State<LoginScreen> {
       );
 
       if (result.isSuccess && mounted) {
+        // Get role information
+        String roleMessage = '';
+        if (result.userRole != null) {
+          switch (result.userRole!.role) {
+            case UserRole.admin:
+              roleMessage = ' (Quản trị viên)';
+              break;
+            case UserRole.hotelManager:
+              roleMessage = ' (Quản lý khách sạn)';
+              break;
+            case UserRole.user:
+              roleMessage = ' (Người dùng)';
+              break;
+          }
+        }
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Chào mừng ${result.user?.hoTen}!'),
+            content: Text('Chào mừng ${result.user?.hoTen}$roleMessage!'),
             backgroundColor: Colors.green,
           ),
         );
-        Navigator.pushReplacementNamed(context, '/main');
+
+        // Navigate based on role
+        if (result.userRole?.role == UserRole.admin) {
+          Navigator.pushReplacementNamed(context, '/admin/dashboard');
+        } else if (result.userRole?.role == UserRole.hotelManager) {
+          Navigator.pushReplacementNamed(context, '/hotel-manager/dashboard');
+        } else {
+          Navigator.pushReplacementNamed(context, '/main');
+        }
       } else if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -71,17 +96,41 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => _isLoading = true);
 
     try {
-      // Sử dụng Firebase Auth Service
-      final result = await _authService.signInWithGoogle();
+      // Sử dụng Backend Auth Service cho Google
+      final result = await _backendAuthService.signInWithGoogle();
 
       if (result.isSuccess && mounted) {
+        // Get role information
+        String roleMessage = '';
+        if (result.userRole != null) {
+          switch (result.userRole!.role) {
+            case UserRole.admin:
+              roleMessage = ' (Quản trị viên)';
+              break;
+            case UserRole.hotelManager:
+              roleMessage = ' (Quản lý khách sạn)';
+              break;
+            case UserRole.user:
+              roleMessage = ' (Người dùng)';
+              break;
+          }
+        }
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Chào mừng ${result.displayName ?? result.email}!'),
+            content: Text('Chào mừng ${result.user?.hoTen}$roleMessage!'),
             backgroundColor: Colors.green,
           ),
         );
-        Navigator.pushReplacementNamed(context, '/main');
+
+        // Navigate based on role
+        if (result.userRole?.role == UserRole.admin) {
+          Navigator.pushReplacementNamed(context, '/admin/dashboard');
+        } else if (result.userRole?.role == UserRole.hotelManager) {
+          Navigator.pushReplacementNamed(context, '/hotel-manager/dashboard');
+        } else {
+          Navigator.pushReplacementNamed(context, '/main');
+        }
       } else if (result.isCancelled && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -117,17 +166,41 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => _isLoading = true);
 
     try {
-      // Sử dụng Firebase Auth Service
-      final result = await _authService.signInWithFacebook();
+      // Sử dụng Backend Auth Service cho Facebook
+      final result = await _backendAuthService.signInWithFacebook();
 
       if (result.isSuccess && mounted) {
+        // Get role information
+        String roleMessage = '';
+        if (result.userRole != null) {
+          switch (result.userRole!.role) {
+            case UserRole.admin:
+              roleMessage = ' (Quản trị viên)';
+              break;
+            case UserRole.hotelManager:
+              roleMessage = ' (Quản lý khách sạn)';
+              break;
+            case UserRole.user:
+              roleMessage = ' (Người dùng)';
+              break;
+          }
+        }
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Chào mừng ${result.displayName ?? result.email}!'),
+            content: Text('Chào mừng ${result.user?.hoTen}$roleMessage!'),
             backgroundColor: Colors.green,
           ),
         );
-        Navigator.pushReplacementNamed(context, '/main');
+
+        // Navigate based on role
+        if (result.userRole?.role == UserRole.admin) {
+          Navigator.pushReplacementNamed(context, '/admin/dashboard');
+        } else if (result.userRole?.role == UserRole.hotelManager) {
+          Navigator.pushReplacementNamed(context, '/hotel-manager/dashboard');
+        } else {
+          Navigator.pushReplacementNamed(context, '/main');
+        }
       } else if (result.isCancelled && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -161,6 +234,8 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+
     return Scaffold(
       body: Container(
         decoration: const BoxDecoration(
@@ -175,15 +250,20 @@ class _LoginScreenState extends State<LoginScreen> {
             padding: const EdgeInsets.all(24),
             child: Column(
               children: [
-                const SizedBox(height: 40),
+                // Language Switcher
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [LanguageSwitcher()],
+                ),
+                const SizedBox(height: 20),
 
                 // Logo and Title
-                _buildHeader(),
+                _buildHeader(l10n),
 
                 const SizedBox(height: 60),
 
                 // Login Form
-                _buildLoginForm(),
+                _buildLoginForm(l10n),
 
                 const SizedBox(height: 32),
 
@@ -207,21 +287,21 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  Widget _buildHeader() {
+  Widget _buildHeader(AppLocalizations l10n) {
     return Column(
       children: [
         Container(
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.2),
+            color: Colors.white.withValues(alpha: 0.2),
             shape: BoxShape.circle,
           ),
           child: const Icon(Icons.hotel, size: 60, color: Colors.white),
         ),
         const SizedBox(height: 24),
-        const Text(
-          'HotelBooking',
-          style: TextStyle(
+        Text(
+          l10n.appTitle,
+          style: const TextStyle(
             color: Colors.white,
             fontSize: 32,
             fontWeight: FontWeight.bold,
@@ -230,9 +310,9 @@ class _LoginScreenState extends State<LoginScreen> {
         ),
         const SizedBox(height: 8),
         Text(
-          'Khám phá và đặt phòng khách sạn tuyệt vời',
+          l10n.appTitle, // You can add a subtitle key to the ARB files
           style: TextStyle(
-            color: Colors.white.withOpacity(0.9),
+            color: Colors.white.withValues(alpha: 0.9),
             fontSize: 16,
             fontWeight: FontWeight.w300,
           ),
@@ -242,7 +322,7 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  Widget _buildLoginForm() {
+  Widget _buildLoginForm(AppLocalizations l10n) {
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
@@ -250,7 +330,7 @@ class _LoginScreenState extends State<LoginScreen> {
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.1),
+            color: Colors.black.withValues(alpha: 0.1),
             blurRadius: 20,
             offset: const Offset(0, 10),
           ),
@@ -259,9 +339,9 @@ class _LoginScreenState extends State<LoginScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Text(
-            'Đăng nhập',
-            style: TextStyle(
+          Text(
+            l10n.login,
+            style: const TextStyle(
               fontSize: 24,
               fontWeight: FontWeight.bold,
               color: Color(0xFF1A1A1A),
@@ -275,7 +355,7 @@ class _LoginScreenState extends State<LoginScreen> {
             controller: _emailController,
             keyboardType: TextInputType.emailAddress,
             decoration: InputDecoration(
-              labelText: 'Email',
+              labelText: l10n.email,
               prefixIcon: const Icon(Icons.email_outlined),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
@@ -291,7 +371,7 @@ class _LoginScreenState extends State<LoginScreen> {
             controller: _passwordController,
             obscureText: _obscurePassword,
             decoration: InputDecoration(
-              labelText: 'Mật khẩu',
+              labelText: l10n.password,
               prefixIcon: const Icon(Icons.lock_outlined),
               suffixIcon: IconButton(
                 icon: Icon(
@@ -347,6 +427,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
                   ),
           ),
+          const SizedBox(height: 16),
         ],
       ),
     );
@@ -357,18 +438,22 @@ class _LoginScreenState extends State<LoginScreen> {
       children: [
         Row(
           children: [
-            Expanded(child: Divider(color: Colors.white.withOpacity(0.5))),
+            Expanded(
+              child: Divider(color: Colors.white.withValues(alpha: 0.5)),
+            ),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Text(
                 'Hoặc đăng nhập với',
                 style: TextStyle(
-                  color: Colors.white.withOpacity(0.9),
+                  color: Colors.white.withValues(alpha: 0.9),
                   fontWeight: FontWeight.w500,
                 ),
               ),
             ),
-            Expanded(child: Divider(color: Colors.white.withOpacity(0.5))),
+            Expanded(
+              child: Divider(color: Colors.white.withValues(alpha: 0.5)),
+            ),
           ],
         ),
         const SizedBox(height: 24),
@@ -439,7 +524,10 @@ class _LoginScreenState extends State<LoginScreen> {
       children: [
         Text(
           'Chưa có tài khoản? ',
-          style: TextStyle(color: Colors.white.withOpacity(0.9), fontSize: 16),
+          style: TextStyle(
+            color: Colors.white.withValues(alpha: 0.9),
+            fontSize: 16,
+          ),
         ),
         TextButton(
           onPressed: () {
@@ -467,7 +555,7 @@ class _LoginScreenState extends State<LoginScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
         decoration: BoxDecoration(
-          border: Border.all(color: Colors.white.withOpacity(0.5)),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.5)),
           borderRadius: BorderRadius.circular(25),
         ),
         child: Row(
@@ -475,14 +563,14 @@ class _LoginScreenState extends State<LoginScreen> {
           children: [
             Icon(
               Icons.person_outline,
-              color: Colors.white.withOpacity(0.9),
+              color: Colors.white.withValues(alpha: 0.9),
               size: 20,
             ),
             const SizedBox(width: 8),
             Text(
               'Tiếp tục với tư cách khách',
               style: TextStyle(
-                color: Colors.white.withOpacity(0.9),
+                color: Colors.white.withValues(alpha: 0.9),
                 fontSize: 14,
                 fontWeight: FontWeight.w500,
               ),

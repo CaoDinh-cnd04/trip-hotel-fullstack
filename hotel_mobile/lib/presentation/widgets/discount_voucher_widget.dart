@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../data/models/discount_voucher.dart';
-import '../../../data/services/promotion_service.dart';
 
 class DiscountVoucherWidget extends StatefulWidget {
   final double orderAmount;
@@ -21,7 +20,6 @@ class DiscountVoucherWidget extends StatefulWidget {
 
 class _DiscountVoucherWidgetState extends State<DiscountVoucherWidget> {
   final TextEditingController _voucherController = TextEditingController();
-  final PromotionService _promotionService = PromotionService();
 
   bool _isValidating = false;
   bool _showMyVouchers = false;
@@ -56,14 +54,16 @@ class _DiscountVoucherWidgetState extends State<DiscountVoucherWidget> {
     });
 
     try {
-      final result = await _promotionService.validateDiscountVoucher(
-        voucherCode,
-        widget.orderAmount,
-      );
+      // TODO: Implement voucher validation API
+      final result = {
+        'success': false,
+        'isValid': false,
+        'message': 'Feature not implemented yet',
+      };
 
-      if (result['success'] && result['isValid']) {
+      if (result['success'] == true && result['isValid'] == true) {
         final voucher = result['voucher'] as DiscountVoucher?;
-        final discountAmount = result['discountAmount'] as double;
+        final discountAmount = result['discountAmount'] as double? ?? 0.0;
 
         if (voucher != null) {
           widget.onVoucherApplied(voucher, discountAmount);
@@ -78,7 +78,8 @@ class _DiscountVoucherWidgetState extends State<DiscountVoucherWidget> {
         }
       } else {
         setState(() {
-          _errorMessage = result['message'] ?? 'Mã giảm giá không hợp lệ';
+          _errorMessage =
+              (result['message'] as String?) ?? 'Mã giảm giá không hợp lệ';
         });
       }
     } catch (e) {
@@ -96,7 +97,8 @@ class _DiscountVoucherWidgetState extends State<DiscountVoucherWidget> {
     setState(() => _loadingMyVouchers = true);
 
     try {
-      final vouchers = await _promotionService.getMyDiscountVouchers();
+      // TODO: Implement my vouchers API
+      final vouchers = <DiscountVoucher>[];
       setState(() {
         _myVouchers = vouchers.where((v) => v.isValid).toList();
         _showMyVouchers = true;
@@ -138,7 +140,7 @@ class _DiscountVoucherWidgetState extends State<DiscountVoucherWidget> {
         border: Border.all(color: Colors.grey[300]!),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),

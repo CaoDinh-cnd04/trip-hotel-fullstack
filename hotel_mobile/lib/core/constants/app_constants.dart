@@ -25,6 +25,7 @@ class AppConstants {
   static const String searchHotelsEndpoint = '/khachsan/search';
   static const String bookingEndpoint = '/phieudatphong';
   static const String promotionsEndpoint = '/khuyenmai';
+  static const String notificationsEndpoint = '/notifications';
 
   // Storage Keys
   static const String tokenKey = 'auth_token';
