@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:hotel_mobile/data/models/hotel.dart';
 import 'package:hotel_mobile/data/models/promotion.dart';
@@ -34,7 +35,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   final TextEditingController _locationController = TextEditingController();
   final TextEditingController _searchController = TextEditingController();
   final PageController _promotionPageController = PageController();
+  final PageController _hotelPageController = PageController(viewportFraction: 0.9);
   late TabController _serviceTabController;
+  Timer? _hotelCarouselTimer;
+  int _currentHotelPage = 0;
 
   List<Hotel> _hotels = [];
   List<Hotel> _promotionHotels = [];
@@ -60,6 +64,25 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     _checkLoginStatus();
     _loadHotels();
     _loadPromotions();
+    _startHotelCarousel();
+  }
+  
+  void _startHotelCarousel() {
+    _hotelCarouselTimer = Timer.periodic(const Duration(seconds: 4), (timer) {
+      if (!mounted || _hotels.isEmpty) return;
+      
+      setState(() {
+        _currentHotelPage = (_currentHotelPage + 1) % (_hotels.length > 6 ? 6 : _hotels.length);
+      });
+      
+      if (_hotelPageController.hasClients && _hotelPageController.positions.isNotEmpty) {
+        _hotelPageController.animateToPage(
+          _currentHotelPage,
+          duration: const Duration(milliseconds: 500),
+          curve: Curves.easeInOut,
+        );
+      }
+    });
   }
 
   @override
@@ -115,7 +138,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   void dispose() {
     _locationController.dispose();
     _searchController.dispose();
+    _hotelCarouselTimer?.cancel();
     _promotionPageController.dispose();
+    _hotelPageController.dispose();
     _serviceTabController.dispose();
     super.dispose();
   }
@@ -137,11 +162,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       if (!mounted) return;
 
       if (response.success && response.data != null) {
-        print('Hotels loaded: ${response.data!.length}');
+        print('✅ Hotels loaded: ${response.data!.length}');
         for (var hotel in response.data!) {
-          print(
-            'Hotel: ${hotel.ten}, Stars: ${hotel.soSao}, Image: ${hotel.hinhAnh}',
-          );
+          print('🏨 Hotel: ${hotel.ten}');
+          print('   ⭐ Stars: ${hotel.soSao}');
+          print('   📸 Image: ${hotel.hinhAnh}');
         }
 
         if (mounted) {
@@ -631,95 +656,193 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 16),
-            child: Text(
-              'Ưu đãi đặc biệt',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: Colors.black87,
-              ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'Ưu đãi đặc biệt',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black87,
+                  ),
+                ),
+                TextButton(
+                  onPressed: () {
+                    // User can use bottom navigation to go to Deals tab
+                  },
+                  child: const Text('Xem tất cả'),
+                ),
+              ],
             ),
           ),
           const SizedBox(height: 12),
           SizedBox(
-            height: 180,
+            height: 200,
             child: PageView.builder(
               controller: _promotionPageController,
-              itemCount: _promotions.length,
+              itemCount: _promotions.length > 5 ? 5 : _promotions.length,
               itemBuilder: (context, index) {
                 final promotion = _promotions[index];
+                final imageUrl = promotion.image ?? promotion.hinhAnh;
+                
                 return Container(
                   margin: const EdgeInsets.symmetric(horizontal: 16),
                   decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(12),
-                    gradient: LinearGradient(
-                      colors: [
-                        Colors.blue.withValues(alpha: 0.8),
-                        Colors.purple.withValues(alpha: 0.8),
-                      ],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.15),
+                        blurRadius: 12,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
                   ),
                   child: Stack(
                     children: [
+                      // Hotel Image
                       Positioned.fill(
                         child: ClipRRect(
-                          borderRadius: BorderRadius.circular(12),
-                          child: promotion.hinhAnh?.isNotEmpty == true
+                          borderRadius: BorderRadius.circular(16),
+                          child: imageUrl?.isNotEmpty == true
                               ? Image.network(
-                                  promotion.hinhAnh!,
+                                  'http://10.0.2.2:5000/images/hotels/$imageUrl',
                                   fit: BoxFit.cover,
+                                  loadingBuilder: (context, child, loadingProgress) {
+                                    if (loadingProgress == null) return child;
+                                    return Container(
+                                      color: Colors.grey[200],
+                                      child: const Center(
+                                        child: CircularProgressIndicator(strokeWidth: 2),
+                                      ),
+                                    );
+                                  },
                                   errorBuilder: (context, error, stackTrace) =>
-                                      Container(color: Colors.grey[300]),
+                                      _buildPromotionPlaceholder(),
                                 )
-                              : Container(color: Colors.grey[300]),
+                              : _buildPromotionPlaceholder(),
                         ),
                       ),
+                      
+                      // Gradient Overlay
                       Container(
                         decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(12),
+                          borderRadius: BorderRadius.circular(16),
                           gradient: LinearGradient(
                             colors: [
-                              Colors.black.withValues(alpha: 0.3),
                               Colors.transparent,
-                              Colors.black.withValues(alpha: 0.5),
+                              Colors.black.withValues(alpha: 0.7),
                             ],
                             begin: Alignment.topCenter,
                             end: Alignment.bottomCenter,
                           ),
                         ),
                       ),
+                      
+                      // Discount Badge
                       Positioned(
-                        bottom: 16,
-                        left: 16,
-                        right: 16,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              promotion.ten,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            if (promotion.moTa?.isNotEmpty == true) ...[
-                              const SizedBox(height: 4),
-                              Text(
-                                promotion.moTa!,
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 14,
-                                ),
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
+                        top: 12,
+                        left: 12,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: Colors.red,
+                            borderRadius: BorderRadius.circular(20),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.red.withValues(alpha: 0.3),
+                                blurRadius: 6,
+                                offset: const Offset(0, 2),
                               ),
                             ],
-                          ],
+                          ),
+                          child: Text(
+                            '-${promotion.phanTramGiam.toStringAsFixed(0)}%',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                            ),
+                          ),
+                        ),
+                      ),
+                      
+                      // Location Badge
+                      if (promotion.location != null)
+                        Positioned(
+                          top: 12,
+                          right: 12,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(16),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.1),
+                                  blurRadius: 4,
+                                ),
+                              ],
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(
+                                  Icons.location_on,
+                                  size: 14,
+                                  color: Color(0xFF003580),
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  promotion.location!,
+                                  style: const TextStyle(
+                                    color: Color(0xFF003580),
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      
+                      // Content
+                      Positioned(
+                        bottom: 0,
+                        left: 0,
+                        right: 0,
+                        child: Container(
+                          padding: const EdgeInsets.all(16),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                promotion.ten,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              if (promotion.moTa?.isNotEmpty == true) ...[
+                                const SizedBox(height: 4),
+                                Text(
+                                  promotion.moTa!,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 13,
+                                  ),
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ],
+                            ],
+                          ),
                         ),
                       ),
                     ],
@@ -729,6 +852,35 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             ),
           ),
         ],
+      ),
+    );
+  }
+  
+  Widget _buildPromotionPlaceholder() {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Colors.blue[300]!, Colors.blue[500]!],
+        ),
+      ),
+      child: const Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.local_offer, color: Colors.white, size: 48),
+            SizedBox(height: 8),
+            Text(
+              'Ưu đãi đặc biệt',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -771,15 +923,52 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       );
     }
 
-    return ListView.separated(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: _hotels.length > 5 ? 5 : _hotels.length,
-      separatorBuilder: (context, index) => const SizedBox(height: 12),
-      itemBuilder: (context, index) {
-        final hotel = _hotels[index];
-        return _buildHotelCard(hotel);
-      },
+    final displayHotels = _hotels.length > 6 ? _hotels.sublist(0, 6) : _hotels;
+
+    return Column(
+      children: [
+        SizedBox(
+          height: 320,
+          child: PageView.builder(
+            controller: _hotelPageController,
+            itemCount: displayHotels.length,
+            onPageChanged: (index) {
+              if (mounted) {
+                setState(() {
+                  _currentHotelPage = index;
+                });
+              }
+            },
+            itemBuilder: (context, index) {
+              final hotel = displayHotels[index];
+              return Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                child: _buildHotelCard(hotel),
+              );
+            },
+          ),
+        ),
+        const SizedBox(height: 16),
+        // Page indicators
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: List.generate(
+            displayHotels.length,
+            (index) => AnimatedContainer(
+              duration: const Duration(milliseconds: 300),
+              margin: const EdgeInsets.symmetric(horizontal: 4),
+              width: _currentHotelPage == index ? 24 : 8,
+              height: 8,
+              decoration: BoxDecoration(
+                color: _currentHotelPage == index
+                    ? const Color(0xFF2196F3)
+                    : Colors.grey[300],
+                borderRadius: BorderRadius.circular(4),
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -1577,42 +1766,15 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             onPressed: () async {
               Navigator.of(context).pop();
 
-              // Show loading
-              showDialog(
-                context: context,
-                barrierDismissible: false,
-                builder: (context) =>
-                    const Center(child: CircularProgressIndicator()),
-              );
+              // Chuyển về màn hình đăng nhập ngay lập tức
+              print('🔄 Chuyển về màn hình đăng nhập ngay lập tức...');
+              Navigator.pushReplacementNamed(context, '/login');
+              
+              // Notify parent about auth state change
+              widget.onAuthStateChanged?.call();
 
-              // Sign out
-              try {
-                await _authService.signOut();
-                print('✅ Đăng xuất thành công');
-              } catch (e) {
-                print('❌ Lỗi đăng xuất: $e');
-                // Vẫn tiếp tục xử lý ngay cả khi có lỗi
-              }
-
-              // Close loading and refresh state
-              if (mounted) {
-                Navigator.of(context).pop();
-                
-                // Navigate to login screen after logout
-                print('🔄 Chuyển về màn hình đăng nhập...');
-                Navigator.pushReplacementNamed(context, '/login');
-                
-                // Notify parent about auth state change
-                widget.onAuthStateChanged?.call();
-              }
-
-              final successMessage = providers.isNotEmpty
-                  ? 'Đã đăng xuất thành công khỏi ${providers.join(", ")}'
-                  : 'Đã đăng xuất thành công';
-
-              ScaffoldMessenger.of(
-                context,
-              ).showSnackBar(SnackBar(content: Text(successMessage)));
+              // Đăng xuất trong background (không chờ)
+              _performLogoutInBackground(providers);
             },
             style: TextButton.styleFrom(foregroundColor: Colors.red),
             child: const Text('Đăng xuất'),
@@ -2030,5 +2192,21 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       trailing: const Icon(Icons.chevron_right),
       onTap: onTap,
     );
+  }
+
+  /// Thực hiện đăng xuất trong background (không chờ)
+  void _performLogoutInBackground(List<String> providers) {
+    // Chạy đăng xuất trong background với timeout
+    _authService.signOut().timeout(
+      const Duration(seconds: 5),
+      onTimeout: () {
+        print('⚠️ Logout timeout, but continuing...');
+      },
+    ).then((_) {
+      print('✅ Đăng xuất thành công trong background');
+    }).catchError((e) {
+      print('❌ Lỗi đăng xuất trong background: $e');
+      // Không cần xử lý lỗi vì đã chuyển màn hình rồi
+    });
   }
 }

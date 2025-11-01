@@ -1,6 +1,38 @@
 // controllers/khachsanController.js - Hotel controller
 const { check, validationResult } = require('express-validator');
 const KhachSan = require('../models/khachsan');
+const { getPool } = require('../config/db');
+const sql = require('mssql');
+
+// Helper function to transform hotel image URLs (auto-detect host from request)
+const transformHotelImageUrl = (imagePath, req) => {
+  if (!imagePath) return null;
+  
+  // If already a full URL, return as is
+  if (imagePath.startsWith('http')) return imagePath;
+  
+  // Auto-detect host for emulator/device compatibility
+  const host = req.get('host') || 'localhost:5000';
+  const protocol = req.protocol || 'http';
+  const baseUrl = `${protocol}://${host}`;
+  
+  // If starts with /, it's a relative path
+  if (imagePath.startsWith('/')) return `${baseUrl}${imagePath}`;
+  
+  // Otherwise, prepend /images/hotels/
+  return `${baseUrl}/images/hotels/${imagePath}`;
+};
+
+// Helper function to transform location image URLs
+const transformLocationImageUrl = (imagePath) => {
+  if (!imagePath) return null;
+  const baseUrl = process.env.BASE_URL || 'http://localhost:5000';
+  
+  if (imagePath.startsWith('http')) return imagePath;
+  if (imagePath.startsWith('/')) return `${baseUrl}${imagePath}`;
+  
+  return `${baseUrl}/images/provinces/${imagePath}`;
+};
 
 // Get all hotels
 exports.getAllHotels = async (req, res) => {
@@ -40,10 +72,16 @@ exports.getAllHotels = async (req, res) => {
       result = await KhachSan.getActiveHotels({ page: pageInt, limit: limitInt });
     }
 
+    // Keep image as filename only, Flutter will add prefix
+    const transformedData = result.data.map(hotel => ({
+      ...hotel,
+      hinh_anh: hotel.hinh_anh // Keep as filename: "bangkok_central.jpg"
+    }));
+
     res.json({
       success: true,
       message: 'Lấy danh sách khách sạn thành công',
-      data: result.data,
+      data: transformedData,
       pagination: result.pagination
     });
 
@@ -72,6 +110,9 @@ exports.getHotelById = async (req, res) => {
       });
     }
 
+    // Transform hotel image URL
+    hotel.hinh_anh = transformHotelImageUrl(hotel.hinh_anh, req);
+
     // Get amenities if requested
     if (with_amenities === 'true') {
       hotel.tien_nghi = await KhachSan.getHotelAmenities(id);
@@ -79,9 +120,22 @@ exports.getHotelById = async (req, res) => {
 
     // Get rooms if requested
     if (with_rooms === 'true') {
-      hotel.phong = await KhachSan.getHotelRooms(id, {
+      const rooms = await KhachSan.getHotelRooms(id, {
         available_from,
         available_to
+      });
+      
+      // Keep room images as JSON string, Flutter will parse and add prefix
+      hotel.phong = rooms.map(room => {
+        return {
+          ...room,
+          hinh_anh: room.hinh_anh, // Keep as JSON string: ["img1.jpg","img2.jpg"]
+          hinh_anh_phong: room.hinh_anh, // Alternative field name
+          gia_tien: room.gia_tien,
+          gia_phong: room.gia_tien,
+          ma_phong: room.ma_phong,
+          so_phong: room.ma_phong,
+        };
       });
     }
 
@@ -127,10 +181,33 @@ exports.getHotelRooms = async (req, res) => {
       available_to
     });
 
+    // Transform room data - keep images as JSON string, Flutter will parse
+    const transformedRooms = rooms.map(room => {
+      // Keep hinh_anh as is (JSON string from DB), Flutter will parse it
+      // Don't transform to full URLs - let Flutter add the prefix
+      
+      return {
+        ...room,
+        hinh_anh: room.hinh_anh, // Keep as JSON string: ["img1.jpg","img2.jpg"]
+        hinh_anh_phong: room.hinh_anh, // Alternative field name
+        // Also include price with both field names (gia_tien from SQL Server)
+        gia_tien: room.gia_tien || 0,
+        gia_phong: room.gia_tien || 0, // Map gia_tien to gia_phong for Flutter
+        // Include room code/number
+        ma_phong: room.ma_phong,
+        so_phong: room.ma_phong, // Alternative field name (use ma_phong as so_phong)
+        // Ensure capacity and bed fields are included (from loai_phong table)
+        suc_chua: room.suc_chua || null,
+        so_khach: room.suc_chua || null, // Alternative field name
+        so_giuong_don: room.so_giuong_don || 0,
+        so_giuong_doi: room.so_giuong_doi || 0,
+      };
+    });
+
     res.json({
       success: true,
       message: 'Lấy danh sách phòng thành công',
-      data: rooms
+      data: transformedRooms
     });
 
   } catch (error) {
@@ -371,6 +448,56 @@ exports.getMyHotels = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Lỗi server khi lấy danh sách khách sạn'
+    });
+  }
+};
+
+// Get hotel reviews (Public - no auth required)
+exports.getHotelReviews = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const pool = getPool();
+    
+    console.log('📋 Getting reviews for hotel ID:', id);
+    
+    // Get reviews for this hotel (only approved reviews)
+    const query = `
+      SELECT 
+        dg.id,
+        dg.so_sao_tong as rating,
+        dg.binh_luan as content,
+        dg.ngay as review_date,
+        dg.phan_hoi_khach_san as hotel_response,
+        dg.ngay_phan_hoi as response_date,
+        nd.ho_ten as customer_name,
+        nd.anh_dai_dien as customer_avatar,
+        COALESCE(b.room_number, 'N/A') as room_number
+      FROM danh_gia dg
+      LEFT JOIN nguoi_dung nd ON dg.nguoi_dung_id = nd.id
+      LEFT JOIN bookings b ON dg.phieu_dat_phong_id = b.id
+      WHERE dg.khach_san_id = @hotelId
+        AND dg.trang_thai = N'Đã duyệt'
+      ORDER BY dg.ngay DESC
+    `;
+    
+    const result = await pool.request()
+      .input('hotelId', sql.Int, id)
+      .query(query);
+    
+    console.log(`✅ Found ${result.recordset.length} reviews for hotel ${id}`);
+    
+    res.json({
+      success: true,
+      message: 'Lấy danh sách đánh giá thành công',
+      data: result.recordset || []
+    });
+    
+  } catch (error) {
+    console.error('Get hotel reviews error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Lỗi server khi lấy danh sách đánh giá',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 };

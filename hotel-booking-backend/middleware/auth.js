@@ -19,8 +19,8 @@ const authenticateToken = async (req, res, next) => {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     
     // Get user from database
-    const nguoiDung = new NguoiDung();
-    const user = await nguoiDung.findById(decoded.ma_nguoi_dung);
+    const userId = decoded.id || decoded.ma_nguoi_dung;
+    const user = await NguoiDung.findById(userId);
     
     if (!user) {
       return res.status(401).json({
@@ -38,9 +38,11 @@ const authenticateToken = async (req, res, next) => {
 
     // Add user info to request
     req.user = {
-      ma_nguoi_dung: user.ma_nguoi_dung,
+      id: user.id || user.ma_nguoi_dung,
+      ma_nguoi_dung: user.id || user.ma_nguoi_dung,
       email: user.email,
       vai_tro: user.vai_tro,
+      chuc_vu: user.chuc_vu,
       ho_ten: user.ho_ten
     };
 
@@ -78,7 +80,8 @@ const authorizeRoles = (...roles) => {
       });
     }
 
-    if (!roles.includes(req.user.vai_tro)) {
+    const userRole = req.user.vai_tro || req.user.chuc_vu;
+    if (!roles.includes(userRole)) {
       return res.status(403).json({
         success: false,
         message: 'Không có quyền truy cập'
@@ -98,10 +101,31 @@ const verifyHotelManager = [authenticateToken, authorizeRoles('HotelManager', 'A
 // Any authenticated user
 const verifyToken = authenticateToken;
 
+// Require Admin middleware (single function for convenience)
+const requireAdmin = (req, res, next) => {
+  if (!req.user) {
+    return res.status(401).json({
+      success: false,
+      message: 'Chưa đăng nhập'
+    });
+  }
+
+  const userRole = req.user.vai_tro || req.user.chuc_vu;
+  if (userRole !== 'Admin') {
+    return res.status(403).json({
+      success: false,
+      message: 'Chỉ Admin mới có quyền thực hiện thao tác này'
+    });
+  }
+
+  next();
+};
+
 module.exports = {
   authenticateToken,
   authorizeRoles,
   verifyAdmin,
   verifyHotelManager,
-  verifyToken
+  verifyToken,
+  requireAdmin
 };

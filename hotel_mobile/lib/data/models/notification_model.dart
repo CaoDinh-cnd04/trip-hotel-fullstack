@@ -1,201 +1,143 @@
-import 'package:json_annotation/json_annotation.dart';
-
-part 'notification_model.g.dart';
-
-@JsonSerializable()
+// Notification model
 class NotificationModel {
-  final String id;
-  final String type;
-  final String title;
-  final String message;
-  final String recipientEmail;
-  final String recipientName;
-  final String? bookingId;
-  final String status;
-  final DateTime createdAt;
-  final DateTime? sentAt;
-  final String? errorMessage;
-  final Map<String, dynamic>? metadata;
+  final int id;
+  final String tieuDe;
+  final String noiDung;
+  final String loaiThongBao;
+  final String? urlHinhAnh;
+  final String? urlHanhDong;
+  final String? vanBanNut;
+  final int? khachSanId;
+  final DateTime? ngayHetHan;
+  final bool hienThi;
+  final String doiTuongNhan;
+  final int? nguoiDungId;
+  final bool guiEmail;
+  final int nguoiTaoId;
+  final DateTime ngayTao;
+  final DateTime? ngayCapNhat;
+  final bool daDoc;
 
-  const NotificationModel({
+  NotificationModel({
     required this.id,
-    required this.type,
-    required this.title,
-    required this.message,
-    required this.recipientEmail,
-    required this.recipientName,
-    this.bookingId,
-    required this.status,
-    required this.createdAt,
-    this.sentAt,
-    this.errorMessage,
-    this.metadata,
+    required this.tieuDe,
+    required this.noiDung,
+    required this.loaiThongBao,
+    this.urlHinhAnh,
+    this.urlHanhDong,
+    this.vanBanNut,
+    this.khachSanId,
+    this.ngayHetHan,
+    required this.hienThi,
+    required this.doiTuongNhan,
+    this.nguoiDungId,
+    required this.guiEmail,
+    required this.nguoiTaoId,
+    required this.ngayTao,
+    this.ngayCapNhat,
+    this.daDoc = false,
   });
 
-  factory NotificationModel.fromJson(Map<String, dynamic> json) =>
-      _$NotificationModelFromJson(json);
+  factory NotificationModel.fromJson(Map<String, dynamic> json) {
+    // Safe date parsing
+    DateTime? parseDate(dynamic value) {
+      if (value == null) return null;
+      try {
+        if (value is String) {
+          return DateTime.parse(value);
+        } else if (value is DateTime) {
+          return value;
+        }
+        return null;
+      } catch (e) {
+        print('⚠️ Error parsing date: $value');
+        return null;
+      }
+    }
 
-  Map<String, dynamic> toJson() => _$NotificationModelToJson(this);
+    // Safe int parsing
+    int? parseInt(dynamic value) {
+      if (value == null) return null;
+      if (value is int) return value;
+      if (value is String) return int.tryParse(value);
+      return null;
+    }
 
-  NotificationModel copyWith({
-    String? id,
-    String? type,
-    String? title,
-    String? message,
-    String? recipientEmail,
-    String? recipientName,
-    String? bookingId,
-    String? status,
-    DateTime? createdAt,
-    DateTime? sentAt,
-    String? errorMessage,
-    Map<String, dynamic>? metadata,
-  }) {
+    // Safe bool parsing
+    bool parseBool(dynamic value) {
+      if (value == null) return false;
+      if (value is bool) return value;
+      if (value is int) return value == 1;
+      if (value is String) return value.toLowerCase() == 'true';
+      return false;
+    }
+
+    // Support both Vietnamese and English field names
+    final id = parseInt(json['id'] ?? json['ma_thong_bao']) ?? 0;
+    final tieuDe = json['tieu_de'] ?? json['title'] ?? '';
+    final noiDung = json['noi_dung'] ?? json['content'] ?? '';
+    
+    // Map loai_thong_bao (Vietnamese) to type (English) if needed
+    String loaiThongBao = json['loai_thong_bao'] ?? json['type'] ?? 'system';
+    // Reverse mapping: Vietnamese → English for consistency
+    if (loaiThongBao == 'Ưu đãi') loaiThongBao = 'promotion';
+    else if (loaiThongBao == 'Phòng mới') loaiThongBao = 'new_room';
+    else if (loaiThongBao == 'Chương trình app') loaiThongBao = 'app_program';
+    else if (loaiThongBao == 'Đặt phòng thành công') loaiThongBao = 'booking_success';
+
+    final ngayTao = parseDate(json['ngay_tao'] ?? json['created_at']) ?? DateTime.now();
+
     return NotificationModel(
-      id: id ?? this.id,
-      type: type ?? this.type,
-      title: title ?? this.title,
-      message: message ?? this.message,
-      recipientEmail: recipientEmail ?? this.recipientEmail,
-      recipientName: recipientName ?? this.recipientName,
-      bookingId: bookingId ?? this.bookingId,
-      status: status ?? this.status,
-      createdAt: createdAt ?? this.createdAt,
-      sentAt: sentAt ?? this.sentAt,
-      errorMessage: errorMessage ?? this.errorMessage,
-      metadata: metadata ?? this.metadata,
+      id: id,
+      tieuDe: tieuDe.toString(),
+      noiDung: noiDung.toString(),
+      loaiThongBao: loaiThongBao,
+      urlHinhAnh: json['url_hinh_anh'] ?? json['image_url'],
+      urlHanhDong: json['url_hanh_dong'] ?? json['action_url'],
+      vanBanNut: json['van_ban_nut'] ?? json['action_text'],
+      khachSanId: parseInt(json['khach_san_id'] ?? json['hotel_id']),
+      ngayHetHan: parseDate(json['ngay_het_han'] ?? json['expires_at']),
+      hienThi: parseBool(json['hien_thi'] ?? json['is_visible'] ?? true),
+      doiTuongNhan: json['doi_tuong_nhan'] ?? json['target_audience'] ?? 'all',
+      nguoiDungId: parseInt(json['nguoi_dung_id'] ?? json['user_id']),
+      guiEmail: parseBool(json['gui_email'] ?? json['send_email']),
+      nguoiTaoId: parseInt(json['nguoi_tao_id'] ?? json['created_by_id']) ?? 0,
+      ngayTao: ngayTao,
+      ngayCapNhat: parseDate(json['ngay_cap_nhat'] ?? json['updated_at']),
+      daDoc: parseBool(json['da_doc'] ?? json['is_read']),
     );
   }
 
-  // Helper methods
-  bool get isPending => status == 'pending';
-  bool get isSent => status == 'sent';
-  bool get isFailed => status == 'failed';
-
-  String get statusDisplayName {
-    switch (status) {
-      case 'pending':
-        return 'Chờ gửi';
-      case 'sent':
-        return 'Đã gửi';
-      case 'failed':
-        return 'Gửi thất bại';
+  String get emoji {
+    switch (loaiThongBao) {
+      case 'promotion':
+        return '🎉';
+      case 'new_room':
+        return '🏨';
+      case 'app_program':
+        return '📱';
+      case 'booking_success':
+        return '✅';
       default:
-        return 'Không xác định';
+        return '🔔';
     }
   }
 
-  String get typeDisplayName {
-    switch (type) {
-      case 'booking_confirmation':
-        return 'Xác nhận đặt phòng';
-      case 'booking_cancellation':
-        return 'Hủy đặt phòng';
-      case 'checkin_reminder':
-        return 'Nhắc nhở check-in';
-      case 'review_request':
-        return 'Yêu cầu đánh giá';
-      case 'payment_confirmation':
-        return 'Xác nhận thanh toán';
-      case 'custom':
-        return 'Thông báo tùy chỉnh';
-      default:
-        return type;
+  String get timeAgo {
+    final difference = DateTime.now().difference(ngayTao);
+    
+    if (difference.inDays > 365) {
+      return '${(difference.inDays / 365).floor()} năm trước';
+    } else if (difference.inDays > 30) {
+      return '${(difference.inDays / 30).floor()} tháng trước';
+    } else if (difference.inDays > 0) {
+      return '${difference.inDays} ngày trước';
+    } else if (difference.inHours > 0) {
+      return '${difference.inHours} giờ trước';
+    } else if (difference.inMinutes > 0) {
+      return '${difference.inMinutes} phút trước';
+    } else {
+      return 'Vừa xong';
     }
-  }
-
-  String get formattedCreatedAt => 
-      '${createdAt.day.toString().padLeft(2, '0')}/${createdAt.month.toString().padLeft(2, '0')}/${createdAt.year} ${createdAt.hour.toString().padLeft(2, '0')}:${createdAt.minute.toString().padLeft(2, '0')}';
-
-  String get formattedSentAt => sentAt != null
-      ? '${sentAt!.day.toString().padLeft(2, '0')}/${sentAt!.month.toString().padLeft(2, '0')}/${sentAt!.year} ${sentAt!.hour.toString().padLeft(2, '0')}:${sentAt!.minute.toString().padLeft(2, '0')}'
-      : 'Chưa gửi';
-}
-
-@JsonSerializable()
-class EmailNotificationRequest {
-  final String toEmail;
-  final String toName;
-  final String templateType;
-  final String subject;
-  final Map<String, dynamic> data;
-  final String? bookingId;
-
-  const EmailNotificationRequest({
-    required this.toEmail,
-    required this.toName,
-    required this.templateType,
-    required this.subject,
-    required this.data,
-    this.bookingId,
-  });
-
-  factory EmailNotificationRequest.fromJson(Map<String, dynamic> json) =>
-      _$EmailNotificationRequestFromJson(json);
-
-  Map<String, dynamic> toJson() => _$EmailNotificationRequestToJson(this);
-
-  EmailNotificationRequest copyWith({
-    String? toEmail,
-    String? toName,
-    String? templateType,
-    String? subject,
-    Map<String, dynamic>? data,
-    String? bookingId,
-  }) {
-    return EmailNotificationRequest(
-      toEmail: toEmail ?? this.toEmail,
-      toName: toName ?? this.toName,
-      templateType: templateType ?? this.templateType,
-      subject: subject ?? this.subject,
-      data: data ?? this.data,
-      bookingId: bookingId ?? this.bookingId,
-    );
-  }
-}
-
-@JsonSerializable()
-class NotificationSettings {
-  final bool emailNotificationsEnabled;
-  final bool smsNotificationsEnabled;
-  final bool pushNotificationsEnabled;
-  final List<String> enabledNotificationTypes;
-  final String? emailTemplate;
-  final Map<String, dynamic>? customSettings;
-
-  const NotificationSettings({
-    required this.emailNotificationsEnabled,
-    required this.smsNotificationsEnabled,
-    required this.pushNotificationsEnabled,
-    required this.enabledNotificationTypes,
-    this.emailTemplate,
-    this.customSettings,
-  });
-
-  factory NotificationSettings.fromJson(Map<String, dynamic> json) =>
-      _$NotificationSettingsFromJson(json);
-
-  Map<String, dynamic> toJson() => _$NotificationSettingsToJson(this);
-
-  NotificationSettings copyWith({
-    bool? emailNotificationsEnabled,
-    bool? smsNotificationsEnabled,
-    bool? pushNotificationsEnabled,
-    List<String>? enabledNotificationTypes,
-    String? emailTemplate,
-    Map<String, dynamic>? customSettings,
-  }) {
-    return NotificationSettings(
-      emailNotificationsEnabled: emailNotificationsEnabled ?? this.emailNotificationsEnabled,
-      smsNotificationsEnabled: smsNotificationsEnabled ?? this.smsNotificationsEnabled,
-      pushNotificationsEnabled: pushNotificationsEnabled ?? this.pushNotificationsEnabled,
-      enabledNotificationTypes: enabledNotificationTypes ?? this.enabledNotificationTypes,
-      emailTemplate: emailTemplate ?? this.emailTemplate,
-      customSettings: customSettings ?? this.customSettings,
-    );
-  }
-
-  bool isNotificationTypeEnabled(String type) {
-    return enabledNotificationTypes.contains(type);
   }
 }

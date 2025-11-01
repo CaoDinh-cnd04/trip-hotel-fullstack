@@ -51,13 +51,13 @@ class Booking {
 
   factory Booking.fromJson(Map<String, dynamic> json) {
     return Booking(
-      id: json['id'],
-      nguoiDungId: json['nguoi_dung_id'] ?? 0,
-      phongId: json['phong_id'] ?? 0,
+      id: _safeToInt(json['id']) ?? 0,
+      nguoiDungId: _safeToInt(json['nguoi_dung_id']) ?? 0,
+      phongId: _safeToInt(json['phong_id']) ?? 0,
       ngayNhanPhong: DateTime.parse(json['ngay_nhan_phong']),
       ngayTraPhong: DateTime.parse(json['ngay_tra_phong']),
-      soLuongKhach: json['so_luong_khach'] ?? 1,
-      tongTien: (json['tong_tien'] ?? 0).toDouble(),
+      soLuongKhach: _safeToInt(json['so_luong_khach']) ?? 1,
+      tongTien: _safeToDouble(json['tong_tien']) ?? 0,
       trangThai: _parseBookingStatus(json['trang_thai']),
       ghiChu: json['ghi_chu'],
       ngayTao: json['ngay_tao'] != null
@@ -72,9 +72,7 @@ class Booking {
       soPhong: json['so_phong'],
       tenKhachSan: json['ten_khach_san'],
       tenLoaiPhong: json['ten_loai_phong'],
-      giaPhong: json['gia_phong'] != null
-          ? (json['gia_phong']).toDouble()
-          : null,
+      giaPhong: _safeToDouble(json['gia_phong']),
     );
   }
 
@@ -229,5 +227,27 @@ class Booking {
   @override
   String toString() {
     return 'Booking{id: $id, phong: $soPhong, hotel: $tenKhachSan, status: $statusText}';
+  }
+
+  static double? _safeToDouble(dynamic value) {
+    if (value == null) return null;
+    if (value is double) return value;
+    if (value is int) return value.toDouble();
+    if (value is String) {
+      final parsed = double.tryParse(value);
+      return parsed;
+    }
+    return null;
+  }
+
+  static int? _safeToInt(dynamic value) {
+    if (value == null) return null;
+    if (value is int) return value;
+    if (value is double) return value.toInt();
+    if (value is String) {
+      final parsed = int.tryParse(value);
+      return parsed;
+    }
+    return null;
   }
 }

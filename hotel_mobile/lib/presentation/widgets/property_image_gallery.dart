@@ -20,12 +20,7 @@ class _PropertyImageGalleryState extends State<PropertyImageGallery> {
     
     // Add hotel's main image if it exists and is a valid URL
     if (widget.hotel.hinhAnh != null && widget.hotel.hinhAnh!.isNotEmpty) {
-      if (widget.hotel.hinhAnh!.startsWith('http')) {
-        images.add(widget.hotel.hinhAnh!);
-      } else {
-        // If it's a relative path, construct full URL
-        images.add('http://10.0.2.2:5000${widget.hotel.hinhAnh}');
-      }
+      images.add(widget.hotel.fullImageUrl);
     }
     
     // Add fallback images if no hotel image

@@ -1,15 +1,27 @@
 class AppConstants {
   // API Base URL Configuration
   // For different environments
-  static const String _localhostUrl = 'http://localhost:5000/api/v2';
-  static const String _emulatorUrl = 'http://10.0.2.2:5000/api/v2';
-  static const String _iosSimulatorUrl = 'http://127.0.0.1:5000/api/v2';
+  static const String _localhostUrl = 'http://localhost:5000';
+  static const String _emulatorUrl = 'http://10.0.2.2:5000';
+  static const String _iosSimulatorUrl = 'http://127.0.0.1:5000';
+  static const String _productionUrl = 'https://your-production-url.com';
 
-  // Auto-detect environment or set manually
+  // ⚠️ QUAN TRỌNG: THAY ĐỔI THEO MÔI TRƯỜNG CỦA BẠN:
+  // 
+  // 1. ANDROID EMULATOR → return _emulatorUrl; (10.0.2.2:5000)
+  // 2. IOS SIMULATOR → return _iosSimulatorUrl; (127.0.0.1:5000)
+  // 3. THIẾT BỊ THẬT → return 'http://YOUR_COMPUTER_IP:5000';
+  //    Ví dụ: return 'http://192.168.1.4:5000';
+  //    
+  //    Cách tìm IP máy backend:
+  //    - Windows: mở PowerShell → chạy: ipconfig → tìm IPv4 Address
+  //    - Mac/Linux: chạy: ifconfig → tìm inet
   static String get baseUrl {
-    // You can also check Platform.isAndroid, Platform.isIOS here
-    // For now, default to emulator URL which works for Android emulator
-    return _emulatorUrl;
+    // TODO: Thay đổi dòng dưới đây theo môi trường của bạn
+    return _emulatorUrl; // Android Emulator - 10.0.2.2:5000
+    
+    // Thiết bị thật - IP của máy backend
+    // return 'http://192.168.110.113:5000'; // ← IP máy backend + port 5000
   }
 
   // Alternative URLs for different scenarios
@@ -21,11 +33,11 @@ class AppConstants {
   static const String loginEndpoint = '/auth/login';
   static const String registerEndpoint = '/auth/register';
   static const String forgotPasswordEndpoint = '/auth/forgot-password';
-  static const String hotelsEndpoint = '/khachsan';
-  static const String searchHotelsEndpoint = '/khachsan/search';
-  static const String bookingEndpoint = '/phieudatphong';
-  static const String promotionsEndpoint = '/khuyenmai';
-  static const String notificationsEndpoint = '/notifications';
+  static const String hotelsEndpoint = '/api/khachsan';
+  static const String searchHotelsEndpoint = '/api/khachsan/search';
+  static const String bookingEndpoint = '/api/phieudatphong';
+  static const String promotionsEndpoint = '/api/khuyenmai';
+  static const String notificationsEndpoint = '/api/notifications';
 
   // Storage Keys
   static const String tokenKey = 'auth_token';
@@ -39,6 +51,10 @@ class AppConstants {
   // Validation
   static const int minPasswordLength = 6;
   static const int maxPasswordLength = 50;
+
+  // OTP Configuration
+  static const int otpExpiryMs = 45000; // 45 seconds as requested
+  static const int otpLength = 6;
 
   // Timeouts
   static const Duration connectTimeout = Duration(seconds: 30);

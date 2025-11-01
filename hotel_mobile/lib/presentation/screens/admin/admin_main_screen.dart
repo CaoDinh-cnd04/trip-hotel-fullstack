@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'admin_dashboard_screen.dart';
 import 'user_management_screen.dart';
-import 'application_review_screen.dart';
-import 'role_management_screen.dart';
+import 'hotel_registration_management_screen.dart';
 import 'feedback_management_screen.dart';
+import '../auth/agoda_style_login_screen.dart';
+import '../../../data/services/auth_service.dart';
+import '../../../data/services/backend_auth_service.dart';
 
 class AdminMainScreen extends StatefulWidget {
   const AdminMainScreen({super.key});
@@ -15,13 +17,18 @@ class AdminMainScreen extends StatefulWidget {
 class _AdminMainScreenState extends State<AdminMainScreen> {
   int _currentIndex = 0;
 
-  final List<Widget> _screens = [
-    const AdminDashboardScreen(),
+  List<Widget> get _screens => [
+    AdminDashboardScreen(onNavigateToTab: _changeTab),
     const UserManagementScreen(),
-    const RoleManagementScreen(),
-    const ApplicationReviewScreen(),
+    const HotelRegistrationManagementScreen(), // ✅ FIX: Use correct screen with proper model
     const FeedbackManagementScreen(),
   ];
+
+  void _changeTab(int index) {
+    setState(() {
+      _currentIndex = index;
+    });
+  }
 
   final List<BottomNavigationBarItem> _bottomNavItems = [
     const BottomNavigationBarItem(
@@ -35,14 +42,9 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
       label: 'Người dùng',
     ),
     const BottomNavigationBarItem(
-      icon: Icon(Icons.admin_panel_settings_outlined),
-      activeIcon: Icon(Icons.admin_panel_settings),
-      label: 'Quyền hạn',
-    ),
-    const BottomNavigationBarItem(
       icon: Icon(Icons.pending_actions_outlined),
       activeIcon: Icon(Icons.pending_actions),
-      label: 'Duyệt hồ sơ',
+      label: 'Duyệt Hồ sơ',
     ),
     const BottomNavigationBarItem(
       icon: Icon(Icons.feedback_outlined),
@@ -51,9 +53,71 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
     ),
   ];
 
+  Future<void> _showLogoutDialog() async {
+    final shouldLogout = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Đăng xuất'),
+        content: const Text('Bạn có chắc chắn muốn đăng xuất?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Hủy'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Đăng xuất'),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldLogout == true && mounted) {
+      await _logout();
+    }
+  }
+
+  Future<void> _logout() async {
+    try {
+      final authService = AuthService();
+      final backendAuthService = BackendAuthService();
+      
+      await authService.signOut();
+      await backendAuthService.signOut();
+      
+      if (mounted) {
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (context) => const AgodaStyleLoginScreen()),
+          (route) => false,
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Lỗi đăng xuất: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      appBar: _currentIndex == 0 ? AppBar(
+        backgroundColor: Colors.purple[700],
+        title: const Text('Admin Panel', style: TextStyle(color: Colors.white)),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.logout, color: Colors.white),
+            onPressed: _showLogoutDialog,
+            tooltip: 'Đăng xuất',
+          ),
+        ],
+      ) : null,
       body: IndexedStack(
         index: _currentIndex,
         children: _screens,

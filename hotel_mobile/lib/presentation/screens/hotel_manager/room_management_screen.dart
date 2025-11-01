@@ -18,7 +18,7 @@ class _RoomManagementScreenState extends State<RoomManagementScreen> {
   final BookingService _bookingService = BookingService();
   final ApiService _apiService = ApiService();
   final ImageUploadService _imageService = ImageUploadService();
-  List<Map<String, dynamic>> _rooms = [];
+  List<Room> _rooms = [];
   bool _isLoading = true;
   String? _error;
 
@@ -36,9 +36,12 @@ class _RoomManagementScreenState extends State<RoomManagementScreen> {
         _error = null;
       });
 
-      final rooms = await _bookingService.getRooms();
+      // Sử dụng hotel ID mặc định cho hotel manager (có thể thay đổi sau)
+      final roomsResponse = await _bookingService.getRooms(1);
       setState(() {
-        _rooms = rooms;
+        if (roomsResponse.success && roomsResponse.data != null) {
+          _rooms = roomsResponse.data!;
+        }
         _isLoading = false;
       });
     } catch (e) {
@@ -139,12 +142,12 @@ class _RoomManagementScreenState extends State<RoomManagementScreen> {
     );
   }
 
-  Widget _buildRoomCard(Map<String, dynamic> room) {
-    final roomNumber = room['roomNumber'] ?? 'N/A';
-    final roomType = room['roomType'] ?? 'N/A';
-    final price = room['price'] ?? 0.0;
-    final status = room['status'] ?? 'available';
-    final imageUrls = room['imageUrls'] as List<dynamic>? ?? [];
+  Widget _buildRoomCard(Room room) {
+    final roomNumber = room.soPhong;
+    final roomType = room.tenLoaiPhong ?? 'N/A';
+    final price = room.giaPhong ?? 0.0;
+    final status = room.tinhTrang ? 'available' : 'occupied';
+    final imageUrls = room.hinhAnhPhong ?? [];
     final primaryImageUrl = imageUrls.isNotEmpty ? imageUrls.first : null;
 
     return Card(
@@ -293,7 +296,7 @@ class _RoomManagementScreenState extends State<RoomManagementScreen> {
     );
   }
 
-  void _showRoomDetail(Map<String, dynamic> room) {
+  void _showRoomDetail(Room room) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -337,23 +340,23 @@ class _RoomManagementScreenState extends State<RoomManagementScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _buildDetailRow('Số phòng', room['roomNumber'] ?? 'N/A'),
-                      _buildDetailRow('Loại phòng', room['roomType'] ?? 'N/A'),
+                      _buildDetailRow('Số phòng', room.soPhong),
+                      _buildDetailRow('Loại phòng', room.tenLoaiPhong ?? 'N/A'),
                       _buildDetailRow(
                         'Giá',
-                        '${room['price']?.toStringAsFixed(0) ?? '0'} VNĐ',
+                        '${room.giaPhong?.toStringAsFixed(0) ?? '0'} VNĐ',
                       ),
                       _buildDetailRow(
                         'Trạng thái',
-                        _getStatusText(room['status'] ?? 'available'),
+                        _getStatusText(room.tinhTrang ? 'available' : 'occupied'),
                       ),
 
                       // Room images section
-                      if (room['imageUrls'] != null &&
-                          (room['imageUrls'] as List).isNotEmpty) ...[
+                      if (room.hinhAnhPhong != null &&
+                          room.hinhAnhPhong!.isNotEmpty) ...[
                         const SizedBox(height: 16),
                         Text(
-                          'Hình ảnh (${(room['imageUrls'] as List).length})',
+                          'Hình ảnh (${room.hinhAnhPhong!.length})',
                           style: Theme.of(context).textTheme.titleMedium
                               ?.copyWith(fontWeight: FontWeight.bold),
                         ),
@@ -362,10 +365,9 @@ class _RoomManagementScreenState extends State<RoomManagementScreen> {
                           height: 120,
                           child: ListView.builder(
                             scrollDirection: Axis.horizontal,
-                            itemCount: (room['imageUrls'] as List).length,
+                            itemCount: room.hinhAnhPhong!.length,
                             itemBuilder: (context, index) {
-                              final imageUrl =
-                                  (room['imageUrls'] as List)[index];
+                              final imageUrl = room.hinhAnhPhong![index];
                               return Container(
                                 width: 120,
                                 margin: const EdgeInsets.only(right: 8),
@@ -396,11 +398,11 @@ class _RoomManagementScreenState extends State<RoomManagementScreen> {
                       ],
                       _buildDetailRow(
                         'Mô tả',
-                        room['description'] ?? 'Không có mô tả',
+                        room.moTa ?? 'Không có mô tả',
                       ),
                       _buildDetailRow(
-                        'Tiện ích',
-                        room['amenities'] ?? 'Không có',
+                        'Sức chứa',
+                        '${room.sucChua ?? 2} khách',
                       ),
                     ],
                   ),
@@ -513,13 +515,13 @@ class _RoomManagementScreenState extends State<RoomManagementScreen> {
     }
   }
 
-  void _showEditRoomDialog(Map<String, dynamic> room) {
+  void _showEditRoomDialog(Room room) {
     showDialog(
       context: context,
       builder: (context) => _RoomDialog(
         room: room,
         onSave: (roomData) async {
-          await _updateRoom(room['id'], roomData);
+          await _updateRoom(room.id!, roomData);
         },
       ),
     );
@@ -565,7 +567,7 @@ class _RoomManagementScreenState extends State<RoomManagementScreen> {
     }
   }
 
-  void _handleRoomAction(String action, Map<String, dynamic> room) {
+  void _handleRoomAction(String action, Room room) {
     switch (action) {
       case 'edit':
         _showEditRoomDialog(room);
@@ -576,12 +578,12 @@ class _RoomManagementScreenState extends State<RoomManagementScreen> {
     }
   }
 
-  void _showDeleteConfirmation(Map<String, dynamic> room) {
+  void _showDeleteConfirmation(Room room) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Xác nhận xóa'),
-        content: Text('Bạn có chắc chắn muốn xóa phòng ${room['roomNumber']}?'),
+        content: Text('Bạn có chắc chắn muốn xóa phòng ${room.soPhong}?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
@@ -590,7 +592,7 @@ class _RoomManagementScreenState extends State<RoomManagementScreen> {
           ElevatedButton(
             onPressed: () async {
               Navigator.pop(context);
-              await _deleteRoom(room['id']);
+              await _deleteRoom(room.id!);
             },
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
             child: const Text('Xóa', style: TextStyle(color: Colors.white)),
@@ -659,7 +661,7 @@ class _RoomManagementScreenState extends State<RoomManagementScreen> {
 }
 
 class _RoomDialog extends StatefulWidget {
-  final Map<String, dynamic>? room;
+  final Room? room;
   final Function(Map<String, dynamic>) onSave;
 
   const _RoomDialog({this.room, required this.onSave});
@@ -682,12 +684,12 @@ class _RoomDialogState extends State<_RoomDialog> {
   void initState() {
     super.initState();
     if (widget.room != null) {
-      _roomNumberController.text = widget.room!['roomNumber'] ?? '';
-      _roomTypeController.text = widget.room!['roomType'] ?? '';
-      _priceController.text = widget.room!['price']?.toString() ?? '';
-      _descriptionController.text = widget.room!['description'] ?? '';
-      _amenitiesController.text = widget.room!['amenities'] ?? '';
-      _selectedStatus = widget.room!['status'] ?? 'available';
+      _roomNumberController.text = widget.room!.soPhong;
+      _roomTypeController.text = widget.room!.tenLoaiPhong ?? '';
+      _priceController.text = widget.room!.giaPhong?.toString() ?? '';
+      _descriptionController.text = widget.room!.moTa ?? '';
+      _amenitiesController.text = '';
+      _selectedStatus = widget.room!.tinhTrang ? 'available' : 'occupied';
     }
   }
 
@@ -803,7 +805,7 @@ class _RoomDialogState extends State<_RoomDialog> {
                 description: 'Tải lên ảnh của phòng (tối đa 5 ảnh)',
                 category: 'room',
                 entityType: 'room',
-                entityId: widget.room?['id'],
+                entityId: widget.room?.id?.toString(),
                 allowMultiple: true,
                 maxWidth: 1200,
                 maxHeight: 800,

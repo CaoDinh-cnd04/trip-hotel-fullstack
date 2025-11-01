@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Hotel Mobile</string>
+    <string name="app_name">Hotel Booking</string>
     
     <!-- Facebook Configuration -->
     <string name="facebook_app_id">1361581552264816</string>
-    <string name="facebook_login_protocol_scheme">fb1361581552264816</string>
     <string name="facebook_client_token">fc8b15717a4dbf3e51fdc602226abb78</string>
+    <string name="facebook_login_protocol_scheme">fb1361581552264816</string>
     
-    <!-- Google Maps API Key (thay bằng key thật của bạn) -->
-    <string name="google_maps_api_key">AIzaSyBzK9QAJOGHd5VQEwczU02fEm31GQpJj7k</string>
+    <!-- Google Maps API Key -->
+    <string name="google_maps_api_key">AIzaSyDMD4-HmDKQMgQeN_Hk1kJPyqUuGFP6LYE</string>
 </resources>

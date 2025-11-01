@@ -30,9 +30,11 @@ class _PromotionsScreenState extends State<PromotionsScreen> {
         _error = null;
       });
 
-      final promotions = await _bookingService.getPromotions();
+      final promotionsResponse = await _bookingService.getPromotions();
       setState(() {
-        _promotions = promotions;
+        if (promotionsResponse.success && promotionsResponse.data != null) {
+          _promotions = promotionsResponse.data!;
+        }
         _isLoading = false;
       });
     } catch (e) {

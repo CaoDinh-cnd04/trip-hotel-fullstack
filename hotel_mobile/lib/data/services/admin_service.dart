@@ -3,15 +3,35 @@ import '../models/admin_kpi_model.dart';
 import '../models/user_model.dart';
 import '../models/application_model.dart';
 import '../../core/constants/app_constants.dart';
+import 'backend_auth_service.dart';
 
+/// Service dành cho Admin Dashboard
+/// 
+/// Chức năng:
+/// - Dashboard KPI (thống kê tổng quan)
+/// - Quản lý Users (CRUD, phân quyền)
+/// - Quản lý Hotel Applications (duyệt/từ chối đăng ký KS)
+/// - Quản lý Hotels (CRUD khách sạn)
+/// - Quản lý Bookings (xem, hủy bookings của users)
+/// - Quản lý System Settings
+/// 
+/// Requires: Admin role + JWT token
 class AdminService {
+  // Singleton pattern
   static final AdminService _instance = AdminService._internal();
   factory AdminService() => _instance;
   AdminService._internal();
 
   late Dio _dio;
   static String get baseUrl => AppConstants.baseUrl;
+  final BackendAuthService _backendAuthService = BackendAuthService();
 
+  /// Khởi tạo Dio với interceptors
+  /// 
+  /// Setup:
+  /// - LogInterceptor: Debug requests/responses
+  /// - AuthInterceptor: Tự động thêm JWT token
+  /// - ErrorInterceptor: Handle API errors
   void initialize() {
     _dio = Dio(BaseOptions(
       baseUrl: baseUrl,
@@ -31,6 +51,14 @@ class AdminService {
     ));
 
     _dio.interceptors.add(InterceptorsWrapper(
+      onRequest: (options, handler) {
+        // Add auth token to all requests
+        final token = _backendAuthService.getToken();
+        if (token != null) {
+          options.headers['Authorization'] = 'Bearer $token';
+        }
+        handler.next(options);
+      },
       onError: (error, handler) {
         print('Admin API Error: ${error.message}');
         print('Response: ${error.response?.data}');
@@ -39,22 +67,41 @@ class AdminService {
     ));
   }
 
-  // Set authorization token
+  /// Set JWT token cho admin
   void setAuthToken(String token) {
     _dio.options.headers['Authorization'] = 'Bearer $token';
   }
 
-  // Dashboard API
+  /// Lấy KPI cho Admin Dashboard
+  /// 
+  /// API: GET /api/v2/admin/dashboard/kpi
+  /// 
+  /// Returns: AdminKpiModel với thống kê:
+  /// - Tổng số users, hotels, bookings
+  /// - Doanh thu tháng này, tăng trưởng
+  /// - Bookings mới, pending reviews
   Future<AdminKpiModel> getDashboardKpi() async {
     try {
-      final response = await _dio.get('/dashboard/kpi');
-      return AdminKpiModel.fromJson(response.data);
+      print('📊 Calling API: ${baseUrl}/api/v2/admin/dashboard/kpi');
+      final response = await _dio.get('/api/v2/admin/dashboard/kpi');
+      print('✅ Dashboard KPI response: ${response.data}');
+      return AdminKpiModel.fromJson(response.data['data'] ?? response.data);
     } on DioException catch (e) {
+      print('❌ Dashboard KPI error: ${e.message}');
+      print('Response: ${e.response?.data}');
       throw _handleDioError(e);
     }
   }
 
-  // User Management APIs
+  /// Lấy danh sách users (có filter + pagination)
+  /// 
+  /// API: GET /api/v2/admin/users
+  /// 
+  /// Filters:
+  /// - chucVu: Lọc theo role (Admin/Manager/User)
+  /// - search: Tìm theo tên hoặc email
+  /// 
+  /// Returns: List<UserModel>
   Future<List<UserModel>> getUsers({
     String? chucVu,
     String? search,
@@ -70,67 +117,177 @@ class AdminService {
       if (chucVu != null && chucVu != 'all') queryParams['chuc_vu'] = chucVu;
       if (search != null && search.isNotEmpty) queryParams['search'] = search;
 
-      final response = await _dio.get('/users', queryParameters: queryParams);
+      print('🔍 Fetching users with params: $queryParams');
+      final response = await _dio.get('/api/v2/admin/users', queryParameters: queryParams);
       
-      final List<dynamic> usersJson = response.data['data'] ?? response.data;
-      return usersJson.map((json) => UserModel.fromJson(json)).toList();
+      print('📦 Response data type: ${response.data.runtimeType}');
+      print('📦 Response data keys: ${response.data is Map ? response.data.keys : "not a map"}');
+      
+      final dynamic responseData = response.data;
+      final List<dynamic> usersJson;
+      
+      if (responseData is Map && responseData.containsKey('data')) {
+        // Safe cast using List.from() instead of 'as'
+        final dataField = responseData['data'];
+        if (dataField is List) {
+          usersJson = List<dynamic>.from(dataField);
+          print('✅ Found ${usersJson.length} users in response.data.data');
+        } else {
+          print('❌ response.data.data is not a List, it is: ${dataField.runtimeType}');
+          return [];
+        }
+      } else if (responseData is List) {
+        usersJson = List<dynamic>.from(responseData);
+        print('✅ Found ${usersJson.length} users in response.data directly');
+      } else {
+        print('❌ Unexpected response structure: $responseData');
+        return [];
+      }
+      
+      print('🔄 Parsing ${usersJson.length} users...');
+      final users = usersJson.map((json) {
+        try {
+          return UserModel.fromJson(json);
+        } catch (e) {
+          print('❌ Error parsing user: $json');
+          print('❌ Parse error: $e');
+          rethrow;
+        }
+      }).toList();
+      
+      print('✅ Successfully parsed ${users.length} users');
+      return users;
     } on DioException catch (e) {
+      print('❌ DioException in getUsers: ${e.message}');
+      throw _handleDioError(e);
+    } catch (e) {
+      print('❌ Generic error in getUsers: $e');
+      rethrow;
+    }
+  }
+  
+  /// Get users với pagination info (for infinite scroll)
+  Future<Map<String, dynamic>> getUsersPaginated({
+    int page = 1,
+    int limit = 20,
+    String? chucVu,
+    String? search,
+  }) async {
+    try {
+      final queryParams = <String, dynamic>{
+        'page': page,
+        'limit': limit,
+      };
+
+      if (chucVu != null && chucVu != 'all') queryParams['chuc_vu'] = chucVu;
+      if (search != null && search.isNotEmpty) queryParams['search'] = search;
+
+      print('🔍 Fetching users (paginated) - page $page, limit $limit');
+      final response = await _dio.get('/api/v2/admin/users', queryParameters: queryParams);
+      
+      final dynamic responseData = response.data;
+      
+      // Parse users list
+      final List<dynamic> usersJson;
+      if (responseData is Map && responseData.containsKey('data')) {
+        final dataField = responseData['data'];
+        if (dataField is List) {
+          usersJson = List<dynamic>.from(dataField);
+        } else {
+          usersJson = [];
+        }
+      } else if (responseData is List) {
+        usersJson = List<dynamic>.from(responseData);
+      } else {
+        usersJson = [];
+      }
+      
+      final users = usersJson.map((json) => UserModel.fromJson(json)).toList();
+      
+      // Parse pagination info
+      final pagination = responseData is Map && responseData.containsKey('pagination')
+          ? responseData['pagination']
+          : {'page': page, 'limit': limit, 'total': users.length, 'totalPages': 1};
+      
+      print('✅ Loaded ${users.length} users, page $page/${pagination['totalPages'] ?? pagination['pages'] ?? 1}');
+      
+      return {
+        'users': users,
+        'page': pagination['page'] ?? page,
+        'totalPages': pagination['totalPages'] ?? pagination['pages'] ?? 1,
+        'total': pagination['total'] ?? users.length,
+      };
+    } on DioException catch (e) {
+      print('❌ Error in getUsersPaginated: ${e.message}');
       throw _handleDioError(e);
     }
   }
 
   Future<UserModel> getUserById(String id) async {
     try {
-      final response = await _dio.get('/users/$id');
-      return UserModel.fromJson(response.data);
+      final response = await _dio.get('/api/v2/admin/users/$id');
+      return UserModel.fromJson(response.data['data']);
     } on DioException catch (e) {
       throw _handleDioError(e);
     }
   }
 
+  /// Create new user
   Future<UserModel> createUser(Map<String, dynamic> userData) async {
     try {
-      final response = await _dio.post('/users', data: userData);
-      return UserModel.fromJson(response.data);
+      print('📤 Creating user: $userData');
+      final response = await _dio.post('/api/v2/admin/users', data: userData);
+      print('✅ User created: ${response.data}');
+      return UserModel.fromJson(response.data['data'] ?? response.data);
     } on DioException catch (e) {
+      print('❌ Create user error: ${e.message}');
       throw _handleDioError(e);
     }
   }
 
+  /// Update user (full update)
   Future<UserModel> updateUser(String id, Map<String, dynamic> userData) async {
     try {
-      final response = await _dio.put('/users/$id', data: userData);
-      return UserModel.fromJson(response.data);
+      print('📤 Updating user $id: $userData');
+      final response = await _dio.put('/api/v2/admin/users/$id', data: userData);
+      print('✅ User updated: ${response.data}');
+      return UserModel.fromJson(response.data['data'] ?? response.data);
     } on DioException catch (e) {
+      print('❌ Update user error: ${e.message}');
       throw _handleDioError(e);
     }
   }
 
+  /// Delete user
   Future<void> deleteUser(String id) async {
     try {
-      await _dio.delete('/users/$id');
+      print('🗑️ Deleting user: $id');
+      await _dio.delete('/api/v2/admin/users/$id');
+      print('✅ User deleted successfully');
     } on DioException catch (e) {
+      print('❌ Delete user error: ${e.message}');
       throw _handleDioError(e);
     }
   }
 
+  /// Update user role only
   Future<UserModel> updateUserRole(String id, String chucVu) async {
     try {
-      final response = await _dio.put('/users/$id/role', data: {
+      final response = await _dio.put('/api/v2/admin/users/$id', data: {
         'chuc_vu': chucVu,
       });
-      return UserModel.fromJson(response.data);
+      return UserModel.fromJson(response.data['data'] ?? response.data);
     } on DioException catch (e) {
       throw _handleDioError(e);
     }
   }
 
-  Future<UserModel> updateUserStatus(String id, String trangThai) async {
+  Future<UserModel> updateUserStatus(String id, int trangThai) async {
     try {
-      final response = await _dio.put('/users/$id/status', data: {
+      final response = await _dio.put('/api/v2/admin/users/$id/status', data: {
         'trang_thai': trangThai,
       });
-      return UserModel.fromJson(response.data);
+      return UserModel.fromJson(response.data['data'] ?? response.data);
     } on DioException catch (e) {
       throw _handleDioError(e);
     }
@@ -152,7 +309,7 @@ class AdminService {
         queryParams['trang_thai'] = trangThai;
       }
 
-      final response = await _dio.get('/applications', queryParameters: queryParams);
+      final response = await _dio.get('/api/v2/admin/applications', queryParameters: queryParams);
       
       final List<dynamic> applicationsJson = response.data['data'] ?? response.data;
       return applicationsJson.map((json) => ApplicationModel.fromJson(json)).toList();
@@ -163,8 +320,8 @@ class AdminService {
 
   Future<ApplicationModel> getApplicationById(String id) async {
     try {
-      final response = await _dio.get('/applications/$id');
-      return ApplicationModel.fromJson(response.data);
+      final response = await _dio.get('/api/v2/admin/applications/$id');
+      return ApplicationModel.fromJson(response.data['data'] ?? response.data);
     } on DioException catch (e) {
       throw _handleDioError(e);
     }
@@ -172,10 +329,10 @@ class AdminService {
 
   Future<ApplicationModel> approveApplication(String id, {String? ghiChu}) async {
     try {
-      final response = await _dio.put('/applications/$id/approve', data: {
+      final response = await _dio.put('/api/v2/admin/applications/$id/approve', data: {
         'ghi_chu': ghiChu,
       });
-      return ApplicationModel.fromJson(response.data);
+      return ApplicationModel.fromJson(response.data['data'] ?? response.data);
     } on DioException catch (e) {
       throw _handleDioError(e);
     }
@@ -183,10 +340,10 @@ class AdminService {
 
   Future<ApplicationModel> rejectApplication(String id, String lyDoTuChoi) async {
     try {
-      final response = await _dio.put('/applications/$id/reject', data: {
+      final response = await _dio.put('/api/v2/admin/applications/$id/reject', data: {
         'ly_do_tu_choi': lyDoTuChoi,
       });
-      return ApplicationModel.fromJson(response.data);
+      return ApplicationModel.fromJson(response.data['data'] ?? response.data);
     } on DioException catch (e) {
       throw _handleDioError(e);
     }
@@ -206,7 +363,7 @@ class AdminService {
 
       if (search != null && search.isNotEmpty) queryParams['search'] = search;
 
-      final response = await _dio.get('/hotels', queryParameters: queryParams);
+      final response = await _dio.get('/api/v2/khachsan', queryParameters: queryParams);
       
       final List<dynamic> hotelsJson = response.data['data'] ?? response.data;
       return hotelsJson.cast<Map<String, dynamic>>();
@@ -217,17 +374,34 @@ class AdminService {
 
   Future<Map<String, dynamic>> getHotelById(String id) async {
     try {
-      final response = await _dio.get('/hotels/$id');
-      return response.data;
+      final response = await _dio.get('/api/v2/khachsan/$id');
+      return response.data['data'] ?? response.data;
     } on DioException catch (e) {
       throw _handleDioError(e);
     }
   }
 
+  /// Update hotel
+  Future<Map<String, dynamic>> updateHotel(String id, Map<String, dynamic> hotelData) async {
+    try {
+      print('📤 Updating hotel $id: $hotelData');
+      final response = await _dio.put('/api/v2/khachsan/$id', data: hotelData);
+      print('✅ Hotel updated: ${response.data}');
+      return response.data['data'] ?? response.data;
+    } on DioException catch (e) {
+      print('❌ Update hotel error: ${e.message}');
+      throw _handleDioError(e);
+    }
+  }
+
+  /// Delete hotel (soft delete)
   Future<void> deleteHotel(String id) async {
     try {
-      await _dio.delete('/hotels/$id');
+      print('🗑️ Deleting hotel: $id');
+      await _dio.delete('/api/v2/khachsan/$id');
+      print('✅ Hotel deleted successfully');
     } on DioException catch (e) {
+      print('❌ Delete hotel error: ${e.message}');
       throw _handleDioError(e);
     }
   }
@@ -242,8 +416,19 @@ class AdminService {
       if (fromDate != null) queryParams['from_date'] = fromDate.toIso8601String();
       if (toDate != null) queryParams['to_date'] = toDate.toIso8601String();
 
-      final response = await _dio.get('/statistics', queryParameters: queryParams);
-      return response.data;
+      final response = await _dio.get('/api/v2/admin/stats', queryParameters: queryParams);
+      return response.data['data'] ?? response.data;
+    } on DioException catch (e) {
+      throw _handleDioError(e);
+    }
+  }
+
+  // Get roles
+  Future<List<Map<String, dynamic>>> getRoles() async {
+    try {
+      final response = await _dio.get('/api/v2/admin/roles');
+      final List<dynamic> rolesJson = response.data['data'] ?? response.data;
+      return rolesJson.cast<Map<String, dynamic>>();
     } on DioException catch (e) {
       throw _handleDioError(e);
     }

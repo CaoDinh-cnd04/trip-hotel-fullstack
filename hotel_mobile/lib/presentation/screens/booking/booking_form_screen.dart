@@ -317,10 +317,10 @@ class _BookingFormScreenState extends State<BookingFormScreen> {
                             widget.room.hinhAnhPhong!.first,
                             fit: BoxFit.cover,
                             errorBuilder: (context, error, stackTrace) =>
-                                const Icon(Icons.bed, size: 40),
+                                const Icon(Icons.bed, size: 40, color: Colors.grey),
                           ),
                         )
-                      : const Icon(Icons.bed, size: 40),
+                      : const Icon(Icons.bed, size: 40, color: Colors.grey),
                 ),
                 const SizedBox(width: 12),
                 // Room Details

@@ -15,6 +15,8 @@ class GoogleAuthService {
         GoogleAuthProvider googleProvider = GoogleAuthProvider();
         googleProvider.addScope('email');
         googleProvider.addScope('profile');
+        // Force account selection on web
+        googleProvider.setCustomParameters({'prompt': 'select_account'});
 
         return await _auth.signInWithPopup(googleProvider);
       } else {
@@ -58,7 +60,11 @@ class GoogleAuthService {
   // Đăng xuất
   Future<void> signOut() async {
     try {
-      await Future.wait([_auth.signOut(), _googleSignIn.signOut()]);
+      await Future.wait([
+        _auth.signOut(), 
+        _googleSignIn.signOut()
+      ]);
+      print('✅ Đã đăng xuất Google Sign-In');
     } catch (e) {
       print('Lỗi đăng xuất: $e');
       throw Exception('Đăng xuất thất bại: $e');

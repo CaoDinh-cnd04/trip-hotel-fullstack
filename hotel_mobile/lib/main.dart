@@ -12,6 +12,7 @@ import 'core/services/language_service.dart';
 import 'presentation/main_wrapper.dart';
 import 'presentation/screens/login_screen.dart';
 import 'presentation/screens/register_screen.dart';
+import 'presentation/screens/auth/agoda_style_login_screen.dart';
 import 'presentation/screens/home_screen.dart';
 import 'presentation/screens/main_navigation_screen.dart';
 import 'presentation/screens/search/search_results_screen.dart';
@@ -19,6 +20,7 @@ import 'presentation/screens/property/property_detail_screen.dart';
 import 'presentation/screens/deals/deals_screen.dart';
 import 'presentation/screens/map/map_view_screen.dart';
 import 'presentation/screens/hotel_manager/hotel_manager_screen.dart';
+import 'presentation/screens/hotel_manager/hotel_manager_main_screen.dart';
 import 'presentation/screens/admin/admin_main_screen.dart';
 import 'presentation/screens/language_demo_screen.dart';
 import 'presentation/screens/feedback/user_feedback_screen.dart';
@@ -27,6 +29,26 @@ import 'presentation/screens/notification/notification_screen.dart';
 import 'presentation/screens/admin/create_notification_screen.dart';
 import 'data/services/api_service.dart';
 import 'data/services/auth_service.dart';
+import 'data/services/backend_auth_service.dart';
+import 'data/services/admin_service.dart';
+import 'data/services/notification_service.dart';
+import 'data/services/feedback_service.dart';
+import 'data/services/backend_message_service.dart';
+import 'data/services/room_availability_service.dart';
+
+// Initialize all services
+void _initializeAllServices() {
+  try {
+    AdminService().initialize();
+    NotificationService().initialize();
+    FeedbackService().initialize();
+    BackendMessageService().initialize();
+    RoomAvailabilityService().initialize();
+    print('✅ All services initialized');
+  } catch (e) {
+    print('⚠️ Error initializing services: $e');
+  }
+}
 
 void main() async {
   runZonedGuarded(
@@ -53,6 +75,13 @@ void main() async {
 
       // Initialize AuthService để check session khi app khởi động
       await AuthService().initialize();
+      
+      // Initialize BackendAuthService và restore user data
+      await BackendAuthService().restoreUserData();
+      print('✅ BackendAuthService initialized');
+      
+      // Initialize other services
+      _initializeAllServices();
 
       FlutterError.onError = (FlutterErrorDetails details) {
         FlutterError.dumpErrorToConsole(details);
@@ -96,7 +125,9 @@ class MyApp extends StatelessWidget {
               home:
                   const MainWrapper(), // Sử dụng MainWrapper để hiển thị giao diện chính
               routes: {
-                '/login': (context) => const LoginScreen(),
+                '/login': (context) => const AgodaStyleLoginScreen(),
+                '/login-new': (context) => const AgodaStyleLoginScreen(), // Test route
+                '/login-old': (context) => const LoginScreen(), // Old login for comparison
                 '/register': (context) => const RegisterScreen(),
                 '/home': (context) => const HomeScreen(),
                 '/main': (context) => const MainNavigationScreen(),
@@ -138,7 +169,9 @@ class MyApp extends StatelessWidget {
                   );
                 },
                 '/hotel-manager': (context) => const HotelManagerScreen(),
+                '/hotel-manager/dashboard': (context) => const HotelManagerMainScreen(),
                 '/admin': (context) => const AdminMainScreen(),
+                '/admin/dashboard': (context) => const AdminMainScreen(),
                 '/language-demo': (context) => const LanguageDemoScreen(),
                 '/feedback': (context) => const UserFeedbackScreen(),
                 '/admin/feedback': (context) =>

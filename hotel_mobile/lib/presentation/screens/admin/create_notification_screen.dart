@@ -22,6 +22,7 @@ class _CreateNotificationScreenState extends State<CreateNotificationScreen> {
   String _selectedType = 'promotion';
   DateTime? _expiresAt;
   bool _isLoading = false;
+  bool _sendEmail = true; // Default: send email to all users
 
   final List<Map<String, String>> _notificationTypes = [
     {'value': 'promotion', 'label': 'Ưu đãi', 'icon': '🎉'},
@@ -107,44 +108,27 @@ class _CreateNotificationScreenState extends State<CreateNotificationScreen> {
                     
                     const SizedBox(height: 24),
                     
-                    // Optional Information
+                    // Optional Information - Dynamic based on notification type
                     _buildSectionTitle('Thông tin tùy chọn'),
-                    
-                    _buildTextField(
-                      controller: _imageUrlController,
-                      label: 'URL hình ảnh',
-                      hint: 'https://example.com/image.jpg',
+                    const SizedBox(height: 4),
+                    Text(
+                      _getOptionalFieldsHint(),
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Colors.grey[600],
+                        fontStyle: FontStyle.italic,
+                      ),
                     ),
+                    const SizedBox(height: 12),
                     
-                    const SizedBox(height: 16),
+                    _buildOptionalFields(),
                     
-                    _buildTextField(
-                      controller: _actionUrlController,
-                      label: 'URL hành động',
-                      hint: '/deals, /hotels, etc.',
-                    ),
+                    const SizedBox(height: 24),
                     
-                    const SizedBox(height: 16),
-                    
-                    _buildTextField(
-                      controller: _actionTextController,
-                      label: 'Văn bản nút hành động',
-                      hint: 'Xem chi tiết, Đặt ngay, etc.',
-                    ),
-                    
-                    const SizedBox(height: 16),
-                    
-                    _buildTextField(
-                      controller: _hotelIdController,
-                      label: 'ID Khách sạn (nếu có)',
-                      hint: '1, 2, 3...',
-                      keyboardType: TextInputType.number,
-                    ),
-                    
-                    const SizedBox(height: 16),
-                    
-                    // Expiration Date
-                    _buildExpirationDate(),
+                    // Email Options
+                    _buildSectionTitle('Tùy chọn gửi thông báo'),
+                    const SizedBox(height: 8),
+                    _buildEmailOption(),
                     
                     const SizedBox(height: 32),
                     
@@ -219,7 +203,11 @@ class _CreateNotificationScreenState extends State<CreateNotificationScreen> {
             groupValue: _selectedType,
             onChanged: (value) {
               setState(() {
+                final oldType = _selectedType;
                 _selectedType = value!;
+                
+                // Clear irrelevant fields when changing notification type
+                _clearIrrelevantFields(oldType, _selectedType);
               });
             },
             title: Row(
@@ -235,6 +223,18 @@ class _CreateNotificationScreenState extends State<CreateNotificationScreen> {
         }).toList(),
       ),
     );
+  }
+
+  void _clearIrrelevantFields(String oldType, String newType) {
+    // Clear all optional fields first
+    _imageUrlController.clear();
+    _actionUrlController.clear();
+    _actionTextController.clear();
+    _hotelIdController.clear();
+    _expiresAt = null;
+    
+    // Note: You can keep some fields if switching between similar types
+    // For now, we clear everything for simplicity
   }
 
   Widget _buildTextField({
@@ -260,6 +260,213 @@ class _CreateNotificationScreenState extends State<CreateNotificationScreen> {
           borderRadius: BorderRadius.circular(8),
           borderSide: const BorderSide(color: Colors.blue, width: 2),
         ),
+      ),
+    );
+  }
+
+  String _getOptionalFieldsHint() {
+    switch (_selectedType) {
+      case 'promotion':
+        return 'Thích hợp cho thông báo khuyến mãi, ưu đãi đặc biệt';
+      case 'new_room':
+        return 'Thích hợp cho giới thiệu phòng mới tại khách sạn';
+      case 'app_program':
+        return 'Thích hợp cho cập nhật tính năng mới, sự kiện trong app';
+      case 'booking_success':
+        return 'Thích hợp cho xác nhận đặt phòng thành công';
+      default:
+        return 'Tùy chỉnh thông tin thêm cho thông báo';
+    }
+  }
+
+  Widget _buildOptionalFields() {
+    switch (_selectedType) {
+      case 'promotion': // 🎉 Ưu đãi
+        return Column(
+          children: [
+            _buildTextField(
+              controller: _imageUrlController,
+              label: '🖼️ URL hình ảnh khuyến mãi',
+              hint: 'https://example.com/promotion.jpg',
+            ),
+            const SizedBox(height: 16),
+            _buildTextField(
+              controller: _actionUrlController,
+              label: '🔗 Link đến trang khuyến mãi',
+              hint: '/deals, /promotions/123',
+            ),
+            const SizedBox(height: 16),
+            _buildTextField(
+              controller: _actionTextController,
+              label: '✨ Văn bản nút CTA',
+              hint: 'Xem ưu đãi, Đặt ngay, Nhận ngay',
+            ),
+            const SizedBox(height: 16),
+            _buildExpirationDate(),
+          ],
+        );
+
+      case 'new_room': // 🏨 Phòng mới
+        return Column(
+          children: [
+            _buildTextField(
+              controller: _hotelIdController,
+              label: '🏨 ID Khách sạn',
+              hint: '1, 2, 3...',
+              keyboardType: TextInputType.number,
+              validator: (value) {
+                if (value == null || value.trim().isEmpty) {
+                  return 'Vui lòng nhập ID khách sạn';
+                }
+                if (int.tryParse(value) == null) {
+                  return 'ID phải là số';
+                }
+                return null;
+              },
+            ),
+            const SizedBox(height: 16),
+            _buildTextField(
+              controller: _imageUrlController,
+              label: '🖼️ Hình ảnh phòng',
+              hint: 'https://example.com/room.jpg',
+            ),
+            const SizedBox(height: 16),
+            _buildTextField(
+              controller: _actionUrlController,
+              label: '🔗 Link đến chi tiết phòng',
+              hint: '/hotels/123/rooms/456',
+            ),
+            const SizedBox(height: 16),
+            _buildTextField(
+              controller: _actionTextController,
+              label: '✨ Văn bản nút',
+              hint: 'Xem phòng, Đặt ngay',
+            ),
+          ],
+        );
+
+      case 'app_program': // 📱 Chương trình app
+        return Column(
+          children: [
+            _buildTextField(
+              controller: _imageUrlController,
+              label: '🖼️ Banner chương trình',
+              hint: 'https://example.com/program-banner.jpg',
+            ),
+            const SizedBox(height: 16),
+            _buildTextField(
+              controller: _actionUrlController,
+              label: '🔗 Link đến chương trình',
+              hint: '/programs, /events/summer2024',
+            ),
+            const SizedBox(height: 16),
+            _buildTextField(
+              controller: _actionTextController,
+              label: '✨ Văn bản nút',
+              hint: 'Tham gia ngay, Tìm hiểu thêm',
+            ),
+            const SizedBox(height: 16),
+            _buildExpirationDate(),
+          ],
+        );
+
+      case 'booking_success': // ✅ Đặt phòng thành công
+        return Column(
+          children: [
+            _buildTextField(
+              controller: _hotelIdController,
+              label: '🏨 ID Khách sạn (nếu có)',
+              hint: '1, 2, 3...',
+              keyboardType: TextInputType.number,
+            ),
+            const SizedBox(height: 16),
+            _buildTextField(
+              controller: _actionUrlController,
+              label: '🔗 Link đến chi tiết đặt phòng',
+              hint: '/booking-history, /bookings/789',
+            ),
+            const SizedBox(height: 16),
+            _buildTextField(
+              controller: _actionTextController,
+              label: '✨ Văn bản nút',
+              hint: 'Xem chi tiết, Quản lý đặt phòng',
+            ),
+          ],
+        );
+
+      default:
+        return Column(
+          children: [
+            _buildTextField(
+              controller: _imageUrlController,
+              label: 'URL hình ảnh',
+              hint: 'https://example.com/image.jpg',
+            ),
+            const SizedBox(height: 16),
+            _buildTextField(
+              controller: _actionUrlController,
+              label: 'URL hành động',
+              hint: '/deals, /hotels, etc.',
+            ),
+            const SizedBox(height: 16),
+            _buildTextField(
+              controller: _actionTextController,
+              label: 'Văn bản nút hành động',
+              hint: 'Xem chi tiết, Đặt ngay, etc.',
+            ),
+            const SizedBox(height: 16),
+            _buildExpirationDate(),
+          ],
+        );
+    }
+  }
+
+  Widget _buildEmailOption() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.blue[50],
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.blue[200]!),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.email, color: Colors.blue),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Gửi email thông báo',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  _sendEmail 
+                      ? 'Tất cả người dùng sẽ nhận email về thông báo này'
+                      : 'Chỉ hiển thị trong app, không gửi email',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: Colors.grey[700],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Switch(
+            value: _sendEmail,
+            onChanged: (value) {
+              setState(() {
+                _sendEmail = value;
+              });
+            },
+            activeColor: Colors.blue,
+          ),
+        ],
       ),
     );
   }
@@ -453,6 +660,7 @@ class _CreateNotificationScreenState extends State<CreateNotificationScreen> {
         hotelId: _hotelIdController.text.trim().isEmpty 
             ? null 
             : int.tryParse(_hotelIdController.text.trim()),
+        sendEmail: _sendEmail, // Pass email option
       );
 
       if (response.success) {

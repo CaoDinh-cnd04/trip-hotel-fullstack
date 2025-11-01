@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:hotel_mobile/data/models/hotel.dart';
 import 'package:intl/intl.dart';
+import 'dart:math' as math;
+import 'favorite_button.dart';
 
 class SearchResultCard extends StatelessWidget {
   final Hotel hotel;
@@ -23,14 +25,18 @@ class SearchResultCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final nights = checkOutDate.difference(checkInDate).inDays;
-    final basePrice =
-        1500000.0; // Mock price - replace with actual pricing logic
-    final originalPrice = basePrice * 1.2; // Mock original price
+    final basePrice = hotel.giaTb ?? 1500000.0;
+    
+    // Calculate discount (15-42% for demo, similar to screenshots)
+    final random = math.Random(hotel.id);
+    final discountPercent = 15 + random.nextInt(28); // 15-42%
+    final originalPrice = basePrice / (1 - discountPercent / 100);
     final finalPrice = basePrice * nights;
     final originalTotalPrice = originalPrice * nights;
 
     return Card(
-      elevation: 2,
+      elevation: 3,
+      shadowColor: Colors.black26,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: InkWell(
         onTap: onTap,
@@ -39,7 +45,7 @@ class SearchResultCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Image with horizontal scroll
-            _buildImageSection(),
+            _buildImageSection(discountPercent),
 
             // Hotel info
             Padding(
@@ -47,6 +53,11 @@ class SearchResultCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // Hotel type badge
+                  _buildHotelTypeBadge(),
+
+                  const SizedBox(height: 8),
+
                   // Hotel name and star rating
                   _buildHotelNameAndStars(),
 
@@ -72,6 +83,7 @@ class SearchResultCard extends StatelessWidget {
                     finalPrice: finalPrice,
                     originalPrice: originalTotalPrice,
                     nights: nights,
+                    discountPercent: discountPercent,
                   ),
                 ],
               ),
@@ -82,10 +94,10 @@ class SearchResultCard extends StatelessWidget {
     );
   }
 
-  Widget _buildImageSection() {
-    // Mock images - replace with actual hotel images
+  Widget _buildImageSection(int discountPercent) {
+    // Use hotel's full image URL
     final images = [
-      hotel.hinhAnh ?? 'https://via.placeholder.com/300x200?text=Hotel+Image',
+      hotel.fullImageUrl,
       'https://via.placeholder.com/300x200?text=Room+1',
       'https://via.placeholder.com/300x200?text=Room+2',
       'https://via.placeholder.com/300x200?text=Amenity',
@@ -93,13 +105,12 @@ class SearchResultCard extends StatelessWidget {
 
     return SizedBox(
       height: 200,
-      child: PageView.builder(
-        itemCount: images.length,
-        itemBuilder: (context, index) {
-          return Stack(
-            children: [
-              // Image
-              Container(
+      child: Stack(
+        children: [
+          PageView.builder(
+            itemCount: images.length,
+            itemBuilder: (context, index) {
+              return Container(
                 width: double.infinity,
                 decoration: BoxDecoration(
                   borderRadius: const BorderRadius.vertical(
@@ -130,60 +141,74 @@ class SearchResultCard extends StatelessWidget {
                         ),
                       )
                     : null,
-              ),
+              );
+            },
+          ),
 
-              // Image counter
-              if (images.length > 1)
-                Positioned(
-                  top: 12,
-                  right: 12,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.black.withOpacity(0.7),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      '${index + 1}/${images.length}',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ),
-                ),
-
-              // Favorite button
-              Positioned(
-                top: 12,
-                left: 12,
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.1),
-                        blurRadius: 4,
-                      ),
-                    ],
-                  ),
-                  child: IconButton(
-                    icon: const Icon(Icons.favorite_border),
-                    iconSize: 20,
-                    onPressed: () {
-                      // Handle favorite toggle
-                    },
-                  ),
+          // Discount badge (top left corner)
+          Positioned(
+            top: 0,
+            left: 0,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: const BoxDecoration(
+                color: Color(0xFFE91E63),
+                borderRadius: BorderRadius.only(
+                  topLeft: Radius.circular(12),
+                  bottomRight: Radius.circular(12),
                 ),
               ),
-            ],
-          );
-        },
+              child: Text(
+                '-$discountPercent% HÔM NAY',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ),
+
+          // Favorite button
+          Positioned(
+            top: 12,
+            right: 12,
+            child: FavoriteButton(
+              hotel: hotel,
+              iconSize: 20,
+              showBackground: true,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHotelTypeBadge() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: const Color(0xFF003580).withOpacity(0.1),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.apartment,
+            size: 14,
+            color: const Color(0xFF003580),
+          ),
+          const SizedBox(width: 4),
+          Text(
+            'Căn hộ',
+            style: TextStyle(
+              color: const Color(0xFF003580),
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -240,60 +265,67 @@ class SearchResultCard extends StatelessWidget {
 
     if (rating >= 9.0) {
       ratingText = 'Tuyệt vời';
-      chipColor = Colors.blue[700]!;
+      chipColor = const Color(0xFF003580);
     } else if (rating >= 8.0) {
       ratingText = 'Rất tốt';
-      chipColor = Colors.green[600]!;
+      chipColor = const Color(0xFF2196F3);
     } else if (rating >= 7.0) {
       ratingText = 'Tốt';
-      chipColor = Colors.green;
+      chipColor = const Color(0xFF4CAF50);
     } else if (rating >= 6.0) {
       ratingText = 'Khá';
-      chipColor = Colors.orange;
+      chipColor = const Color(0xFFFF9800);
     } else {
       ratingText = 'Trung bình';
-      chipColor = Colors.red;
+      chipColor = const Color(0xFFF44336);
     }
 
     return Row(
       children: [
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
           decoration: BoxDecoration(
             color: chipColor,
-            borderRadius: BorderRadius.circular(6),
+            borderRadius: const BorderRadius.only(
+              topLeft: Radius.circular(8),
+              topRight: Radius.circular(8),
+              bottomRight: Radius.circular(8),
+            ),
           ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                rating.toStringAsFixed(1),
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 12,
-                ),
-              ),
-              const SizedBox(width: 4),
-              Text(
-                ratingText,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w500,
-                  fontSize: 12,
-                ),
-              ),
-            ],
+          child: Text(
+            rating.toStringAsFixed(1),
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+              fontSize: 14,
+            ),
           ),
         ),
 
         const SizedBox(width: 8),
 
-        if (reviewCount > 0)
-          Text(
-            '($reviewCount đánh giá)',
-            style: TextStyle(color: Colors.grey[600], fontSize: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                ratingText,
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 13,
+                ),
+              ),
+              if (reviewCount > 0)
+                Text(
+                  '$reviewCount nhận xét',
+                  style: TextStyle(
+                    color: Colors.grey[600],
+                    fontSize: 11,
+                  ),
+                ),
+            ],
           ),
+        ),
       ],
     );
   }
@@ -346,60 +378,95 @@ class SearchResultCard extends StatelessWidget {
     required double finalPrice,
     required double originalPrice,
     required int nights,
+    required int discountPercent,
   }) {
     return Builder(
       builder: (context) {
         final currencyFormat = NumberFormat.currency(
           locale: 'vi_VN',
-          symbol: 'VNĐ',
+          symbol: 'đ',
           decimalDigits: 0,
         );
 
-        final hasDiscount = originalPrice > finalPrice;
-
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            // Original price (strikethrough)
-            if (hasDiscount)
-              Text(
-                currencyFormat.format(originalPrice),
-                style: TextStyle(
-                  decoration: TextDecoration.lineThrough,
-                  color: Colors.grey[500],
-                  fontSize: 12,
-                ),
-              ),
-
-            // Final price
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Tổng $nights đêm',
-                      style: TextStyle(color: Colors.grey[600], fontSize: 12),
+        return Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.grey[50],
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.grey[200]!),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              // Original price (strikethrough)
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Hủy miễn phí',
+                          style: TextStyle(
+                            color: Colors.green[700],
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'Tổng $nights đêm',
+                          style: TextStyle(
+                            color: Colors.grey[600],
+                            fontSize: 11,
+                          ),
+                        ),
+                      ],
                     ),
-                    Text(
-                      'Đã bao gồm thuế',
-                      style: TextStyle(color: Colors.grey[500], fontSize: 10),
-                    ),
-                  ],
-                ),
-
-                Text(
-                  currencyFormat.format(finalPrice),
-                  style: TextStyle(
-                    color: Theme.of(context).primaryColor,
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
                   ),
-                ),
-              ],
-            ),
-          ],
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        currencyFormat.format(originalPrice),
+                        style: TextStyle(
+                          decoration: TextDecoration.lineThrough,
+                          decorationColor: Colors.grey[500],
+                          color: Colors.grey[500],
+                          fontSize: 13,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Text(
+                            currencyFormat.format(finalPrice),
+                            style: const TextStyle(
+                              color: Color(0xFFE91E63),
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Đã bao gồm thuế và phí',
+                        style: TextStyle(
+                          color: Colors.grey[500],
+                          fontSize: 10,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ],
+          ),
         );
       },
     );

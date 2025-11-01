@@ -40,12 +40,24 @@ class BottomCTABar extends StatelessWidget {
                         'Từ ',
                         style: TextStyle(fontSize: 12, color: Colors.grey[600]),
                       ),
-                      Text(
-                        _formatPrice(lowestPrice!),
-                        style: const TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.blue,
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              Colors.purple[400]!,
+                              Colors.pink[400]!,
+                            ],
+                          ),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          _formatPrice(lowestPrice!),
+                          style: const TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
                         ),
                       ),
                       Text(
@@ -71,30 +83,49 @@ class BottomCTABar extends StatelessWidget {
 
           const SizedBox(width: 16),
 
-          // Select room button
+          // Select room button với màu sắc đẹp hơn
           SizedBox(
             height: 48,
-            child: ElevatedButton(
-              onPressed: onSelectRoom,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.blue,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    Colors.purple[600]!,
+                    Colors.pink[600]!,
+                    Colors.orange[600]!,
+                  ],
                 ),
-                padding: const EdgeInsets.symmetric(horizontal: 24),
-                elevation: 2,
-              ),
-              child: const Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.hotel, size: 20),
-                  SizedBox(width: 8),
-                  Text(
-                    'Chọn Phòng',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.purple.withOpacity(0.4),
+                    blurRadius: 8,
+                    offset: const Offset(0, 4),
                   ),
                 ],
+              ),
+              child: ElevatedButton(
+                onPressed: onSelectRoom,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.transparent,
+                  shadowColor: Colors.transparent,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.hotel, size: 20),
+                    SizedBox(width: 8),
+                    Text(
+                      'Chọn Phòng',
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),

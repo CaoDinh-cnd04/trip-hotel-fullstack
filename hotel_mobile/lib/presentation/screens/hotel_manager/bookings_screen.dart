@@ -49,10 +49,14 @@ class _BookingsScreenState extends State<BookingsScreen> {
         _error = null;
       });
 
-      final bookings = await _bookingService.getBookings();
+      final bookingsResponse = await _bookingService.getBookings();
       setState(() {
-        _bookings = bookings;
-        _filteredBookings = bookings;
+        if (bookingsResponse.success && bookingsResponse.data != null) {
+          _bookings = bookingsResponse.data!
+              .map((json) => PhieuDatPhongModel.fromJson(json))
+              .toList();
+          _filteredBookings = _bookings;
+        }
         _isLoading = false;
       });
     } catch (e) {
@@ -286,10 +290,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
         await _bookingService.updateBookingStatus(booking.id, 'cancelled');
 
         // Gửi email hủy đặt phòng
-        await _bookingService.sendBookingCancellationEmail(
-          booking,
-          lyDoController.text,
-        );
+        await _bookingService.sendBookingCancellationEmail(booking.id);
 
         // Đóng loading dialog
         if (mounted) Navigator.pop(context);

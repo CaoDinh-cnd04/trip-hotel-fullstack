@@ -505,6 +505,582 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Change Language'**
   String get changeLanguage;
+
+  /// No description provided for @profile.
+  ///
+  /// In en, this message translates to:
+  /// **'Profile'**
+  String get profile;
+
+  /// No description provided for @myProfile.
+  ///
+  /// In en, this message translates to:
+  /// **'My Profile'**
+  String get myProfile;
+
+  /// No description provided for @personalInfo.
+  ///
+  /// In en, this message translates to:
+  /// **'Personal Information'**
+  String get personalInfo;
+
+  /// No description provided for @accountSecurity.
+  ///
+  /// In en, this message translates to:
+  /// **'Account Security'**
+  String get accountSecurity;
+
+  /// No description provided for @notifications.
+  ///
+  /// In en, this message translates to:
+  /// **'Notifications'**
+  String get notifications;
+
+  /// No description provided for @messages.
+  ///
+  /// In en, this message translates to:
+  /// **'Messages'**
+  String get messages;
+
+  /// No description provided for @savedItems.
+  ///
+  /// In en, this message translates to:
+  /// **'Saved Items'**
+  String get savedItems;
+
+  /// No description provided for @myReviews.
+  ///
+  /// In en, this message translates to:
+  /// **'My Reviews'**
+  String get myReviews;
+
+  /// No description provided for @bookingHistory.
+  ///
+  /// In en, this message translates to:
+  /// **'Booking History'**
+  String get bookingHistory;
+
+  /// No description provided for @chooseLanguage.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose Language'**
+  String get chooseLanguage;
+
+  /// No description provided for @languageChanged.
+  ///
+  /// In en, this message translates to:
+  /// **'Changed to English'**
+  String get languageChanged;
+
+  /// No description provided for @currency.
+  ///
+  /// In en, this message translates to:
+  /// **'Currency'**
+  String get currency;
+
+  /// No description provided for @chooseCurrency.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose Currency'**
+  String get chooseCurrency;
+
+  /// No description provided for @priceDisplay.
+  ///
+  /// In en, this message translates to:
+  /// **'Price Display'**
+  String get priceDisplay;
+
+  /// No description provided for @perNight.
+  ///
+  /// In en, this message translates to:
+  /// **'Per night'**
+  String get perNight;
+
+  /// No description provided for @perStay.
+  ///
+  /// In en, this message translates to:
+  /// **'Per entire stay'**
+  String get perStay;
+
+  /// No description provided for @distance.
+  ///
+  /// In en, this message translates to:
+  /// **'Distance'**
+  String get distance;
+
+  /// No description provided for @hotelOwner.
+  ///
+  /// In en, this message translates to:
+  /// **'Hotel Owner'**
+  String get hotelOwner;
+
+  /// No description provided for @registerHotel.
+  ///
+  /// In en, this message translates to:
+  /// **'Register Hotel'**
+  String get registerHotel;
+
+  /// No description provided for @myHotels.
+  ///
+  /// In en, this message translates to:
+  /// **'My Hotels'**
+  String get myHotels;
+
+  /// No description provided for @manageHotels.
+  ///
+  /// In en, this message translates to:
+  /// **'Manage Hotels'**
+  String get manageHotels;
+
+  /// No description provided for @hotelDashboard.
+  ///
+  /// In en, this message translates to:
+  /// **'Dashboard'**
+  String get hotelDashboard;
+
+  /// No description provided for @accountSettings.
+  ///
+  /// In en, this message translates to:
+  /// **'Account Settings'**
+  String get accountSettings;
+
+  /// No description provided for @preferences.
+  ///
+  /// In en, this message translates to:
+  /// **'Preferences'**
+  String get preferences;
+
+  /// No description provided for @support.
+  ///
+  /// In en, this message translates to:
+  /// **'Support'**
+  String get support;
+
+  /// No description provided for @helpCenter.
+  ///
+  /// In en, this message translates to:
+  /// **'Help Center'**
+  String get helpCenter;
+
+  /// No description provided for @contactUs.
+  ///
+  /// In en, this message translates to:
+  /// **'Contact Us'**
+  String get contactUs;
+
+  /// No description provided for @aboutUs.
+  ///
+  /// In en, this message translates to:
+  /// **'About Us'**
+  String get aboutUs;
+
+  /// No description provided for @termsAndConditions.
+  ///
+  /// In en, this message translates to:
+  /// **'Terms & Conditions'**
+  String get termsAndConditions;
+
+  /// No description provided for @privacyPolicy.
+  ///
+  /// In en, this message translates to:
+  /// **'Privacy Policy'**
+  String get privacyPolicy;
+
+  /// No description provided for @vipStatus.
+  ///
+  /// In en, this message translates to:
+  /// **'VIP Status'**
+  String get vipStatus;
+
+  /// No description provided for @vipBronze.
+  ///
+  /// In en, this message translates to:
+  /// **'Bronze'**
+  String get vipBronze;
+
+  /// No description provided for @vipSilver.
+  ///
+  /// In en, this message translates to:
+  /// **'Silver'**
+  String get vipSilver;
+
+  /// No description provided for @vipGold.
+  ///
+  /// In en, this message translates to:
+  /// **'Gold'**
+  String get vipGold;
+
+  /// No description provided for @vipPlatinum.
+  ///
+  /// In en, this message translates to:
+  /// **'Platinum'**
+  String get vipPlatinum;
+
+  /// No description provided for @unreadMessages.
+  ///
+  /// In en, this message translates to:
+  /// **'Unread Messages'**
+  String get unreadMessages;
+
+  /// No description provided for @unreadReviews.
+  ///
+  /// In en, this message translates to:
+  /// **'Unread Reviews'**
+  String get unreadReviews;
+
+  /// No description provided for @refreshing.
+  ///
+  /// In en, this message translates to:
+  /// **'Refreshing...'**
+  String get refreshing;
+
+  /// No description provided for @noData.
+  ///
+  /// In en, this message translates to:
+  /// **'No data'**
+  String get noData;
+
+  /// No description provided for @tryAgain.
+  ///
+  /// In en, this message translates to:
+  /// **'Try again'**
+  String get tryAgain;
+
+  /// No description provided for @aboutUsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'About Us'**
+  String get aboutUsTitle;
+
+  /// No description provided for @aboutUsDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Hotel Booking is a leading hotel reservation app, providing convenient and reliable booking experience.'**
+  String get aboutUsDescription;
+
+  /// No description provided for @ourMission.
+  ///
+  /// In en, this message translates to:
+  /// **'Our Mission'**
+  String get ourMission;
+
+  /// No description provided for @ourMissionText.
+  ///
+  /// In en, this message translates to:
+  /// **'To provide customers with the best booking experience at reasonable prices and high-quality service.'**
+  String get ourMissionText;
+
+  /// No description provided for @ourVision.
+  ///
+  /// In en, this message translates to:
+  /// **'Our Vision'**
+  String get ourVision;
+
+  /// No description provided for @ourVisionText.
+  ///
+  /// In en, this message translates to:
+  /// **'To become the most trusted hotel booking platform in Vietnam.'**
+  String get ourVisionText;
+
+  /// No description provided for @contactInfo.
+  ///
+  /// In en, this message translates to:
+  /// **'Contact Information'**
+  String get contactInfo;
+
+  /// No description provided for @emailAddress.
+  ///
+  /// In en, this message translates to:
+  /// **'Email Address'**
+  String get emailAddress;
+
+  /// No description provided for @phoneContact.
+  ///
+  /// In en, this message translates to:
+  /// **'Phone'**
+  String get phoneContact;
+
+  /// No description provided for @address.
+  ///
+  /// In en, this message translates to:
+  /// **'Address'**
+  String get address;
+
+  /// No description provided for @version.
+  ///
+  /// In en, this message translates to:
+  /// **'Version'**
+  String get version;
+
+  /// No description provided for @helpCenterTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Help Center'**
+  String get helpCenterTitle;
+
+  /// No description provided for @faq.
+  ///
+  /// In en, this message translates to:
+  /// **'Frequently Asked Questions'**
+  String get faq;
+
+  /// No description provided for @sendFeedback.
+  ///
+  /// In en, this message translates to:
+  /// **'Send Feedback'**
+  String get sendFeedback;
+
+  /// No description provided for @feedbackTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Title'**
+  String get feedbackTitle;
+
+  /// No description provided for @feedbackMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'Feedback Message'**
+  String get feedbackMessage;
+
+  /// No description provided for @feedbackCategory.
+  ///
+  /// In en, this message translates to:
+  /// **'Category'**
+  String get feedbackCategory;
+
+  /// No description provided for @feedbackGeneral.
+  ///
+  /// In en, this message translates to:
+  /// **'General'**
+  String get feedbackGeneral;
+
+  /// No description provided for @feedbackBooking.
+  ///
+  /// In en, this message translates to:
+  /// **'Booking'**
+  String get feedbackBooking;
+
+  /// No description provided for @feedbackPayment.
+  ///
+  /// In en, this message translates to:
+  /// **'Payment'**
+  String get feedbackPayment;
+
+  /// No description provided for @feedbackTechnical.
+  ///
+  /// In en, this message translates to:
+  /// **'Technical'**
+  String get feedbackTechnical;
+
+  /// No description provided for @feedbackOther.
+  ///
+  /// In en, this message translates to:
+  /// **'Other'**
+  String get feedbackOther;
+
+  /// No description provided for @send.
+  ///
+  /// In en, this message translates to:
+  /// **'Send'**
+  String get send;
+
+  /// No description provided for @feedbackSent.
+  ///
+  /// In en, this message translates to:
+  /// **'Feedback sent successfully'**
+  String get feedbackSent;
+
+  /// No description provided for @feedbackError.
+  ///
+  /// In en, this message translates to:
+  /// **'Error sending feedback'**
+  String get feedbackError;
+
+  /// No description provided for @pleaseEnterTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Please enter title'**
+  String get pleaseEnterTitle;
+
+  /// No description provided for @pleaseEnterMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'Please enter message'**
+  String get pleaseEnterMessage;
+
+  /// No description provided for @faqHowToBook.
+  ///
+  /// In en, this message translates to:
+  /// **'How to book a room?'**
+  String get faqHowToBook;
+
+  /// No description provided for @faqHowToBookAnswer.
+  ///
+  /// In en, this message translates to:
+  /// **'1. Search for hotels by location and date\n2. Choose a suitable room\n3. Fill in information and confirm\n4. Pay and receive booking confirmation'**
+  String get faqHowToBookAnswer;
+
+  /// No description provided for @faqCancelBooking.
+  ///
+  /// In en, this message translates to:
+  /// **'Can I cancel my booking?'**
+  String get faqCancelBooking;
+
+  /// No description provided for @faqCancelBookingAnswer.
+  ///
+  /// In en, this message translates to:
+  /// **'Yes, you can cancel your booking in \'Booking History\'. Cancellation policy depends on each hotel.'**
+  String get faqCancelBookingAnswer;
+
+  /// No description provided for @faqPaymentMethod.
+  ///
+  /// In en, this message translates to:
+  /// **'What payment methods are accepted?'**
+  String get faqPaymentMethod;
+
+  /// No description provided for @faqPaymentMethodAnswer.
+  ///
+  /// In en, this message translates to:
+  /// **'We accept credit cards, debit cards, e-wallets and bank transfers.'**
+  String get faqPaymentMethodAnswer;
+
+  /// No description provided for @faqChangeBooking.
+  ///
+  /// In en, this message translates to:
+  /// **'How to change booking information?'**
+  String get faqChangeBooking;
+
+  /// No description provided for @faqChangeBookingAnswer.
+  ///
+  /// In en, this message translates to:
+  /// **'Please contact customer support via email or hotline for assistance with changing information.'**
+  String get faqChangeBookingAnswer;
+
+  /// No description provided for @faqRefund.
+  ///
+  /// In en, this message translates to:
+  /// **'What is the refund policy?'**
+  String get faqRefund;
+
+  /// No description provided for @faqRefundAnswer.
+  ///
+  /// In en, this message translates to:
+  /// **'Refund policy depends on each hotel\'s terms. Usually within 5-7 business days after cancellation.'**
+  String get faqRefundAnswer;
+
+  /// No description provided for @myAccount.
+  ///
+  /// In en, this message translates to:
+  /// **'My Account'**
+  String get myAccount;
+
+  /// No description provided for @messagesFromHotel.
+  ///
+  /// In en, this message translates to:
+  /// **'Messages from Hotel'**
+  String get messagesFromHotel;
+
+  /// No description provided for @savedCards.
+  ///
+  /// In en, this message translates to:
+  /// **'My Saved Cards'**
+  String get savedCards;
+
+  /// No description provided for @manageMyHotels.
+  ///
+  /// In en, this message translates to:
+  /// **'Manage My Hotels'**
+  String get manageMyHotels;
+
+  /// No description provided for @registerNewHotel.
+  ///
+  /// In en, this message translates to:
+  /// **'Register New Hotel'**
+  String get registerNewHotel;
+
+  /// No description provided for @priceDisplayTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Price Display'**
+  String get priceDisplayTitle;
+
+  /// No description provided for @priceDisplayPerNight.
+  ///
+  /// In en, this message translates to:
+  /// **'Per night'**
+  String get priceDisplayPerNight;
+
+  /// No description provided for @priceDisplayPerStay.
+  ///
+  /// In en, this message translates to:
+  /// **'Per entire stay'**
+  String get priceDisplayPerStay;
+
+  /// No description provided for @chooseDistance.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose Distance'**
+  String get chooseDistance;
+
+  /// No description provided for @receiveEmailNotifications.
+  ///
+  /// In en, this message translates to:
+  /// **'Receive Email Notifications'**
+  String get receiveEmailNotifications;
+
+  /// No description provided for @accountSettingsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Account Settings'**
+  String get accountSettingsTitle;
+
+  /// No description provided for @supportAndFeedback.
+  ///
+  /// In en, this message translates to:
+  /// **'Support & Feedback'**
+  String get supportAndFeedback;
+
+  /// No description provided for @helpAndSupport.
+  ///
+  /// In en, this message translates to:
+  /// **'Help & Support'**
+  String get helpAndSupport;
+
+  /// No description provided for @logoutConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Logout'**
+  String get logoutConfirm;
+
+  /// No description provided for @logoutConfirmMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'Are you sure you want to log out?'**
+  String get logoutConfirmMessage;
+
+  /// No description provided for @logoutConfirmTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Confirm Logout'**
+  String get logoutConfirmTitle;
+
+  /// No description provided for @deleteAccountTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete Account'**
+  String get deleteAccountTitle;
+
+  /// No description provided for @deleteAccountMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'Are you sure you want to delete your account? This action cannot be undone.'**
+  String get deleteAccountMessage;
+
+  /// No description provided for @deleteAccount.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete Account'**
+  String get deleteAccount;
 }
 
 class _AppLocalizationsDelegate

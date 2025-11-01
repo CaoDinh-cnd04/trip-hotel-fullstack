@@ -19,7 +19,7 @@ class LoaiPhong extends BaseModel {
                 LEFT JOIN phong p ON lp.ma_loai_phong = p.ma_loai_phong AND p.trang_thai = 1
                 WHERE lp.ma_khach_san = @ma_khach_san AND lp.trang_thai = 1
                 GROUP BY lp.ma_loai_phong, lp.ten_loai_phong, lp.mo_ta, 
-                         lp.gia_co_ban, lp.so_khach_toi_da, lp.dien_tich,
+                         lp.gia_co_ban, lp.dien_tich,
                          lp.hinh_anh, lp.trang_thai, lp.ngay_tao, 
                          lp.ngay_cap_nhat, ks.ten_khach_san
                 ORDER BY lp.gia_co_ban ASC
@@ -43,7 +43,7 @@ class LoaiPhong extends BaseModel {
                 LEFT JOIN phong p ON lp.ma_loai_phong = p.ma_loai_phong AND p.trang_thai = 1
                 WHERE lp.ma_loai_phong = @ma_loai_phong AND lp.trang_thai = 1
                 GROUP BY lp.ma_loai_phong, lp.ten_loai_phong, lp.mo_ta, 
-                         lp.gia_co_ban, lp.so_khach_toi_da, lp.dien_tich,
+                         lp.gia_co_ban, lp.dien_tich,
                          lp.hinh_anh, lp.trang_thai, lp.ngay_tao, 
                          lp.ngay_cap_nhat, ks.ten_khach_san
             `;

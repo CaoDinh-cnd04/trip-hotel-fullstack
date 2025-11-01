@@ -49,7 +49,7 @@ class PhieuDatPhong extends BaseModel {
                 SELECT pdp.*, 
                        nd.ho_ten, nd.email, nd.so_dien_thoai,
                        p.so_phong, 
-                       lp.ten_loai_phong, lp.gia_co_ban, lp.so_khach_toi_da,
+                       lp.ten_loai_phong, lp.gia_co_ban, lp.dien_tich,
                        ks.ten_khach_san, ks.dia_chi, ks.so_dien_thoai as sdt_khach_san,
                        vt.ten_vi_tri, tt.ten_tinh_thanh, qg.ten_quoc_gia
                 FROM phieu_dat_phong pdp
@@ -229,6 +229,27 @@ class PhieuDatPhong extends BaseModel {
         data.ngay_cap_nhat = new Date();
         return await super.update(id, data);
     }
+
+    // Get booking statistics for admin dashboard
+    async getStats() {
+        try {
+            // Return dummy stats (no data yet)
+            return {
+                totalBookings: 0,
+                completedBookings: 0,
+                pendingBookings: 0,
+                cancelledBookings: 0,
+                totalRevenue: 0,
+                monthlyRevenue: 0,
+                statusDistribution: [],
+                monthlyGrowth: 0,
+                revenueGrowth: 0
+            };
+        } catch (error) {
+            console.error('Get booking stats error:', error);
+            throw error;
+        }
+    }
 }
 
-module.exports = PhieuDatPhong;
+module.exports = new PhieuDatPhong();

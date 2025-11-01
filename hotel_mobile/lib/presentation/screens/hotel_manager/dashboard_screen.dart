@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
-import '../../../data/models/kpi_model.dart';
-import '../../../data/models/phieu_dat_phong_model.dart';
-import '../../../data/services/booking_service.dart';
+import 'package:dio/dio.dart';
+import '../../../data/models/hotel_manager_models.dart';
+import '../../../data/services/hotel_manager_service.dart';
+import 'room_management_screen.dart';
+import 'bookings_management_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -12,15 +14,15 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
-  final BookingService _bookingService = BookingService();
-  KpiModel? _kpiData;
-  List<PhieuDatPhongModel> _upcomingBookings = [];
+  late final HotelManagerService _service;
+  DashboardKpi? _kpiData;
   bool _isLoading = true;
   String? _error;
 
   @override
   void initState() {
     super.initState();
+    _service = HotelManagerService(Dio());
     _loadDashboardData();
   }
 
@@ -31,12 +33,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
         _error = null;
       });
 
-      final kpiData = await _bookingService.getDashboardKpi();
-      final upcomingBookings = await _bookingService.getUpcomingBookings();
+      final kpiData = await _service.getDashboardKpi();
 
       setState(() {
-        _kpiData = kpiData;
-        _upcomingBookings = upcomingBookings;
+        _kpiData = DashboardKpi.fromJson(kpiData);
         _isLoading = false;
       });
     } catch (e) {
@@ -81,9 +81,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       children: [
                         _buildKpiCards(),
                         const SizedBox(height: 24),
-                        _buildRevenueChart(),
-                        const SizedBox(height: 24),
-                        _buildUpcomingBookings(),
+                        _buildQuickActions(),
                       ],
                     ),
                   ),
@@ -129,8 +127,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Tổng quan',
-          style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+          'Thống kê tổng quan',
+          style: Theme.of(context).textTheme.titleLarge?.copyWith(
                 fontWeight: FontWeight.bold,
               ),
         ),
@@ -141,30 +139,30 @@ class _DashboardScreenState extends State<DashboardScreen> {
           crossAxisCount: 2,
           crossAxisSpacing: 16,
           mainAxisSpacing: 16,
-          childAspectRatio: 1.5,
+          childAspectRatio: 1.2,
           children: [
             _buildKpiCard(
-              'Doanh thu hôm nay',
-              _kpiData!.formattedDoanhThuHomNay,
-              Icons.attach_money,
-              Colors.green,
-            ),
-            _buildKpiCard(
-              'Tỷ lệ lấp đầy',
-              _kpiData!.formattedTyLeLapDay,
-              Icons.percent,
+              'Tổng phòng',
+              _kpiData!.totalRooms.toString(),
+              Icons.bed,
               Colors.blue,
             ),
             _buildKpiCard(
-              'Đặt phòng mới',
-              _kpiData!.datPhongMoi.toString(),
-              Icons.book_online,
+              'Phòng trống',
+              _kpiData!.availableRooms.toString(),
+              Icons.bed,
+              Colors.green,
+            ),
+            _buildKpiCard(
+              'Đặt phòng',
+              _kpiData!.totalBookings.toString(),
+              Icons.receipt_long,
               Colors.orange,
             ),
             _buildKpiCard(
-              'Phòng trống',
-              '${_kpiData!.phongTrong}/${_kpiData!.tongPhong}',
-              Icons.room,
+              'Doanh thu',
+              '${(_kpiData!.totalRevenue / 1000000).toStringAsFixed(1)}M',
+              Icons.attach_money,
               Colors.purple,
             ),
           ],
@@ -225,198 +223,101 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _buildRevenueChart() {
-    if (_kpiData == null || _kpiData!.doanhThu7Ngay.isEmpty) {
-      return const SizedBox.shrink();
-    }
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Doanh thu 7 ngày gần nhất',
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
-          ),
-          const SizedBox(height: 16),
-          SizedBox(
-            height: 200,
-            child: LineChart(
-              LineChartData(
-                gridData: FlGridData(show: false),
-                titlesData: FlTitlesData(
-                  leftTitles: AxisTitles(
-                    sideTitles: SideTitles(
-                      showTitles: true,
-                      reservedSize: 40,
-                      getTitlesWidget: (value, meta) {
-                        return Text(
-                          '${(value / 1000).toStringAsFixed(0)}K',
-                          style: const TextStyle(fontSize: 10),
-                        );
-                      },
+  Widget _buildQuickActions() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Thao tác nhanh',
+          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+        ),
+        const SizedBox(height: 16),
+        Row(
+          children: [
+            Expanded(
+              child: _buildActionButton(
+                label: 'Thêm phòng',
+                icon: Icons.add,
+                color: Colors.blue,
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const RoomManagementScreen(),
                     ),
-                  ),
-                  bottomTitles: AxisTitles(
-                    sideTitles: SideTitles(
-                      showTitles: true,
-                      getTitlesWidget: (value, meta) {
-                        if (value.toInt() < _kpiData!.doanhThu7Ngay.length) {
-                          return Text(
-                            _kpiData!.doanhThu7Ngay[value.toInt()].formattedNgay,
-                            style: const TextStyle(fontSize: 10),
-                          );
-                        }
-                        return const Text('');
-                      },
-                    ),
-                  ),
-                  rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                  topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                ),
-                borderData: FlBorderData(show: false),
-                lineBarsData: [
-                  LineChartBarData(
-                    spots: _kpiData!.doanhThu7Ngay.asMap().entries.map((entry) {
-                      return FlSpot(entry.key.toDouble(), entry.value.doanhThu);
-                    }).toList(),
-                    isCurved: true,
-                    color: Theme.of(context).primaryColor,
-                    barWidth: 3,
-                    dotData: FlDotData(show: true),
-                    belowBarData: BarAreaData(
-                      show: true,
-                      color: Theme.of(context).primaryColor.withOpacity(0.1),
-                    ),
-                  ),
-                ],
+                  );
+                },
               ),
             ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildUpcomingBookings() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                '5 đặt phòng sắp tới',
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-              ),
-              TextButton(
-                onPressed: () {
-                  // Navigate to bookings screen
-                },
-                child: const Text('Xem tất cả'),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          if (_upcomingBookings.isEmpty)
-            const Center(
-              child: Padding(
-                padding: EdgeInsets.all(32),
-                child: Text('Không có đặt phòng sắp tới'),
-              ),
-            )
-          else
-            ListView.separated(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: _upcomingBookings.length > 5 ? 5 : _upcomingBookings.length,
-              separatorBuilder: (context, index) => const Divider(height: 1),
-              itemBuilder: (context, index) {
-                final booking = _upcomingBookings[index];
-                return ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: CircleAvatar(
-                    backgroundColor: _getStatusColor(booking.trangThai).withOpacity(0.1),
-                    child: Icon(
-                      Icons.person,
-                      color: _getStatusColor(booking.trangThai),
-                    ),
-                  ),
-                  title: Text(
-                    booking.tenKhachHang,
-                    style: const TextStyle(fontWeight: FontWeight.w600),
-                  ),
-                  subtitle: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Phòng: ${booking.tenPhong}'),
-                      Text('Check-in: ${booking.formattedCheckIn}'),
-                    ],
-                  ),
-                  trailing: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: _getStatusColor(booking.trangThai).withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      booking.statusDisplayName,
-                      style: TextStyle(
-                        color: _getStatusColor(booking.trangThai),
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
+            const SizedBox(width: 16),
+            Expanded(
+              child: _buildActionButton(
+                label: 'Xem đặt phòng',
+                icon: Icons.list_alt,
+                color: Colors.green,
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => BookingsManagementScreen(
+                        hotelManagerService: _service,
                       ),
                     ),
-                  ),
-                );
-              },
+                  );
+                },
+              ),
             ),
-        ],
-      ),
+          ],
+        ),
+      ],
     );
   }
 
-  Color _getStatusColor(String status) {
-    switch (status) {
-      case 'pending':
-        return Colors.orange;
-      case 'confirmed':
-        return Colors.green;
-      case 'cancelled':
-        return Colors.red;
-      case 'completed':
-        return Colors.blue;
-      default:
-        return Colors.grey;
-    }
+  Widget _buildActionButton({
+    required String label,
+    required IconData icon,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Column(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(icon, color: color, size: 32),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              label,
+              style: const TextStyle(
+                fontWeight: FontWeight.w600,
+                fontSize: 14,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }

@@ -43,6 +43,12 @@ router.get('/validate/:code',
     khuyenmaiController.validatePromotion
 );
 
+// GET /api/khuyenmai/:id/validate - Validate promotion có thể áp dụng (cho payment)
+router.get('/:id/validate', 
+    validateId,
+    khuyenmaiController.validatePromotion
+);
+
 // GET /api/khuyenmai/:id - Lấy khuyến mãi theo ID
 router.get('/:id', 
     validateId,

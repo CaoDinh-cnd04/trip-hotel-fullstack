@@ -12,8 +12,11 @@ router.post('/login', authController.login);
 // Facebook Login
 router.post('/facebook-login', authController.facebookLogin);
 
-// Social Login (Google/Facebook)
-router.post('/social-login', authController.socialLogin);
+// Firebase Social Login (Google/Facebook) - Đồng bộ từ Firebase
+router.post('/firebase-social-login', authController.firebaseSocialLogin);
+
+// Social Login (Google/Facebook) - Legacy (DEPRECATED - use firebase-social-login instead)
+// router.post('/social-login', authController.socialLogin);
 
 // Verify token
 router.get('/verify', authenticateToken, authController.verify);

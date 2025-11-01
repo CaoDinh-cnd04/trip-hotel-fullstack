@@ -1,4 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:dio/dio.dart';
+import '../../../core/services/language_service.dart';
+import '../../../l10n/app_localizations.dart';
+import '../../../data/services/hotel_manager_service.dart';
+import 'profile_management_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -10,17 +16,18 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   bool _notificationsEnabled = true;
   bool _darkModeEnabled = false;
-  String _selectedLanguage = 'vi';
   String _selectedCurrency = 'VND';
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    
     return Scaffold(
       backgroundColor: Colors.grey[50],
       appBar: AppBar(
-        title: const Text(
-          'Cài đặt',
-          style: TextStyle(
+        title: Text(
+          l10n.settings,
+          style: const TextStyle(
             fontWeight: FontWeight.bold,
             color: Colors.white,
           ),
@@ -79,9 +86,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
             subtitle: const Text('Quản lý khách sạn'),
             trailing: const Icon(Icons.chevron_right),
             onTap: () {
-              // Navigate to profile screen
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Chức năng chỉnh sửa hồ sơ sẽ được triển khai')),
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => ProfileManagementScreen(
+                    hotelManagerService: HotelManagerService(Dio()),
+                  ),
+                ),
               );
             },
           ),
@@ -158,13 +169,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
             },
           ),
           const Divider(height: 1),
-          ListTile(
-            leading: const Icon(Icons.language),
-            title: const Text('Ngôn ngữ'),
-            subtitle: Text(_getLanguageName(_selectedLanguage)),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () {
-              _showLanguageDialog();
+          Consumer<LanguageService>(
+            builder: (context, languageService, child) {
+              final l10n = AppLocalizations.of(context)!;
+              return ListTile(
+                leading: const Icon(Icons.language),
+                title: Text(l10n.language),
+                subtitle: Text(languageService.currentLanguageDisplayName),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () {
+                  _showLanguageDialog();
+                },
+              );
             },
           ),
           const Divider(height: 1),
@@ -298,33 +314,54 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   void _showLanguageDialog() {
+    final languageService = Provider.of<LanguageService>(context, listen: false);
+    final l10n = AppLocalizations.of(context)!;
+    
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Chọn ngôn ngữ'),
+        title: Text(l10n.chooseLanguage),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             RadioListTile<String>(
-              title: const Text('Tiếng Việt'),
+              title: Text(l10n.vietnamese),
               value: 'vi',
-              groupValue: _selectedLanguage,
-              onChanged: (value) {
-                setState(() {
-                  _selectedLanguage = value!;
-                });
-                Navigator.pop(context);
+              groupValue: languageService.currentLanguageCode,
+              onChanged: (value) async {
+                await languageService.changeLanguage(value!);
+                if (mounted) {
+                  Navigator.pop(context);
+                  // Đợi UI rebuild với ngôn ngữ mới
+                  await Future.delayed(const Duration(milliseconds: 100));
+                  final newL10n = AppLocalizations.of(context)!;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(newL10n.languageChanged),
+                      duration: const Duration(seconds: 2),
+                    ),
+                  );
+                }
               },
             ),
             RadioListTile<String>(
-              title: const Text('English'),
+              title: Text(l10n.english),
               value: 'en',
-              groupValue: _selectedLanguage,
-              onChanged: (value) {
-                setState(() {
-                  _selectedLanguage = value!;
-                });
-                Navigator.pop(context);
+              groupValue: languageService.currentLanguageCode,
+              onChanged: (value) async {
+                await languageService.changeLanguage(value!);
+                if (mounted) {
+                  Navigator.pop(context);
+                  // Đợi UI rebuild với ngôn ngữ mới
+                  await Future.delayed(const Duration(milliseconds: 100));
+                  final newL10n = AppLocalizations.of(context)!;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(newL10n.languageChanged),
+                      duration: const Duration(seconds: 2),
+                    ),
+                  );
+                }
               },
             ),
           ],
@@ -383,17 +420,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
         const Text('Hotline: 1900-xxxx'),
       ],
     );
-  }
-
-  String _getLanguageName(String code) {
-    switch (code) {
-      case 'vi':
-        return 'Tiếng Việt';
-      case 'en':
-        return 'English';
-      default:
-        return 'Tiếng Việt';
-    }
   }
 
   String _getCurrencyName(String code) {

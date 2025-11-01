@@ -32,7 +32,7 @@ class Phong extends BaseModel {
         try {
             let query = `
                 SELECT p.*, lp.ten_loai_phong, lp.mo_ta as mo_ta_loai_phong,
-                       lp.gia_co_ban, lp.so_khach_toi_da
+                       lp.gia_co_ban, lp.dien_tich
                 FROM phong p
                 INNER JOIN loai_phong lp ON p.ma_loai_phong = lp.ma_loai_phong
                 WHERE p.ma_khach_san = @ma_khach_san 
@@ -74,7 +74,7 @@ class Phong extends BaseModel {
         try {
             const query = `
                 SELECT p.*, lp.ten_loai_phong, lp.mo_ta as mo_ta_loai_phong,
-                       lp.gia_co_ban, lp.so_khach_toi_da, lp.dien_tich,
+                       lp.gia_co_ban, lp.dien_tich,
                        ks.ten_khach_san, ks.ma_vi_tri
                 FROM phong p
                 INNER JOIN loai_phong lp ON p.ma_loai_phong = lp.ma_loai_phong

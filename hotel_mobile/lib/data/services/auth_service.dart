@@ -8,7 +8,19 @@ import '../models/user.dart';
 import '../models/user_role_model.dart';
 import 'user_role_service.dart';
 
+/// Service quản lý xác thực Firebase (Google, Facebook)
+/// 
+/// Chức năng:
+/// - Đăng nhập/Đăng ký qua Google/Facebook
+/// - Quản lý session (5 ngày tự động hết hạn)
+/// - Lưu user data vào SharedPreferences + FlutterSecureStorage
+/// - Tự động kiểm tra và xử lý session hết hạn
+/// 
+/// Lưu ý: Service này làm việc với Firebase Auth
+/// - Khác với BackendAuthService (làm việc với Backend API)
+/// - Dùng cho Social Login (Google, Facebook)
 class AuthService {
+  // Singleton pattern - Chỉ có 1 instance duy nhất
   static final AuthService _instance = AuthService._internal();
   factory AuthService() => _instance;
   AuthService._internal();
@@ -20,16 +32,22 @@ class AuthService {
   UserRoleModel? _currentUserRole;
 
   // Constants for session management
-  static const int _sessionDurationDays = 5; // 5 days session
+  static const int _sessionDurationDays = 5; // Session hết hạn sau 5 ngày
   static const String _userDataKey = 'user_data';
   static const String _loginTimeKey = 'login_time';
   static const String _sessionTokenKey = 'session_token';
 
-  // Getter cho current user
+  /// Getter lấy thông tin user hiện tại
   User? get currentUser => _currentUser;
+  
+  /// Getter lấy role của user hiện tại (Admin/Manager/User)
   UserRoleModel? get currentUserRole => _currentUserRole;
 
-  // Check if user session is still valid
+  /// Kiểm tra session còn hợp lệ không
+  /// 
+  /// Session hết hạn sau 5 ngày kể từ lần đăng nhập gần nhất
+  /// 
+  /// Returns: true nếu session còn hợp lệ, false nếu hết hạn hoặc chưa đăng nhập
   Future<bool> get isSessionValid async {
     final loginTime = await _getLoginTime();
     if (loginTime == null) return false;
@@ -40,7 +58,11 @@ class AuthService {
     return sessionDuration.inDays < _sessionDurationDays;
   }
 
-  // Check if user is authenticated and session is valid
+  /// Kiểm tra user đã đăng nhập và session còn hợp lệ
+  /// 
+  /// Tự động load user từ storage nếu chưa load
+  /// 
+  /// Returns: true nếu user đã đăng nhập VÀ session còn hợp lệ
   Future<bool> get isAuthenticated async {
     if (_currentUser == null) {
       await _loadUserFromStorage();
@@ -49,13 +71,30 @@ class AuthService {
     return _currentUser != null && await isSessionValid;
   }
 
-  // Đăng nhập bằng Google với error handling tốt hơn và role management
+  /// Đăng nhập bằng Google (Firebase Auth)
+  /// 
+  /// Flow:
+  /// 1. Sign out Google cũ để hiện account picker
+  /// 2. User chọn tài khoản Google
+  /// 3. Lấy Google auth tokens (accessToken, idToken)
+  /// 4. Tạo Firebase credential và đăng nhập Firebase
+  /// 5. Check/Tạo UserRole trong Firestore (Admin/Manager/User)
+  /// 6. Lưu user data + session vào local storage
+  /// 
+  /// Returns: User object nếu thành công, throw Exception nếu thất bại
   Future<User?> signInWithGoogle() async {
     try {
       print('🚀 Bắt đầu đăng nhập Google với Firebase...');
 
-      // Sign out trước để force chọn account
-      await _googleSignIn.signOut();
+      // Sign out để clear session (không disconnect để tránh lỗi)
+      try {
+        await _googleSignIn.signOut();
+        print('✅ Signed out Google Sign-In');
+      } catch (e) {
+        print('⚠️ Sign out failed: $e');
+      }
+
+      print('🔄 Đã clear Google Sign-In session - sẽ hiển thị account picker');
 
       // Trigger the authentication flow
       final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
@@ -130,7 +169,16 @@ class AuthService {
     }
   }
 
-  // Đăng nhập bằng Facebook với error handling tốt hơn
+  /// Đăng nhập bằng Facebook
+  /// 
+  /// Flow:
+  /// 1. Trigger Facebook login flow
+  /// 2. Lấy user data từ Facebook (name, email, picture)
+  /// 3. Tạo User object và lưu vào local storage
+  /// 
+  /// Lưu ý: Chưa tích hợp Firebase Auth cho Facebook
+  /// 
+  /// Returns: User object nếu thành công, throw Exception nếu thất bại
   Future<User?> signInWithFacebook() async {
     try {
       print('Starting Facebook Login...');
@@ -171,7 +219,15 @@ class AuthService {
     }
   }
 
-  // Đăng nhập bằng email/password (demo mode)
+  /// Đăng nhập bằng email/password (DEMO MODE - không validate với server)
+  /// 
+  /// Validation đơn giản:
+  /// - Email có chứa @
+  /// - Password không rỗng
+  /// 
+  /// Lưu ý: Đây là chế độ DEMO, không kết nối backend thật
+  /// 
+  /// Returns: User object nếu validation pass, null nếu fail
   Future<User?> signInWithEmailPassword(String email, String password) async {
     try {
       print('Email login attempt: $email');
@@ -198,7 +254,16 @@ class AuthService {
     }
   }
 
-  // Đăng ký bằng email/password (demo mode)
+  /// Đăng ký tài khoản mới bằng email/password (DEMO MODE)
+  /// 
+  /// Validation đơn giản:
+  /// - Email có chứa @
+  /// - Password ≥ 6 ký tự
+  /// - Name không rỗng
+  /// 
+  /// Lưu ý: Đây là chế độ DEMO, không kết nối backend thật
+  /// 
+  /// Returns: User object nếu validation pass, null nếu fail
   Future<User?> registerWithEmailPassword(
     String email,
     String password,
@@ -229,24 +294,69 @@ class AuthService {
     }
   }
 
-  // Đăng xuất
+  /// Đăng xuất toàn bộ (Google + Facebook + Local data)
+  /// 
+  /// Chạy song song với timeout 3 giây để tránh bị treo:
+  /// - Đăng xuất Google (timeout 3s)
+  /// - Đăng xuất Facebook (timeout 3s)
+  /// - Xóa toàn bộ user data trong local storage
+  /// 
+  /// Dù có lỗi vẫn tiếp tục để đảm bảo user được logout
   Future<void> signOut() async {
     try {
-      await _googleSignIn.signOut();
-      await FacebookAuth.instance.logOut();
-      await _clearAllUserData();
-      print('User signed out');
+      // Đăng xuất các provider song song với timeout
+      final List<Future<void>> logoutTasks = [];
+
+      // Google logout với timeout
+      logoutTasks.add(
+        _googleSignIn.signOut().timeout(
+          const Duration(seconds: 3),
+          onTimeout: () {
+            print('⚠️ Google logout timeout, continuing...');
+          },
+        ).catchError((_) {}),
+      );
+
+      // Facebook logout với timeout
+      logoutTasks.add(
+        FacebookAuth.instance.logOut().timeout(
+          const Duration(seconds: 3),
+          onTimeout: () {
+            print('⚠️ Facebook logout timeout, continuing...');
+          },
+        ).catchError((fbError) {
+          print('⚠️ Facebook logout error: $fbError');
+        }),
+      );
+
+      // Clear user data
+      logoutTasks.add(_clearAllUserData());
+
+      // Chờ tất cả các task hoàn thành (hoặc timeout)
+      await Future.wait(logoutTasks);
+      print('✅ User signed out successfully');
     } catch (e) {
-      print('Error signing out: $e');
+      print('❌ Error signing out: $e');
+      // Vẫn tiếp tục ngay cả khi có lỗi
     }
   }
 
-  // Kiểm tra trạng thái đăng nhập
+  /// Kiểm tra trạng thái đăng nhập
+  /// 
+  /// Wrapper cho isAuthenticated getter
+  /// 
+  /// Returns: true nếu user đã đăng nhập và session còn hợp lệ
   Future<bool> isSignedIn() async {
     return await isAuthenticated;
   }
 
-  // Lấy thông tin provider hiện tại của user
+  /// Lấy danh sách authentication provider đang dùng
+  /// 
+  /// Dựa vào email để detect provider:
+  /// - @gmail.com → Google
+  /// - Còn lại → Email/Password
+  /// 
+  /// Returns: List các provider name
   List<String> getCurrentProviders() {
     if (_currentUser == null) return [];
 
@@ -261,13 +371,20 @@ class AuthService {
     return ['Email/Password'];
   }
 
-  // Lấy tên provider chính (provider đầu tiên)
+  /// Lấy tên provider chính (provider đầu tiên trong list)
+  /// 
+  /// Returns: Provider name hoặc null nếu chưa đăng nhập
   String? getPrimaryProvider() {
     final providers = getCurrentProviders();
     return providers.isNotEmpty ? providers.first : null;
   }
 
-  // Session management methods
+  /// [PRIVATE] Lưu user data kèm theo login timestamp
+  /// 
+  /// Lưu 3 thông tin:
+  /// 1. User data → SharedPreferences
+  /// 2. Login timestamp → SharedPreferences (để check session validity)
+  /// 3. Session token → FlutterSecureStorage (secure storage)
   Future<void> _saveUserDataWithTimestamp(User user) async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -290,6 +407,9 @@ class AuthService {
     }
   }
 
+  /// [PRIVATE] Lấy thời điểm đăng nhập gần nhất từ SharedPreferences
+  /// 
+  /// Returns: DateTime object hoặc null nếu chưa có login time
   Future<DateTime?> _getLoginTime() async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -306,6 +426,12 @@ class AuthService {
     }
   }
 
+  /// [PRIVATE] Load user data từ local storage
+  /// 
+  /// Flow:
+  /// 1. Check session validity trước
+  /// 2. Nếu session hết hạn → Clear toàn bộ data
+  /// 3. Nếu session còn hợp lệ → Load user từ SharedPreferences
   Future<void> _loadUserFromStorage() async {
     try {
       // Check if session is valid first
@@ -329,12 +455,24 @@ class AuthService {
     }
   }
 
+  /// [PRIVATE] Tạo session token duy nhất cho user
+  /// 
+  /// Format: base64(user_id + email + timestamp)
+  /// 
+  /// Returns: Session token string
   String _generateSessionToken(User user) {
     final timestamp = DateTime.now().millisecondsSinceEpoch;
     final data = '${user.id}_${user.email}_$timestamp';
     return base64Encode(utf8.encode(data));
   }
 
+  /// [PRIVATE] Xóa toàn bộ user data trong local storage
+  /// 
+  /// Xóa:
+  /// - User data trong SharedPreferences
+  /// - Login timestamp trong SharedPreferences
+  /// - Session token trong FlutterSecureStorage
+  /// - Reset _currentUser về null
   Future<void> _clearAllUserData() async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -349,7 +487,11 @@ class AuthService {
     }
   }
 
-  // Auto logout when session expires
+  /// Tự động đăng xuất nếu session đã hết hạn
+  /// 
+  /// Được gọi tự động khi app resume hoặc trong initialize()
+  /// 
+  /// Flow: Nếu user != null VÀ session hết hạn → signOut()
   Future<void> checkAndHandleExpiredSession() async {
     if (_currentUser != null && !await isSessionValid) {
       print('Session expired, logging out user');
@@ -357,7 +499,9 @@ class AuthService {
     }
   }
 
-  // Lưu thông tin user vào SharedPreferences
+  /// [PRIVATE] Lưu user data đơn giản (không có timestamp)
+  /// 
+  /// Chỉ dùng cho Facebook login (chưa implement đầy đủ session management)
   Future<void> _saveUserData(User user) async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -369,7 +513,14 @@ class AuthService {
     }
   }
 
-  // Khởi tạo và kiểm tra user khi app start
+  /// Khởi tạo AuthService khi app start
+  /// 
+  /// Flow:
+  /// 1. Load user từ storage (nếu có session cũ)
+  /// 2. Check và xử lý session hết hạn
+  /// 3. Print log về user session
+  /// 
+  /// Được gọi trong main() trước khi runApp()
   Future<void> initialize() async {
     try {
       await _loadUserFromStorage();

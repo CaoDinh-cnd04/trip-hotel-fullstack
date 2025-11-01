@@ -1,3 +1,5 @@
+import '../../core/utils/image_url_helper.dart';
+
 class Hotel {
   final int id;
   final String ten;
@@ -20,6 +22,7 @@ class Hotel {
   final int? tongSoPhong;
   final double? diemDanhGiaTrungBinh;
   final int? soLuotDanhGia;
+  final double? giaTb;
   final DateTime? createdAt;
   final DateTime? updatedAt;
 
@@ -53,6 +56,7 @@ class Hotel {
     this.tongSoPhong,
     this.diemDanhGiaTrungBinh,
     this.soLuotDanhGia,
+    this.giaTb,
     this.createdAt,
     this.updatedAt,
     this.tenViTri,
@@ -64,28 +68,39 @@ class Hotel {
   });
 
   factory Hotel.fromJson(Map<String, dynamic> json) {
+    // Get image path and normalize for Android emulator
+    String? imagePath = json['hinh_anh'];
+    if (imagePath != null && imagePath.contains('://')) {
+      // Replace any IP address with 10.0.2.2 for Android emulator
+      imagePath = imagePath.replaceFirst(
+        RegExp(r'://[^:]+:'),
+        '://10.0.2.2:',
+      );
+    }
+    
     return Hotel(
-      id: json['id'],
-      ten: json['ten'],
+      id: _safeToInt(json['id']) ?? 0,
+      ten: json['ten'] ?? '',
       moTa: json['mo_ta'],
-      hinhAnh: json['hinh_anh'],
-      soSao: json['so_sao'],
+      hinhAnh: imagePath,
+      soSao: _safeToInt(json['so_sao'] ?? json['sao']), // Support both field names
       trangThai: json['trang_thai'],
       diaChi: json['dia_chi'],
-      viTriId: json['vi_tri_id'],
+      viTriId: _safeToInt(json['vi_tri_id']),
       yeuCauCoc: _safeToDouble(json['yeu_cau_coc']),
       tiLeCoc: _safeToDouble(json['ti_le_coc']),
-      hoSoId: json['ho_so_id'],
-      nguoiQuanLyId: json['nguoi_quan_ly_id'],
+      hoSoId: _safeToInt(json['ho_so_id']),
+      nguoiQuanLyId: _safeToInt(json['nguoi_quan_ly_id']),
       emailLienHe: json['email_lien_he'],
       sdtLienHe: json['sdt_lien_he'],
       website: json['website'],
       gioNhanPhong: json['gio_nhan_phong'],
       gioTraPhong: json['gio_tra_phong'],
       chinhSachHuy: json['chinh_sach_huy'],
-      tongSoPhong: json['tong_so_phong'],
-      diemDanhGiaTrungBinh: _safeToDouble(json['diem_danh_gia_trung_binh']),
-      soLuotDanhGia: json['so_luot_danh_gia'],
+      tongSoPhong: _safeToInt(json['tong_so_phong']),
+      diemDanhGiaTrungBinh: _safeToDouble(json['diem_danh_gia_trung_binh']) ?? _safeToDouble(json['danh_gia']),
+      soLuotDanhGia: _safeToInt(json['so_luot_danh_gia'] ?? json['so_danh_gia']),
+      giaTb: _safeToDouble(json['gia_tb']) ?? _safeToDouble(json['gia_trung_binh']),
       createdAt: json['created_at'] != null
           ? DateTime.parse(json['created_at'])
           : null,
@@ -93,11 +108,11 @@ class Hotel {
           ? DateTime.parse(json['updated_at'])
           : null,
       tenViTri: json['ten_vi_tri'],
-      tenTinhThanh: json['ten_tinh_thanh'],
-      tenQuocGia: json['ten_quoc_gia'],
+      tenTinhThanh: json['ten_tinh_thanh'] ?? json['tinh_thanh'],
+      tenQuocGia: json['ten_quoc_gia'] ?? json['quoc_gia'],
       tenNguoiQuanLy: json['ten_nguoi_quan_ly'],
       emailNguoiQuanLy: json['email_nguoi_quan_ly'],
-      tongSoPhongThucTe: json['tong_so_phong_thuc_te'],
+      tongSoPhongThucTe: _safeToInt(json['tong_so_phong_thuc_te']),
     );
   }
 
@@ -107,6 +122,17 @@ class Hotel {
     if (value is int) return value.toDouble();
     if (value is String) {
       final parsed = double.tryParse(value);
+      return parsed;
+    }
+    return null; // For boolean or other types
+  }
+
+  static int? _safeToInt(dynamic value) {
+    if (value == null) return null;
+    if (value is int) return value;
+    if (value is double) return value.toInt();
+    if (value is String) {
+      final parsed = int.tryParse(value);
       return parsed;
     }
     return null; // For boolean or other types
@@ -135,22 +161,14 @@ class Hotel {
       'tong_so_phong': tongSoPhong,
       'diem_danh_gia_trung_binh': diemDanhGiaTrungBinh,
       'so_luot_danh_gia': soLuotDanhGia,
+      'gia_tb': giaTb,
       'created_at': createdAt?.toIso8601String(),
       'updated_at': updatedAt?.toIso8601String(),
     };
   }
 
   String get fullImageUrl {
-    if (hinhAnh == null || hinhAnh!.isEmpty) {
-      return 'https://via.placeholder.com/300x200?text=No+Image';
-    }
-
-    if (hinhAnh!.startsWith('http')) {
-      return hinhAnh!;
-    }
-
-    // Use the same base URL as API
-    return 'http://10.0.2.2:5000$hinhAnh';
+    return ImageUrlHelper.getHotelImageUrl(hinhAnh);
   }
 
   String get displayLocation {

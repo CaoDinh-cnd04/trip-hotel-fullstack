@@ -77,7 +77,7 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
     }
 
     final room = _roomDetails ?? widget.room;
-    final images = room.hinhAnhPhong ?? [];
+    final images = room.fullImageUrls;
 
     return Scaffold(
       appBar: AppBar(

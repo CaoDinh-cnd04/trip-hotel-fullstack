@@ -7,18 +7,48 @@ const magiamgiaController = {
         try {
             const { page = 1, limit = 10, trang_thai, loai_ma } = req.query;
             
-            const maGiamGia = new MaGiamGia();
-            const filters = {};
-            
-            if (trang_thai !== undefined) filters.trang_thai = parseInt(trang_thai);
-            if (loai_ma) filters.loai_ma = loai_ma;
+            // Sử dụng MaGiamGia object thay vì new MaGiamGia()
+            MaGiamGia.getAll((error, results) => {
+                if (error) {
+                    console.error('Error in getAllMaGiamGia:', error);
+                    return res.status(500).json({
+                        success: false,
+                        message: 'Lỗi server khi lấy danh sách mã giảm giá',
+                        error: error.message
+                    });
+                }
 
-            const results = await maGiamGia.findAll(filters, parseInt(page), parseInt(limit));
+                // Filter results if needed
+                let filteredResults = results;
+                
+                if (trang_thai !== undefined) {
+                    filteredResults = filteredResults.filter(mgg => 
+                        mgg.trang_thai === parseInt(trang_thai)
+                    );
+                }
+                
+                if (loai_ma) {
+                    filteredResults = filteredResults.filter(mgg => 
+                        mgg.loai === loai_ma
+                    );
+                }
 
-            res.status(200).json({
-                success: true,
-                message: 'Lấy danh sách mã giảm giá thành công',
-                data: results
+                // Pagination
+                const startIndex = (parseInt(page) - 1) * parseInt(limit);
+                const endIndex = startIndex + parseInt(limit);
+                const paginatedResults = filteredResults.slice(startIndex, endIndex);
+
+                res.status(200).json({
+                    success: true,
+                    message: 'Lấy danh sách mã giảm giá thành công',
+                    data: paginatedResults,
+                    pagination: {
+                        page: parseInt(page),
+                        limit: parseInt(limit),
+                        total: filteredResults.length,
+                        totalPages: Math.ceil(filteredResults.length / parseInt(limit))
+                    }
+                });
             });
         } catch (error) {
             console.error('Error in getAllMaGiamGia:', error);
@@ -34,30 +64,46 @@ const magiamgiaController = {
     async getActiveMaGiamGia(req, res) {
         try {
             const { page = 1, limit = 10 } = req.query;
-            const maGiamGia = new MaGiamGia();
             
-            const now = new Date();
-            const activeQuery = `
-                SELECT * FROM ma_giam_gia
-                WHERE trang_thai = 1
-                    AND ngay_bat_dau <= @now
-                    AND ngay_ket_thuc >= @now
-                    AND (so_luong_gioi_han IS NULL OR so_luong_da_su_dung < so_luong_gioi_han)
-                ORDER BY ngay_tao DESC
-                OFFSET @offset ROWS FETCH NEXT @limit ROWS ONLY
-            `;
+            // Sử dụng MaGiamGia object để lấy tất cả mã giảm giá
+            MaGiamGia.getAll((error, results) => {
+                if (error) {
+                    console.error('Error in getActiveMaGiamGia:', error);
+                    return res.status(500).json({
+                        success: false,
+                        message: 'Lỗi server khi lấy danh sách mã giảm giá đang hoạt động',
+                        error: error.message
+                    });
+                }
 
-            const offset = (parseInt(page) - 1) * parseInt(limit);
-            const results = await maGiamGia.executeQuery(activeQuery, {
-                now,
-                offset,
-                limit: parseInt(limit)
-            });
+                // Filter active discount codes
+                const now = new Date();
+                let activeCodes = results.filter(mgg => 
+                    mgg.trang_thai === 1 && 
+                    new Date(mgg.ngay_bat_dau) <= now && 
+                    new Date(mgg.ngay_ket_thuc) >= now &&
+                    (mgg.so_luong === null || mgg.so_luong_da_dung < mgg.so_luong)
+                );
 
-            res.status(200).json({
-                success: true,
-                message: 'Lấy danh sách mã giảm giá đang hoạt động thành công',
-                data: results
+                // Sort by creation date
+                activeCodes.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+                // Pagination
+                const startIndex = (parseInt(page) - 1) * parseInt(limit);
+                const endIndex = startIndex + parseInt(limit);
+                const paginatedResults = activeCodes.slice(startIndex, endIndex);
+
+                res.status(200).json({
+                    success: true,
+                    message: 'Lấy danh sách mã giảm giá đang hoạt động thành công',
+                    data: paginatedResults,
+                    pagination: {
+                        page: parseInt(page),
+                        limit: parseInt(limit),
+                        total: activeCodes.length,
+                        totalPages: Math.ceil(activeCodes.length / parseInt(limit))
+                    }
+                });
             });
         } catch (error) {
             console.error('Error in getActiveMaGiamGia:', error);

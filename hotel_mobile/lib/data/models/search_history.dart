@@ -33,13 +33,13 @@ class SearchHistory {
       location: json['location'] ?? '',
       checkInDate: DateTime.parse(json['check_in_date']),
       checkOutDate: DateTime.parse(json['check_out_date']),
-      guestCount: json['guest_count'] ?? 1,
-      roomCount: json['room_count'] ?? 1,
+      guestCount: _safeToInt(json['guest_count']) ?? 1,
+      roomCount: _safeToInt(json['room_count']) ?? 1,
       searchDate: DateTime.parse(json['search_date']),
-      resultCount: json['result_count'],
+      resultCount: _safeToInt(json['result_count']),
       locationDisplayName: json['location_display_name'],
-      minPrice: json['min_price']?.toDouble(),
-      maxPrice: json['max_price']?.toDouble(),
+      minPrice: _safeToDouble(json['min_price']),
+      maxPrice: _safeToDouble(json['max_price']),
       selectedFilters: json['selected_filters']?.cast<String>(),
     );
   }
@@ -75,6 +75,28 @@ class SearchHistory {
 
   String get displayLocation {
     return locationDisplayName ?? location;
+  }
+
+  static double? _safeToDouble(dynamic value) {
+    if (value == null) return null;
+    if (value is double) return value;
+    if (value is int) return value.toDouble();
+    if (value is String) {
+      final parsed = double.tryParse(value);
+      return parsed;
+    }
+    return null;
+  }
+
+  static int? _safeToInt(dynamic value) {
+    if (value == null) return null;
+    if (value is int) return value;
+    if (value is double) return value.toInt();
+    if (value is String) {
+      final parsed = int.tryParse(value);
+      return parsed;
+    }
+    return null;
   }
 
   // Create search parameters for re-search

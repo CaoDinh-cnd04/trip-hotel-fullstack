@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/widgets/empty_state_widget.dart';
 import '../../../data/models/feedback_model.dart';
 import '../../../data/services/feedback_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -181,29 +182,8 @@ class _UserFeedbackScreenState extends State<UserFeedbackScreen> {
   }
 
   Widget _buildEmptyWidget() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Icon(Icons.feedback_outlined, size: 64, color: Colors.grey),
-          const SizedBox(height: 16),
-          const Text(
-            'Chưa có phản hồi nào',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500),
-          ),
-          const SizedBox(height: 8),
-          const Text(
-            'Hãy tạo phản hồi đầu tiên của bạn',
-            style: TextStyle(color: Colors.grey),
-          ),
-          const SizedBox(height: 16),
-          ElevatedButton.icon(
-            onPressed: () => _navigateToCreateFeedback(),
-            icon: const Icon(Icons.add),
-            label: const Text('Tạo phản hồi'),
-          ),
-        ],
-      ),
+    return EmptyFeedbackWidget(
+      onCreateFeedback: () => _navigateToCreateFeedback(),
     );
   }
 

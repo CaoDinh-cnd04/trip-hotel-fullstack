@@ -330,6 +330,8 @@ class _ImageCarouselWidgetState extends State<ImageCarouselWidget> {
   }
 
   void _nextImage() {
+    if (!_pageController.hasClients || _pageController.positions.isEmpty) return;
+    
     if (_currentIndex < widget.images.length - 1) {
       _pageController.nextPage(
         duration: const Duration(milliseconds: 300),

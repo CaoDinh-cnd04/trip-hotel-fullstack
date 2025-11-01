@@ -2,8 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:hotel_mobile/data/models/hotel.dart';
 import 'package:hotel_mobile/data/models/room.dart';
 import 'package:hotel_mobile/presentation/screens/main_navigation_screen.dart';
+import 'package:hotel_mobile/data/services/message_service.dart';
+import 'package:hotel_mobile/presentation/screens/chat/modern_conversation_list_screen.dart';
+import 'package:hotel_mobile/presentation/screens/chat/modern_chat_screen.dart';
+import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
+import 'package:cloud_firestore/cloud_firestore.dart';
 
-class PaymentSuccessScreen extends StatelessWidget {
+class PaymentSuccessScreen extends StatefulWidget {
   final Hotel hotel;
   final Room room;
   final DateTime checkInDate;
@@ -24,6 +29,168 @@ class PaymentSuccessScreen extends StatelessWidget {
     required this.totalAmount,
     required this.orderId,
   });
+
+  @override
+  State<PaymentSuccessScreen> createState() => _PaymentSuccessScreenState();
+}
+
+class _PaymentSuccessScreenState extends State<PaymentSuccessScreen> {
+  final MessageService _messageService = MessageService();
+  bool _isCreatingConversation = false;
+
+  Future<void> _chatWithHotel() async {
+    print('🏨 Chat with hotel:');
+    print('   - Hotel ID: ${widget.hotel.id}');
+    print('   - Hotel Name: ${widget.hotel.ten}');
+    print('   - Manager ID: ${widget.hotel.nguoiQuanLyId}');
+    print('   - Manager Name: ${widget.hotel.tenNguoiQuanLy}');
+    print('   - Manager Email: ${widget.hotel.emailNguoiQuanLy}');
+    
+    setState(() => _isCreatingConversation = true);
+
+    try {
+      // If hotel has no manager, show dialog to contact support
+      if (widget.hotel.nguoiQuanLyId == null) {
+        print('❌ Hotel has no manager assigned');
+        setState(() => _isCreatingConversation = false);
+        if (mounted) {
+          showDialog(
+            context: context,
+            builder: (context) => AlertDialog(
+              title: const Row(
+                children: [
+                  Icon(Icons.info_outline, color: Colors.blue),
+                  SizedBox(width: 8),
+                  Text('Liên hệ hỗ trợ'),
+                ],
+              ),
+              content: Text(
+                'Khách sạn "${widget.hotel.ten}" chưa có quản lý trên hệ thống.\n\n'
+                'Bạn có thể:\n'
+                '• Liên hệ trực tiếp qua số điện thoại: ${widget.hotel.sdtLienHe ?? "Đang cập nhật"}\n'
+                '• Email: ${widget.hotel.emailLienHe ?? "Đang cập nhật"}\n'
+                '• Chat với bộ phận hỗ trợ của chúng tôi',
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Đóng'),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    // Navigate to conversation list to chat with support/admin
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const ModernConversationListScreen(),
+                      ),
+                    );
+                  },
+                  child: const Text('Chat hỗ trợ'),
+                ),
+              ],
+            ),
+          );
+        }
+        return;
+      }
+
+      // Create conversation with hotel manager
+      print('✅ Hotel has manager, creating conversation...');
+      print('   - Manager ID to chat: ${widget.hotel.nguoiQuanLyId}');
+      print('   - Booking ID: ${widget.orderId}');
+      
+      // Check Firebase Auth
+      final firebaseUser = firebase_auth.FirebaseAuth.instance.currentUser;
+      print('🔍 Firebase Auth Status:');
+      print('   - Logged in: ${firebaseUser != null}');
+      print('   - Firebase UID: ${firebaseUser?.uid ?? "N/A"}');
+      
+      if (firebaseUser == null) {
+        throw Exception('Bạn cần đăng nhập lại để sử dụng chức năng chat');
+      }
+      
+      // Get manager's Firebase UID FIRST (same logic as createBookingConversation)
+      String managerFirebaseUid;
+      try {
+        final doc = await FirebaseFirestore.instance
+            .collection('user_mapping')
+            .doc(widget.hotel.nguoiQuanLyId.toString())
+            .get();
+        
+        if (doc.exists && doc.data()?['firebase_uid'] != null) {
+          managerFirebaseUid = doc.data()!['firebase_uid'];
+          print('✅ Manager Firebase UID from mapping: $managerFirebaseUid');
+        } else {
+          // Manager not in Firebase yet - use placeholder
+          managerFirebaseUid = 'offline_${widget.hotel.nguoiQuanLyId}';
+          print('⚠️ Manager not in Firebase, using placeholder: $managerFirebaseUid');
+        }
+      } catch (e) {
+        print('❌ Error getting manager UID: $e');
+        managerFirebaseUid = 'offline_${widget.hotel.nguoiQuanLyId}';
+      }
+      
+      print('🔍 Will use manager UID for conversation: $managerFirebaseUid');
+      
+      // Create conversation (this will use the SAME UID internally)
+      await _messageService.createBookingConversation(
+        hotelManagerId: widget.hotel.nguoiQuanLyId.toString(),
+        hotelManagerName: widget.hotel.tenNguoiQuanLy ?? 'Quản lý',
+        hotelManagerEmail: widget.hotel.emailNguoiQuanLy ?? '',
+        hotelName: widget.hotel.ten,
+        bookingId: widget.orderId,
+      );
+      
+      print('✅ Conversation created with manager UID: $managerFirebaseUid');
+
+      if (mounted) {
+        // Navigate directly to chat screen
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => ModernChatScreen(
+              otherUserId: managerFirebaseUid,
+              otherUserName: widget.hotel.tenNguoiQuanLy ?? 'Quản lý khách sạn',
+              otherUserEmail: widget.hotel.emailNguoiQuanLy ?? '',
+              otherUserRole: 'hotel_manager',
+            ),
+          ),
+        );
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('💬 Đang mở chat với ${widget.hotel.tenNguoiQuanLy ?? "khách sạn"}...'),
+            backgroundColor: Colors.green,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      print('❌ Error creating conversation: $e');
+      if (mounted) {
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('⚠️ Lỗi tạo cuộc trò chuyện'),
+            content: Text('Không thể tạo cuộc trò chuyện: ${e.toString()}\n\n'
+                'Vui lòng thử lại sau hoặc liên hệ trực tiếp với khách sạn.'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Đóng'),
+              ),
+            ],
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isCreatingConversation = false);
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -137,14 +304,14 @@ class PaymentSuccessScreen extends StatelessWidget {
                   const SizedBox(height: 20),
 
                   // Hotel Info
-                  _buildInfoRow('Khách sạn', hotel.ten),
-                  _buildInfoRow('Phòng', room.tenLoaiPhong ?? 'Standard Room'),
-                  _buildInfoRow('Địa chỉ', hotel.diaChi ?? ''),
-                  _buildInfoRow('Ngày nhận phòng', _formatDate(checkInDate)),
-                  _buildInfoRow('Ngày trả phòng', _formatDate(checkOutDate)),
-                  _buildInfoRow('Số đêm', '$nights đêm'),
-                  _buildInfoRow('Số khách', '$guestCount khách'),
-                  _buildInfoRow('Mã đặt phòng', orderId),
+                  _buildInfoRow('Khách sạn', widget.hotel.ten),
+                  _buildInfoRow('Phòng', widget.room.tenLoaiPhong ?? 'Standard Room'),
+                  _buildInfoRow('Địa chỉ', widget.hotel.diaChi ?? ''),
+                  _buildInfoRow('Ngày nhận phòng', _formatDate(widget.checkInDate)),
+                  _buildInfoRow('Ngày trả phòng', _formatDate(widget.checkOutDate)),
+                  _buildInfoRow('Số đêm', '${widget.nights} đêm'),
+                  _buildInfoRow('Số khách', '${widget.guestCount} khách'),
+                  _buildInfoRow('Mã đặt phòng', widget.orderId),
                   
                   const SizedBox(height: 16),
                   
@@ -166,7 +333,7 @@ class PaymentSuccessScreen extends StatelessWidget {
                         ),
                       ),
                       Text(
-                        '${totalAmount.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},')} VNĐ',
+                        '${widget.totalAmount.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},')} VNĐ',
                         style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
@@ -257,6 +424,41 @@ class PaymentSuccessScreen extends StatelessWidget {
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 12),
+
+                // Chat với khách sạn button
+                SizedBox(
+                  width: double.infinity,
+                  height: 50,
+                  child: ElevatedButton.icon(
+                    onPressed: _isCreatingConversation ? null : _chatWithHotel,
+                    icon: _isCreatingConversation
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                            ),
+                          )
+                        : const Icon(Icons.chat_bubble_outline),
+                    label: Text(
+                      _isCreatingConversation ? 'Đang kết nối...' : 'Chat với khách sạn',
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green[600],
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
                       ),
                     ),
                   ),

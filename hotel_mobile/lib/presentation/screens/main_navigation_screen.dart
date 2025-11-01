@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:hotel_mobile/presentation/screens/home_screen.dart';
+import 'package:hotel_mobile/presentation/screens/home/triphotel_style_home_screen.dart';
 import 'package:hotel_mobile/presentation/screens/deals/deals_screen.dart';
-import 'package:hotel_mobile/presentation/screens/favorites/favorites_screen.dart';
+import 'package:hotel_mobile/presentation/screens/saved/favorites_hotels_screen.dart';
+import 'package:hotel_mobile/presentation/screens/chat/modern_conversation_list_screen.dart';
 import 'package:hotel_mobile/data/services/auth_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:hotel_mobile/data/services/backend_auth_service.dart';
@@ -24,6 +25,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   final AuthService _authService = AuthService();
   int _selectedIndex = 0;
   bool _isLoggedIn = false;
+  int _favoritesKey = 0; // Key để force rebuild tab Đã lưu
 
   @override
   void initState() {
@@ -54,6 +56,12 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   }
 
   void _onItemTapped(int index) {
+    print('🔄 MainNavigation: Chuyển sang tab $index');
+    if (index == 2) {
+      // Tab "Đã lưu" - force rebuild để reload data
+      print('❤️ Vào tab Đã lưu - Force rebuild với key mới');
+      _favoritesKey = DateTime.now().millisecondsSinceEpoch;
+    }
     setState(() {
       _selectedIndex = index;
     });
@@ -66,12 +74,13 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
       body: IndexedStack(
         index: _selectedIndex,
         children: [
-          HomeScreen(
+          TriphotelStyleHomeScreen(
             isAuthenticated: _isLoggedIn,
             onAuthStateChanged: widget.onAuthStateChanged,
           ),
           const DealsScreen(),
-          const FavoritesScreen(),
+          FavoritesHotelsScreen(key: ValueKey(_favoritesKey)),
+          const ModernConversationListScreen(),
         ],
       ),
       bottomNavigationBar: BottomNavigationBar(
@@ -87,6 +96,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
             label: 'Ưu đãi',
           ),
           BottomNavigationBarItem(icon: Icon(Icons.favorite), label: 'Đã lưu'),
+          BottomNavigationBarItem(icon: Icon(Icons.chat_outlined), label: 'Tin nhắn'),
         ],
       ),
     );

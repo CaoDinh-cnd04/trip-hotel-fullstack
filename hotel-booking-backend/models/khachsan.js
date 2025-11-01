@@ -12,7 +12,8 @@ class KhachSan extends BaseModel {
       page = 1, 
       limit = 10, 
       where = '', 
-      orderBy = 'id DESC' 
+      orderBy = 'id DESC',
+      params = {} // Accept additional params for WHERE clause
     } = options;
     
     // Ensure page and limit are integers
@@ -28,7 +29,10 @@ class KhachSan extends BaseModel {
         qg.ten AS ten_quoc_gia,
         nd.ho_ten AS ten_nguoi_quan_ly,
         nd.email AS email_nguoi_quan_ly,
-        COUNT(p.id) AS tong_so_phong_thuc_te
+        COUNT(p.id) AS tong_so_phong_thuc_te,
+        (SELECT AVG(CAST(p2.gia_tien AS DECIMAL(18,2))) 
+         FROM phong p2 
+         WHERE p2.khach_san_id = ks.id) AS gia_tb
       FROM khach_san ks
       LEFT JOIN vi_tri vt ON ks.vi_tri_id = vt.id
       LEFT JOIN tinh_thanh tt ON vt.tinh_thanh_id = tt.id
@@ -39,7 +43,7 @@ class KhachSan extends BaseModel {
       GROUP BY 
         ks.id, ks.ten, ks.mo_ta, ks.hinh_anh, ks.so_sao, ks.trang_thai, 
         ks.dia_chi, ks.vi_tri_id, ks.yeu_cau_coc, ks.ti_le_coc, ks.ho_so_id,
-        ks.nguoi_quan_ly_id, ks.email_lien_he, ks.sdt_lien_he, ks.website,
+        ks.nguoi_quan_ly_id, ks.chu_khach_san_id, ks.email_lien_he, ks.sdt_lien_he, ks.website,
         ks.gio_nhan_phong, ks.gio_tra_phong, ks.chinh_sach_huy, ks.tong_so_phong,
         ks.diem_danh_gia_trung_binh, ks.so_luot_danh_gia, ks.created_at, ks.updated_at,
         vt.ten, tt.ten, qg.ten, nd.ho_ten, nd.email
@@ -57,10 +61,13 @@ class KhachSan extends BaseModel {
       ${where ? `WHERE ${where}` : ''}
     `;
     
+    // Merge params with offset and limit
+    const queryParams = { ...params, offset, limit: limitInt };
+    
     try {
       const [data, count] = await Promise.all([
-        this.executeQuery(query, { offset, limit: limitInt }),
-        this.executeQuery(countQuery)
+        this.executeQuery(query, queryParams),
+        this.executeQuery(countQuery, params) // Count query doesn't need offset/limit
       ]);
       
       return {
@@ -147,7 +154,8 @@ class KhachSan extends BaseModel {
       page,
       limit,
       where: whereConditions.join(' AND '),
-      orderBy: 'ks.diem_danh_gia_trung_binh DESC, ks.ten ASC'
+      orderBy: 'ks.diem_danh_gia_trung_binh DESC, ks.ten ASC',
+      params // Pass the params to getHotelsWithFullInfo
     });
   }
 
@@ -205,6 +213,7 @@ class KhachSan extends BaseModel {
     const { available_from, available_to, page = 1, limit = 20 } = options;
     const offset = (page - 1) * limit;
 
+    // WHERE condition đơn giản
     let whereConditions = ["p.khach_san_id = @hotelId"];
     let params = { hotelId, offset, limit };
 
@@ -224,21 +233,29 @@ class KhachSan extends BaseModel {
       params.available_to = available_to;
     }
 
+    // Query với columns chính xác từ database - Lấy đầy đủ thông tin từ loai_phong
     const query = `
       SELECT 
-        p.*,
+        p.id,
+        p.ten,
+        p.ma_phong,
+        p.mo_ta,
+        p.gia_tien,
+        p.hinh_anh,
+        p.dien_tich,
+        p.khach_san_id,
+        p.loai_phong_id,
+        p.trang_thai,
         lp.ten AS ten_loai_phong,
-        lp.so_khach,
+        lp.mo_ta AS mo_ta_loai_phong,
+        lp.so_khach AS suc_chua,
         lp.so_giuong_don,
         lp.so_giuong_doi,
-        lp.mo_ta AS mo_ta_loai_phong,
-        km.ten AS ten_khuyen_mai,
-        km.phan_tram AS phan_tram_khuyen_mai
-      FROM phong p
-      JOIN loai_phong lp ON p.loai_phong_id = lp.id
-      LEFT JOIN khuyen_mai km ON p.khuyen_mai_id = km.id 
-        AND km.trang_thai = 1 
-        AND GETDATE() BETWEEN km.ngay_bat_dau AND km.ngay_ket_thuc
+        ks.ten AS ten_khach_san,
+        ks.hinh_anh AS hinh_anh_khach_san
+      FROM dbo.phong p
+      LEFT JOIN dbo.loai_phong lp ON p.loai_phong_id = lp.id
+      LEFT JOIN dbo.khach_san ks ON p.khach_san_id = ks.id
       WHERE ${whereConditions.join(' AND ')}
       ORDER BY p.gia_tien ASC
       OFFSET @offset ROWS
@@ -249,7 +266,9 @@ class KhachSan extends BaseModel {
       const result = await this.executeQuery(query, params);
       return result.recordset;
     } catch (error) {
-      throw error;
+      console.error('❌ Lỗi getHotelRooms:', error.message);
+      // Return empty array thay vì throw error để không crash app
+      return [];
     }
   }
 
@@ -329,6 +348,25 @@ class KhachSan extends BaseModel {
       const result = await this.executeQuery(query, { hotelId });
       return result.recordset[0] || null;
     } catch (error) {
+      throw error;
+    }
+  }
+
+  // Get hotel statistics for admin dashboard
+  async getStats() {
+    try {
+      const query = `
+        SELECT 
+          COUNT(*) as totalHotels,
+          SUM(CASE WHEN trang_thai = N'Hoạt động' THEN 1 ELSE 0 END) as activeHotels,
+          SUM(CASE WHEN created_at >= DATEADD(month, -1, GETDATE()) THEN 1 ELSE 0 END) as newHotelsThisMonth
+        FROM ${this.tableName}
+      `;
+      
+      const result = await this.executeQuery(query);
+      return result.recordset[0];
+    } catch (error) {
+      console.error('Get hotel stats error:', error);
       throw error;
     }
   }

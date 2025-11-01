@@ -1,3 +1,5 @@
+import '../../core/utils/image_url_helper.dart';
+
 class User {
   final int? id;
   final String? hoTen;
@@ -7,6 +9,7 @@ class User {
   final String? gioiTinh;
   final String? diaChi;
   final String? anhDaiDien;
+  final String? chucVu;
   final int? trangThai;
   final DateTime? createdAt;
   final DateTime? updatedAt;
@@ -20,6 +23,7 @@ class User {
     this.gioiTinh,
     this.diaChi,
     this.anhDaiDien,
+    this.chucVu,
     this.trangThai,
     this.createdAt,
     this.updatedAt,
@@ -35,6 +39,7 @@ class User {
       gioiTinh: json['gioi_tinh'],
       diaChi: json['dia_chi'],
       anhDaiDien: json['anh_dai_dien'],
+      chucVu: json['chuc_vu'],
       trangThai: json['trang_thai'],
       createdAt: json['created_at'] != null
           ? DateTime.parse(json['created_at'])
@@ -55,6 +60,7 @@ class User {
       'gioi_tinh': gioiTinh,
       'dia_chi': diaChi,
       'anh_dai_dien': anhDaiDien,
+      'chuc_vu': chucVu,
       'trang_thai': trangThai,
       'created_at': createdAt?.toIso8601String(),
       'updated_at': updatedAt?.toIso8601String(),
@@ -70,6 +76,7 @@ class User {
     String? gioiTinh,
     String? diaChi,
     String? anhDaiDien,
+    String? chucVu,
     int? trangThai,
     DateTime? createdAt,
     DateTime? updatedAt,
@@ -83,9 +90,15 @@ class User {
       gioiTinh: gioiTinh ?? this.gioiTinh,
       diaChi: diaChi ?? this.diaChi,
       anhDaiDien: anhDaiDien ?? this.anhDaiDien,
+      chucVu: chucVu ?? this.chucVu,
       trangThai: trangThai ?? this.trangThai,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );
+  }
+
+  /// Get full avatar URL
+  String get fullAvatarUrl {
+    return ImageUrlHelper.getUserAvatarUrl(anhDaiDien);
   }
 }

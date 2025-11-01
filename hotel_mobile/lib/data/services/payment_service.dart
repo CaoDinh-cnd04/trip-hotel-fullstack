@@ -1,19 +1,39 @@
 import 'package:flutter/material.dart';
 
+/// Enum các phương thức thanh toán
 enum PaymentProvider {
-  vnpay,
-  vietqr,
-  creditCard,
-  eWallet,
-  hotelPayment,
+  vnpay,        // VNPay (cổng thanh toán Việt Nam)
+  vietqr,       // VietQR (chuyển khoản QR code)
+  creditCard,   // Thẻ tín dụng
+  eWallet,      // Ví điện tử (Momo, ZaloPay, ...)
+  hotelPayment, // Thanh toán tại khách sạn
 }
 
+/// Service xử lý thanh toán
+/// 
+/// Chức năng:
+/// - Hỗ trợ 5 phương thức thanh toán
+/// - Xử lý callback từ payment gateways
+/// - Verify payment signatures (security)
+/// - Generate QR codes cho VietQR
+/// 
+/// Lưu ý: Các hàm _process* là MOCK - chưa integrate thật với payment gateways
 class PaymentService {
+  // Singleton pattern
   static final PaymentService _instance = PaymentService._internal();
   factory PaymentService() => _instance;
   PaymentService._internal();
 
-  /// Process payment with different providers
+  /// Xử lý thanh toán với provider được chọn
+  /// 
+  /// Parameters:
+  ///   - provider: Phương thức thanh toán (VNPay, VietQR, ...)
+  ///   - amount: Số tiền thanh toán (VND)
+  ///   - orderId: Mã đơn hàng (booking ID)
+  ///   - description: Mô tả giao dịch
+  ///   - additionalData: Dữ liệu bổ sung (card info, qr data, ...)
+  /// 
+  /// Returns: PaymentResult với status + transaction ID
   Future<PaymentResult> processPayment({
     required PaymentProvider provider,
     required double amount,

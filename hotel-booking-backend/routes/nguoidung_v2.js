@@ -75,6 +75,12 @@ router.put('/change-password',
     nguoidungController.changePassword
 );
 
+// PUT /api/nguoidung/email-notification-preference - Cập nhật cài đặt nhận email thông báo
+router.put('/email-notification-preference',
+    authenticateUser,
+    nguoidungController.updateEmailNotificationPreference
+);
+
 // GET /api/nguoidung/:id - Lấy người dùng theo ID
 router.get('/:id', 
     authenticateUser,

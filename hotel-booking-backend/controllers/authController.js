@@ -21,20 +21,35 @@ const generateToken = (user) => {
   );
 };
 
+// Normalize role to standard format
+const normalizeRole = (role) => {
+  const roleString = (role || 'user').toLowerCase().trim();
+  
+  // Map various role formats to standard format
+  const roleMap = {
+    'admin': 'admin',
+    'administrator': 'admin',
+    'hotelmanager': 'hotel_manager',
+    'hotel_manager': 'hotel_manager',
+    'manager': 'hotel_manager',
+    'user': 'user',
+    'customer': 'user',
+    'khach_hang': 'user'
+  };
+  
+  return roleMap[roleString] || 'user';
+};
+
 // Get role permissions
 const getRolePermissions = (role) => {
+  const normalizedRole = normalizeRole(role);
+  
   const roleMap = {
     'admin': [
       'user:read', 'user:write', 'user:delete',
       'hotel:read', 'hotel:write', 'hotel:delete',
       'booking:read', 'booking:write', 'booking:delete',
       'system:admin'
-    ],
-    'hotelmanager': [
-      'hotel:read', 'hotel:write',
-      'booking:read', 'booking:write',
-      'room:read', 'room:write',
-      'promotion:read', 'promotion:write'
     ],
     'hotel_manager': [
       'hotel:read', 'hotel:write',
@@ -49,7 +64,6 @@ const getRolePermissions = (role) => {
     ]
   };
 
-  const normalizedRole = (role || 'user').toLowerCase();
   return roleMap[normalizedRole] || roleMap['user'];
 };
 
@@ -115,9 +129,9 @@ exports.register = [
 
       // Prepare role data
       const roleData = {
-        role: newUser.chuc_vu || 'user',
+        role: normalizeRole(newUser.chuc_vu),
         is_active: newUser.trang_thai === 1,
-        permissions: getRolePermissions(newUser.chuc_vu || 'user'),
+        permissions: getRolePermissions(newUser.chuc_vu),
         hotel_id: newUser.khach_san_id || null
       };
 
@@ -193,11 +207,19 @@ exports.login = [
 
       // Prepare role data
       const roleData = {
-        role: result.user.chuc_vu || 'user',
+        role: normalizeRole(result.user.chuc_vu),
         is_active: result.user.trang_thai === 1,
-        permissions: getRolePermissions(result.user.chuc_vu || 'user'),
+        permissions: getRolePermissions(result.user.chuc_vu),
         hotel_id: result.user.khach_san_id || null
       };
+
+      console.log('🔍 ===== BACKEND LOGIN DEBUG =====');
+      console.log('📧 Email:', email);
+      console.log('👤 User chuc_vu (raw):', result.user.chuc_vu);
+      console.log('🎭 Normalized role:', roleData.role);
+      console.log('✅ Is Admin:', roleData.role === 'admin');
+      console.log('🔐 Permissions:', roleData.permissions);
+      console.log('🔍 ================================');
 
       res.json({
         success: true,
@@ -341,7 +363,109 @@ exports.changePassword = [
   }
 ];
 
-// Social Login (Google/Facebook)
+// Firebase Social Login (Google/Facebook) - Đồng bộ từ Firebase
+exports.firebaseSocialLogin = async (req, res) => {
+  try {
+    const { 
+      firebase_uid, 
+      email, 
+      ho_ten, 
+      anh_dai_dien, 
+      provider, 
+      google_id, 
+      facebook_id, 
+      access_token 
+    } = req.body;
+
+    if (!firebase_uid || !email) {
+      return res.status(400).json({
+        success: false,
+        message: 'Thiếu thông tin bắt buộc (firebase_uid, email)'
+      });
+    }
+
+    console.log('🔥 Firebase Social Login:', {
+      firebase_uid,
+      email,
+      provider,
+      google_id: google_id ? '***' : null,
+      facebook_id: facebook_id ? '***' : null
+    });
+
+    // Đồng bộ user từ Firebase về SQL Server
+    // Role will be managed via database or Admin API
+    const userData = {
+      firebase_uid,
+      email: email.toLowerCase(),
+      ho_ten: ho_ten || email.split('@')[0],
+      anh_dai_dien: anh_dai_dien || '/images/users/default.jpg',
+      google_id: provider === 'google.com' ? google_id : null,
+      facebook_id: provider === 'facebook.com' ? facebook_id : null,
+      chuc_vu: 'User', // Default role is User
+      trang_thai: 1
+    };
+
+    // Sync user data to database
+    const user = await NguoiDung.syncFirebaseUser(userData);
+    console.log('✅ User synced to database:', user.id);
+
+    // Generate JWT token
+    const token = generateToken(user);
+
+    // Prepare role data
+    const roleData = {
+      role: normalizeRole(user.chuc_vu),
+      is_active: user.trang_thai === 1,
+      permissions: getRolePermissions(user.chuc_vu),
+      hotel_id: user.khach_san_id || null
+    };
+
+    console.log('🔍 ===== BACKEND FIREBASE LOGIN DEBUG =====');
+    console.log('📧 Email:', user.email);
+    console.log('👤 User chuc_vu (raw):', user.chuc_vu);
+    console.log('🎭 Normalized role:', roleData.role);
+    console.log('✅ Is Admin:', roleData.role === 'admin');
+    console.log('🔐 Permissions:', roleData.permissions);
+    console.log('🔍 ==========================================');
+
+    res.json({
+      success: true,
+      message: 'Đăng nhập Firebase thành công',
+      user: {
+        id: user.id,
+        ho_ten: user.ho_ten,
+        email: user.email,
+        sdt: user.sdt,
+        anh_dai_dien: user.anh_dai_dien,
+        chuc_vu: user.chuc_vu,
+        firebase_uid: user.firebase_uid,
+        google_id: user.google_id,
+        facebook_id: user.facebook_id,
+        trang_thai: user.trang_thai
+      },
+      token: token,
+      role: roleData
+    });
+
+  } catch (error) {
+    console.error('Firebase Social login error:', error);
+    
+    if (error.message.includes('đã được liên kết') || error.message.includes('đã tồn tại')) {
+      return res.status(409).json({
+        success: false,
+        message: error.message
+      });
+    }
+
+    res.status(500).json({
+      success: false,
+      message: 'Lỗi server khi đồng bộ Firebase',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+// Legacy Social Login (Google/Facebook) - Giữ lại để tương thích
 exports.socialLogin = async (req, res) => {
   try {
     const { email, ho_ten, anh_dai_dien, provider, access_token } = req.body;
@@ -367,6 +491,14 @@ exports.socialLogin = async (req, res) => {
       user = await NguoiDung.findById(user.id);
     } else {
       // Tạo user mới
+      // Auto-assign Admin role for specific emails
+      const adminEmails = [
+        'dcao52862@gmail.com',  // Thêm email admin của bạn ở đây
+        'admin@hotel.com'
+      ];
+      
+      const chucVu = adminEmails.includes(email.toLowerCase()) ? 'Admin' : 'User';
+      
       const newUserData = {
         ho_ten: ho_ten || 'User',
         email: email,
@@ -375,13 +507,17 @@ exports.socialLogin = async (req, res) => {
         ngay_sinh: null,
         gioi_tinh: 'Khác',
         anh_dai_dien: anh_dai_dien || '/images/users/default.jpg',
-        chuc_vu: 'User',
+        chuc_vu: chucVu,
         trang_thai: 1,
         provider: provider
       };
 
       const userId = await NguoiDung.create(newUserData);
       user = await NguoiDung.findById(userId);
+      
+      if (chucVu === 'Admin') {
+        console.log(`✅ Auto-assigned Admin role to: ${email}`);
+      }
     }
 
     // Tạo JWT token
@@ -399,6 +535,11 @@ exports.socialLogin = async (req, res) => {
           anh_dai_dien: user.anh_dai_dien,
           chuc_vu: user.chuc_vu,
           provider: user.provider || provider
+        },
+        role: {
+          role: user.chuc_vu,
+          is_active: user.trang_thai === 1,
+          permissions: []
         },
         token: token
       }

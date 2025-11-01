@@ -2,9 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../../../data/models/admin_kpi_model.dart';
 import '../../../data/services/admin_service.dart';
+import 'hotel_management_screen.dart';
+import 'system_reports_screen.dart';
+import 'create_notification_screen.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
-  const AdminDashboardScreen({super.key});
+  final Function(int)? onNavigateToTab;
+  
+  const AdminDashboardScreen({super.key, this.onNavigateToTab});
 
   @override
   State<AdminDashboardScreen> createState() => _AdminDashboardScreenState();
@@ -29,12 +34,16 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         _error = null;
       });
 
+      // Initialize AdminService if not already done
+      _adminService.initialize();
+      
       final kpiData = await _adminService.getDashboardKpi();
       setState(() {
         _kpiData = kpiData;
         _isLoading = false;
       });
     } catch (e) {
+      print('❌ Critical error loading dashboard data: $e');
       setState(() {
         _error = e.toString();
         _isLoading = false;
@@ -44,26 +53,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.grey[50],
-      appBar: AppBar(
-        title: const Text(
-          'Admin Dashboard',
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-            color: Colors.white,
-          ),
-        ),
-        backgroundColor: Colors.purple[700],
-        elevation: 0,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh, color: Colors.white),
-            onPressed: _loadDashboardData,
-          ),
-        ],
-      ),
-      body: _isLoading
+    return Container(
+      color: Colors.grey[50],
+      child: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _error != null
               ? _buildErrorWidget()
@@ -88,31 +80,46 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
   Widget _buildErrorWidget() {
     return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.error_outline,
-            size: 64,
-            color: Colors.red[300],
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'Có lỗi xảy ra',
-            style: Theme.of(context).textTheme.headlineSmall,
-          ),
-          const SizedBox(height: 8),
-          Text(
-            _error ?? 'Không thể tải dữ liệu',
-            textAlign: TextAlign.center,
-            style: TextStyle(color: Colors.grey[600]),
-          ),
-          const SizedBox(height: 16),
-          ElevatedButton(
-            onPressed: _loadDashboardData,
-            child: const Text('Thử lại'),
-          ),
-        ],
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.error_outline,
+              size: 64,
+              color: Colors.red[400],
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Không thể tải dữ liệu dashboard',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Colors.red[700],
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              _error ?? 'Có lỗi xảy ra',
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.grey[600],
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton.icon(
+              onPressed: _loadDashboardData,
+              icon: const Icon(Icons.refresh),
+              label: const Text('Thử lại'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.purple[700],
+                foregroundColor: Colors.white,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -134,33 +141,33 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
           crossAxisCount: 2,
-          crossAxisSpacing: 16,
-          mainAxisSpacing: 16,
-          childAspectRatio: 1.3,
+          crossAxisSpacing: 12,
+          mainAxisSpacing: 12,
+          childAspectRatio: 1.4,
           children: [
             _buildKpiCard(
-              'Tổng số khách sạn',
+              'Khách sạn',
               _kpiData!.tongSoKhachSan.toString(),
               Icons.hotel,
               Colors.blue,
             ),
             _buildKpiCard(
-              'Tổng số người dùng',
+              'Người dùng',
               _kpiData!.tongSoNguoiDung.toString(),
               Icons.people,
-              Colors.green,
-            ),
-            _buildKpiCard(
-              'Hồ sơ chờ duyệt',
-              _kpiData!.hoSoChoDuyet.toString(),
-              Icons.pending_actions,
               Colors.orange,
             ),
             _buildKpiCard(
-              'Doanh thu tháng',
+              'Chờ duyệt',
+              _kpiData!.hoSoChoDuyet.toString(),
+              Icons.pending_actions,
+              Colors.purple,
+            ),
+            _buildKpiCard(
+              'Doanh thu',
               _kpiData!.formattedDoanhThu,
               Icons.attach_money,
-              Colors.purple,
+              Colors.green,
             ),
           ],
         ),
@@ -170,7 +177,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
   Widget _buildKpiCard(String title, String value, IconData icon, Color color) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
@@ -184,36 +191,39 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Row(
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(icon, color: color, size: 20),
+          ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: color.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Icon(icon, color: color, size: 20),
+              Text(
+                value,
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: color,
+                    ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
-              const Spacer(),
+              const SizedBox(height: 2),
+              Text(
+                title,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Colors.grey[600],
+                      fontSize: 11,
+                    ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
             ],
-          ),
-          const SizedBox(height: 12),
-          Text(
-            value,
-            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: color,
-                ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            title,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: Colors.grey[600],
-                ),
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
           ),
         ],
       ),
@@ -288,11 +298,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
     return _kpiData!.phanBoChucVu.asMap().entries.map((entry) {
       final index = entry.key;
-      final data = entry.value;
+      final role = entry.value;
       return PieChartSectionData(
         color: colors[index % colors.length],
-        value: data.soLuong.toDouble(),
-        title: '${data.soLuong}',
+        value: 1.0, // Default value for demo
+        title: role,
         radius: 60,
         titleStyle: const TextStyle(
           fontSize: 12,
@@ -314,7 +324,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
     return _kpiData!.phanBoChucVu.asMap().entries.map((entry) {
       final index = entry.key;
-      final data = entry.value;
+      final role = entry.value;
       return Padding(
         padding: const EdgeInsets.only(bottom: 8),
         child: Row(
@@ -333,14 +343,14 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    data.displayName,
+                    role,
                     style: const TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w500,
                     ),
                   ),
                   Text(
-                    data.formattedPhanTram,
+                    '1 user', // Default for demo
                     style: TextStyle(
                       fontSize: 10,
                       color: Colors.grey[600],
@@ -391,45 +401,74 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 'Quản lý người dùng',
                 Icons.people,
                 Colors.blue,
-                () {
-                  // Navigate to user management
-                },
+                () => _navigateToTab(1),
               ),
               _buildQuickActionCard(
                 'Duyệt hồ sơ',
                 Icons.pending_actions,
                 Colors.orange,
-                () {
-                  // Navigate to application review
-                },
+                () => _navigateToTab(2),
               ),
               _buildQuickActionCard(
                 'Quản lý khách sạn',
                 Icons.hotel,
                 Colors.green,
-                () {
-                  // Navigate to hotel management
-                },
+                () => _navigateToHotelManagement(),
               ),
               _buildQuickActionCard(
                 'Báo cáo hệ thống',
                 Icons.assessment,
                 Colors.purple,
-                () {
-                  // Navigate to system reports
-                },
+                () => _navigateToSystemReports(),
+              ),
+              _buildQuickActionCard(
+                'Phản hồi',
+                Icons.feedback,
+                Colors.teal,
+                () => _navigateToTab(3),
               ),
               _buildQuickActionCard(
                 'Tạo thông báo',
                 Icons.notifications_active,
                 Colors.red,
-                () {
-                  Navigator.pushNamed(context, '/admin/create-notification');
-                },
+                () => _navigateToCreateNotification(),
               ),
             ],
           ),
         ],
+      ),
+    );
+  }
+
+  void _navigateToTab(int index) {
+    if (widget.onNavigateToTab != null) {
+      widget.onNavigateToTab!(index);
+    }
+  }
+
+  void _navigateToHotelManagement() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const HotelManagementScreen(),
+      ),
+    );
+  }
+
+  void _navigateToSystemReports() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const SystemReportsScreen(),
+      ),
+    );
+  }
+
+  void _navigateToCreateNotification() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const CreateNotificationScreen(),
       ),
     );
   }

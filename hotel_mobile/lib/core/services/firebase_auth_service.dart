@@ -21,6 +21,14 @@ class FirebaseAuthService {
     try {
       print('🚀 Bắt đầu đăng nhập Google với Firebase...');
 
+      // Sign out để clear session và hiện account picker
+      try {
+        await _googleSignIn.signOut();
+        print('✅ Đã clear Google Sign-In session - sẽ hiển thị account picker');
+      } catch (e) {
+        print('⚠️ Google Sign out failed (có thể chưa đăng nhập): $e');
+      }
+
       // Trigger authentication flow
       final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
 
@@ -335,7 +343,7 @@ class FirebaseAuthService {
     }
   }
 
-  /// Đăng xuất
+  /// Đăng xuất - Tối ưu hóa để nhanh hơn
   Future<void> signOut() async {
     try {
       print('🚪 Đăng xuất...');
@@ -367,29 +375,51 @@ class FirebaseAuthService {
         }
       }
 
-      // Đăng xuất khỏi Google
-      if (await _googleSignIn.isSignedIn()) {
-        await _googleSignIn.signOut();
-        print('✅ Đã đăng xuất Google');
-      }
-
-      // Đăng xuất khỏi Facebook
-      try {
-        await FacebookAuth.instance.logOut();
-        print('✅ Đã đăng xuất Facebook');
-      } catch (fbError) {
-        print('⚠️ Lỗi đăng xuất Facebook: $fbError');
-      }
-
-      // Đăng xuất khỏi Firebase
+      // Đăng xuất Firebase trước (quan trọng nhất)
       await _auth.signOut();
       print('✅ Đã đăng xuất khỏi Firebase');
+
+      // Đăng xuất các provider khác song song với timeout
+      final List<Future<void>> logoutTasks = [];
+
+      // Google logout với timeout
+      logoutTasks.add(
+        _googleSignIn.isSignedIn().then((isSignedIn) async {
+          if (isSignedIn) {
+            await _googleSignIn.signOut();
+            print('✅ Đã đăng xuất Google');
+          }
+        }).timeout(
+          const Duration(seconds: 3),
+          onTimeout: () {
+            print('⚠️ Google logout timeout, continuing...');
+          },
+        ),
+      );
+
+      // Facebook logout với timeout
+      logoutTasks.add(
+        FacebookAuth.instance.logOut().then((_) {
+          print('✅ Đã đăng xuất Facebook');
+        }).timeout(
+          const Duration(seconds: 3),
+          onTimeout: () {
+            print('⚠️ Facebook logout timeout, continuing...');
+          },
+        ).catchError((fbError) {
+          print('⚠️ Lỗi đăng xuất Facebook: $fbError');
+        }),
+      );
+
+      // Chờ tất cả các task hoàn thành (hoặc timeout)
+      await Future.wait(logoutTasks);
 
       if (activeProviders.isNotEmpty) {
         print('🎉 Đăng xuất thành công khỏi ${activeProviders.join(", ")}');
       }
     } catch (e) {
       print('❌ Lỗi đăng xuất: $e');
+      // Vẫn tiếp tục ngay cả khi có lỗi
     }
   }
 

@@ -4,7 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/notification.dart';
 import '../models/api_response.dart';
 import '../../core/constants/app_constants.dart';
-import 'mock_data_service.dart';
+import 'backend_auth_service.dart';
 
 class NotificationService {
   static final NotificationService _instance = NotificationService._internal();
@@ -12,9 +12,12 @@ class NotificationService {
   NotificationService._internal();
 
   late Dio _dio;
-  String? _token;
+  final BackendAuthService _backendAuthService = BackendAuthService();
+  bool _initialized = false;
 
   void initialize() {
+    if (_initialized) return;
+    
     _dio = Dio(
       BaseOptions(
         baseUrl: AppConstants.baseUrl,
@@ -42,27 +45,33 @@ class NotificationService {
       ),
     );
 
-    // Add auth interceptor
+    // Add auth interceptor - automatically get token from BackendAuthService
     _dio.interceptors.add(
       InterceptorsWrapper(
         onRequest: (options, handler) {
-          if (_token != null) {
-            options.headers['Authorization'] = 'Bearer $_token';
+          // Get token from BackendAuthService automatically
+          final token = _backendAuthService.getToken();
+          if (token != null) {
+            options.headers['Authorization'] = 'Bearer $token';
           }
           handler.next(options);
         },
         onError: (error, handler) {
           if (error.response?.statusCode == 401) {
-            _token = null;
+            print('⚠️ Unauthorized - token may be expired');
           }
           handler.next(error);
         },
       ),
     );
+    
+    _initialized = true;
   }
 
   void setToken(String token) {
-    _token = token;
+    // Deprecated: Token is now automatically retrieved from BackendAuthService
+    // Keeping for backward compatibility
+    initialize();
   }
 
   // Get all notifications for user
@@ -73,6 +82,8 @@ class NotificationService {
     bool? unreadOnly,
   }) async {
     try {
+      initialize();
+      
       final queryParams = <String, dynamic>{
         'page': page,
         'limit': limit,
@@ -102,6 +113,7 @@ class NotificationService {
   // Get unread notification count
   Future<int> getUnreadCount() async {
     try {
+      initialize();
       final response = await _dio.get('${AppConstants.notificationsEndpoint}/unread-count');
       
       if (response.statusCode == 200) {
@@ -112,12 +124,13 @@ class NotificationService {
     }
     
     // Return mock unread count
-    return MockDataService().getUnreadNotificationCount();
+    return 0; // Return 0 if no real data available
   }
 
   // Mark notification as read
   Future<bool> markAsRead(int notificationId) async {
     try {
+      initialize();
       final response = await _dio.put('${AppConstants.notificationsEndpoint}/$notificationId/read');
       
       if (response.statusCode == 200) {
@@ -160,8 +173,12 @@ class NotificationService {
     DateTime? expiresAt,
     int? hotelId,
     Map<String, dynamic>? metadata,
+    bool sendEmail = true, // Default: send email to users
   }) async {
     try {
+      // Ensure service is initialized
+      initialize();
+      
       final data = {
         'title': title,
         'content': content,
@@ -172,6 +189,7 @@ class NotificationService {
         'expires_at': expiresAt?.toIso8601String(),
         'hotel_id': hotelId,
         'metadata': metadata,
+        'gui_email': sendEmail, // Add email flag
       };
 
       final response = await _dio.post(AppConstants.notificationsEndpoint, data: data);
@@ -338,7 +356,7 @@ class NotificationService {
 
   // Mock data methods
   ApiResponse<List<NotificationModel>> _getMockNotifications(String? type, bool? unreadOnly) {
-    var notifications = MockDataService().getMockNotifications();
+    var notifications = <NotificationModel>[]; // Return empty list if no real data available
     
     // Filter by type
     if (type != null) {

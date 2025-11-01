@@ -32,10 +32,43 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Static files
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
-app.use('/images', express.static(path.join(__dirname, 'images')));
+
+// Smart room image fallback: try rooms/, then hotels/, then default
+app.get('/images/rooms/:file', (req, res, next) => {
+  try {
+    const file = req.params.file;
+    const rootImages = path.join(__dirname, '..', 'images');
+    const roomsPath = path.join(rootImages, 'rooms', file);
+    const hotelsPath = path.join(rootImages, 'hotels', file);
+    const defaultPath = path.join(rootImages, 'Defaut.jpg');
+
+    const fs = require('fs');
+    if (fs.existsSync(roomsPath)) {
+      return res.sendFile(roomsPath);
+    }
+    if (fs.existsSync(hotelsPath)) {
+      return res.sendFile(hotelsPath);
+    }
+    if (fs.existsSync(defaultPath)) {
+      return res.sendFile(defaultPath);
+    }
+    return res.status(404).json({ success: false, message: 'Image not found' });
+  } catch (e) {
+    return next(e);
+  }
+});
+
+// Serve images from parent directory (root project)
+app.use('/images', express.static(path.join(__dirname, '..', 'images')));
+
+// Public API Routes - Không cần authentication
+app.use('/api/public', require('./routes/public'));
+app.use('/api/promotion-offers', require('./routes/promotionOffers'));
+app.use('/api/v2/inventory', require('./routes/roomInventory'));
 
 // API Routes - Version 2 (New Structure)
 app.use('/api/v2/auth', require('./routes/auth'));
+app.use('/api/v2/otp', require('./routes/otp'));
 app.use('/api/v2/quocgia', require('./routes/quocgia'));
 app.use('/api/v2/khachsan', require('./routes/khachsan'));
 app.use('/api/v2/tinhthanh', require('./routes/tinhthanh'));
@@ -45,30 +78,92 @@ app.use('/api/v2/phong', require('./routes/phong'));
 app.use('/api/v2/phieudatphong', require('./routes/phieudatphg'));
 app.use('/api/v2/nguoidung', require('./routes/nguoidung_v2'));
 app.use('/api/v2/tiennghi', require('./routes/tiennghi'));
+
+// Admin API Routes
+app.use('/api/v2/admin', require('./routes/admin'));
+app.use('/api/admin/roles', require('./routes/adminRole')); // Admin role management
+app.use('/feedback', require('./routes/feedback')); // Feedback management (temporary)
+app.use('/api/notifications', require('./routes/notifications')); // Notification system
+app.use('/api/chat-sync', require('./routes/chatSync')); // Chat history sync (Firestore → SQL Server)
+app.use('/api/room-status', require('./routes/roomStatus')); // Room status auto-update
+
+// Hotel Manager API Routes
+app.use('/api/v2/hotel-manager', require('./routes/hotelManager'));
+
+// User API Routes
+app.use('/api/user', require('./routes/user'));
+app.use('/api/user', require('./routes/userProfile')); // User profile & VIP status routes
+
+// Hotel Owner API Routes
+app.use('/api/hotel-owner', require('./routes/hotelOwner'));
 app.use('/api/v2/khuyenmai', require('./routes/khuyenmai_v2'));
 app.use('/api/v2/magiamgia', require('./routes/magiamgia_v2'));
+app.use('/api/v2/discount', require('./routes/discount')); // Discount validation API
 app.use('/api/v2/danhgia', require('./routes/danhgia_v2'));
 app.use('/api/v2/tinnhan', require('./routes/tinnhan_v2'));
 app.use('/api/v2/hoso', require('./routes/hoso_v2'));
 app.use('/api/v2/vnpay', require('./routes/vnpay'));
+app.use('/api/v2/momo', require('./routes/momo'));
+app.use('/api/bookings', require('./routes/bookings')); // Booking management
+app.use('/api/v2/hotel-registration', require('./routes/hotelRegistration'));
 
-// Legacy API Routes - Version 1 (Keep for backward compatibility) - TEMPORARY DISABLED
-// app.use('/api/nguoidung', require('./routes/nguoidung'));
-// app.use('/api/quocgia', require('./routes/quocgia'));
-// app.use('/api/tinhthanh', require('./routes/tinhthanh'));
-// app.use('/api/vitri', require('./routes/vitri'));
-// app.use('/api/loaiphong', require('./routes/loaiphong'));
-// app.use('/api/hoso', require('./routes/hoso'));
-// app.use('/api/khachsan', require('./routes/khachsan'));
-// app.use('/api/tiennghi', require('./routes/tiennghi'));
-// app.use('/api/khuyenmai', require('./routes/khuyenmai'));
-// app.use('/api/magiamgia', require('./routes/magiamgia'));
-// app.use('/api/phong', require('./routes/phong'));
-// app.use('/api/phieudatphg', require('./routes/phieudatphg'));
-// app.use('/api/danhgia', require('./routes/danhgia'));
-// app.use('/api/tinnhan', require('./routes/tinnhan'));
-// app.use('/api/auth', require('./routes/auth'));
-// app.use('/api/vnpay', require('./routes/vnpay'));
+// Legacy API Routes - Version 1 (Keep for backward compatibility)
+app.use('/api/nguoidung', require('./routes/nguoidung_v2'));
+app.use('/api/quocgia', require('./routes/quocgia'));
+app.use('/api/tinhthanh', require('./routes/tinhthanh'));
+app.use('/api/vitri', require('./routes/vitri'));
+app.use('/api/loaiphong', require('./routes/loaiphong'));
+app.use('/api/hoso', require('./routes/hoso_v2'));
+app.use('/api/khachsan', require('./routes/khachsan'));
+app.use('/api/hotels', require('./routes/roomAvailability')); // Room availability status
+app.use('/api/chat', require('./routes/chatNotification')); // Chat email notifications
+app.use('/api/tiennghi', require('./routes/tiennghi'));
+app.use('/api/khuyenmai', require('./routes/khuyenmai_v2'));
+app.use('/api/magiamgia', require('./routes/magiamgia_v2'));
+app.use('/api/phong', require('./routes/phong'));
+app.use('/api/phieudatphg', require('./routes/phieudatphg'));
+app.use('/api/danhgia', require('./routes/danhgia_v2'));
+app.use('/api/tinnhan', require('./routes/tinnhan_v2'));
+app.use('/api/auth', require('./routes/auth'));
+app.use('/api/vnpay', require('./routes/vnpay'));
+app.use('/api/momo', require('./routes/momo'));
+
+// Test images endpoint
+app.get('/api/test/images', (req, res) => {
+  const fs = require('fs');
+  const imagesPath = path.join(__dirname, '..', 'images');
+  
+  // Check if images directory exists
+  if (!fs.existsSync(imagesPath)) {
+    return res.json({
+      success: false,
+      message: 'Images directory not found',
+      path: imagesPath
+    });
+  }
+  
+  // List some sample images
+  const sampleImages = {
+    hotels: fs.existsSync(path.join(imagesPath, 'hotels')) ? 
+      fs.readdirSync(path.join(imagesPath, 'hotels')).slice(0, 5) : [],
+    rooms: fs.existsSync(path.join(imagesPath, 'rooms')) ? 
+      fs.readdirSync(path.join(imagesPath, 'rooms')).slice(0, 5) : [],
+    locations: fs.existsSync(path.join(imagesPath, 'locations')) ? 
+      fs.readdirSync(path.join(imagesPath, 'locations')).slice(0, 5) : []
+  };
+  
+  res.json({
+    success: true,
+    message: 'Images directory found',
+    path: imagesPath,
+    sampleImages,
+    testUrls: {
+      hotel: 'http://localhost:5000/images/hotels/saigon_star.jpg',
+      room: 'http://localhost:5000/images/rooms/hanoi_deluxe_1.jpg',
+      location: 'http://localhost:5000/images/locations/hoankiem.jpg'
+    }
+  });
+});
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
@@ -146,6 +241,18 @@ app.use('*', (req, res) => {
   });
 });
 
+// Debug endpoint to check environment variables
+app.get('/api/debug/env', (req, res) => {
+  res.json({
+    BASE_URL: process.env.BASE_URL || 'NOT SET',
+    NODE_ENV: process.env.NODE_ENV || 'NOT SET',
+    PORT: process.env.PORT || 'NOT SET',
+    allEnvKeys: Object.keys(process.env).filter(key => 
+      key.startsWith('BASE_') || key.startsWith('DB_') || key.startsWith('VNP_') || key.startsWith('MOMO_')
+    )
+  });
+});
+
 // Global error handler
 app.use((error, req, res, next) => {
   console.error('Global error handler:', error);
@@ -168,6 +275,16 @@ const startServer = async () => {
     // Initialize database connection
     await connect();
     console.log('✅ Database connected successfully!');
+    
+    // Start room status scheduler
+    const { startRoomStatusScheduler } = require('./services/roomStatusScheduler');
+    startRoomStatusScheduler();
+    
+    // Auto-update booking status (confirmed → in_progress → completed)
+    const { runAllBookingUpdates } = require('./services/bookingStatusScheduler');
+    runAllBookingUpdates(); // Chạy ngay khi khởi động
+    setInterval(runAllBookingUpdates, 30 * 60 * 1000); // Chạy mỗi 30 phút
+    console.log('✅ Booking status scheduler started (runs every 30 minutes)');
     
     // Start the Express server
     app.listen(PORT, () => {

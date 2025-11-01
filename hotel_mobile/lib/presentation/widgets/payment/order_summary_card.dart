@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:hotel_mobile/data/models/hotel.dart';
 import 'package:hotel_mobile/data/models/room.dart';
+import 'package:intl/intl.dart';
 
 class OrderSummaryCard extends StatelessWidget {
   final Hotel hotel;
@@ -23,131 +24,191 @@ class OrderSummaryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(20),
+      margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0xFF2196F3), Color(0xFF21CBF3)],
-        ),
+        color: Colors.white,
         borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey[200]!, width: 1),
         boxShadow: [
           BoxShadow(
-            color: Colors.blue.withOpacity(0.3),
-            blurRadius: 12,
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
             offset: const Offset(0, 4),
           ),
         ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Header
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Icon(Icons.receipt, color: Colors.white, size: 24),
-              ),
-              const SizedBox(width: 12),
-              const Expanded(
-                child: Text(
-                  'Tóm tắt đơn hàng',
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header
+            Row(
+              children: [
+                Icon(Icons.hotel, color: Colors.blue[600], size: 24),
+                const SizedBox(width: 12),
+                const Text(
+                  'Thông tin đặt phòng',
                   style: TextStyle(
-                    color: Colors.white,
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
+                    color: Colors.black87,
                   ),
                 ),
-              ),
-            ],
-          ),
-
-          const SizedBox(height: 20),
-
-          // Hotel Info
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.15),
-              borderRadius: BorderRadius.circular(12),
+              ],
             ),
+
+            const SizedBox(height: 20),
+            const Divider(height: 1),
+
+            const SizedBox(height: 20),
+
+            // Hotel và Room
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: Container(
+                    width: 80,
+                    height: 80,
+                    color: Colors.grey[200],
+                    child: hotel.hinhAnh != null && hotel.hinhAnh!.isNotEmpty
+                        ? Image.network(
+                            hotel.hinhAnh!,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) => Icon(
+                              Icons.hotel,
+                              size: 40,
+                              color: Colors.grey[400],
+                            ),
+                          )
+                        : Icon(
+                            Icons.hotel,
+                            size: 40,
+                            color: Colors.grey[400],
+                          ),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        hotel.ten,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.black87,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        room.tenLoaiPhong ?? 'Phòng tiêu chuẩn',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.grey[700],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 20),
+
+            // Dates và Guests - đơn giản hơn
+            Row(
+              children: [
+                Expanded(
+                  child: _buildInfoItem(
+                    icon: Icons.calendar_today,
+                    iconColor: Colors.green[600]!,
+                    label: 'Nhận phòng',
+                    value: DateFormat('dd/MM/yyyy').format(checkInDate),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _buildInfoItem(
+                    icon: Icons.calendar_today,
+                    iconColor: Colors.orange[600]!,
+                    label: 'Trả phòng',
+                    value: DateFormat('dd/MM/yyyy').format(checkOutDate),
+                  ),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 16),
+
+            Row(
+              children: [
+                Expanded(
+                  child: _buildInfoItem(
+                    icon: Icons.nights_stay,
+                    iconColor: Colors.blue[600]!,
+                    label: 'Số đêm',
+                    value: '$nights đêm',
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _buildInfoItem(
+                    icon: Icons.people,
+                    iconColor: Colors.purple[600]!,
+                    label: 'Số khách',
+                    value: '$guestCount người',
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildInfoItem({
+    required IconData icon,
+    required Color iconColor,
+    required String label,
+    required String value,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: iconColor.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: iconColor.withOpacity(0.3)),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: iconColor, size: 20),
+          const SizedBox(width: 10),
+          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  hotel.ten,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  room.tenLoaiPhong ?? 'Phòng tiêu chuẩn',
+                  label,
                   style: TextStyle(
-                    color: Colors.white.withOpacity(0.9),
-                    fontSize: 16,
+                    fontSize: 12,
+                    color: Colors.grey[600],
                   ),
                 ),
-                const SizedBox(height: 12),
-
-                // Booking Details
-                Row(
-                  children: [
-                    Expanded(
-                      child: _buildInfoColumn(
-                        icon: Icons.login,
-                        title: 'Nhận phòng',
-                        value: _formatDate(checkInDate),
-                      ),
-                    ),
-                    Container(
-                      width: 1,
-                      height: 40,
-                      color: Colors.white.withOpacity(0.3),
-                      margin: const EdgeInsets.symmetric(horizontal: 16),
-                    ),
-                    Expanded(
-                      child: _buildInfoColumn(
-                        icon: Icons.logout,
-                        title: 'Trả phòng',
-                        value: _formatDate(checkOutDate),
-                      ),
-                    ),
-                  ],
-                ),
-
-                const SizedBox(height: 16),
-
-                Row(
-                  children: [
-                    Expanded(
-                      child: _buildInfoColumn(
-                        icon: Icons.nights_stay,
-                        title: 'Số đêm',
-                        value: '$nights đêm',
-                      ),
-                    ),
-                    Container(
-                      width: 1,
-                      height: 40,
-                      color: Colors.white.withOpacity(0.3),
-                      margin: const EdgeInsets.symmetric(horizontal: 16),
-                    ),
-                    Expanded(
-                      child: _buildInfoColumn(
-                        icon: Icons.people,
-                        title: 'Số khách',
-                        value: '$guestCount người',
-                      ),
-                    ),
-                  ],
+                const SizedBox(height: 4),
+                Text(
+                  value,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: iconColor,
+                  ),
                 ),
               ],
             ),
@@ -155,38 +216,5 @@ class OrderSummaryCard extends StatelessWidget {
         ],
       ),
     );
-  }
-
-  Widget _buildInfoColumn({
-    required IconData icon,
-    required String title,
-    required String value,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        Icon(icon, color: Colors.white, size: 20),
-        const SizedBox(height: 4),
-        Text(
-          title,
-          style: TextStyle(color: Colors.white.withOpacity(0.8), fontSize: 12),
-        ),
-        const SizedBox(height: 2),
-        Text(
-          value,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-      ],
-    );
-  }
-
-  String _formatDate(DateTime date) {
-    const days = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
-    final dayName = days[date.weekday % 7];
-    return '$dayName, ${date.day}/${date.month}';
   }
 }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
 import '../../../data/models/user_model.dart';
 import '../../../data/services/admin_service.dart';
 
@@ -12,13 +13,22 @@ class UserManagementScreen extends StatefulWidget {
 class _UserManagementScreenState extends State<UserManagementScreen> {
   final AdminService _adminService = AdminService();
   final TextEditingController _searchController = TextEditingController();
+  final ScrollController _scrollController = ScrollController();
 
   List<UserModel> _users = [];
-  List<UserModel> _filteredUsers = [];
   bool _isLoading = true;
+  bool _isLoadingMore = false;
   String? _error;
   String _selectedRole = 'all';
   String _selectedStatus = 'all';
+  
+  // Pagination
+  int _currentPage = 1;
+  int _totalPages = 1;
+  bool _hasMore = true;
+  
+  // Debounce search
+  Timer? _debounce;
 
   final List<Map<String, String>> _roleOptions = [
     {'value': 'all', 'label': 'Tất cả'},
@@ -38,82 +48,130 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
   void initState() {
     super.initState();
     _loadUsers();
-    _searchController.addListener(_filterUsers);
+    _searchController.addListener(_onSearchChanged);
+    _scrollController.addListener(_onScroll);
   }
 
   @override
   void dispose() {
     _searchController.dispose();
+    _scrollController.dispose();
+    _debounce?.cancel();
     super.dispose();
   }
-
-  Future<void> _loadUsers() async {
-    try {
-      setState(() {
-        _isLoading = true;
-        _error = null;
-      });
-
-      final users = await _adminService.getUsers();
-      setState(() {
-        _users = users;
-        _filteredUsers = users;
-        _isLoading = false;
-      });
-    } catch (e) {
-      setState(() {
-        _error = e.toString();
-        _isLoading = false;
-      });
-    }
-  }
-
-  void _filterUsers() {
-    setState(() {
-      _filteredUsers = _users.where((user) {
-        final searchText = _searchController.text.toLowerCase();
-        final matchesSearch =
-            searchText.isEmpty ||
-            user.hoTen.toLowerCase().contains(searchText) ||
-            user.email.toLowerCase().contains(searchText) ||
-            user.tenDangNhap.toLowerCase().contains(searchText) ||
-            user.soDienThoai.contains(searchText);
-
-        final matchesRole =
-            _selectedRole == 'all' || user.chucVu == _selectedRole;
-        final matchesStatus =
-            _selectedStatus == 'all' || user.trangThai == _selectedStatus;
-
-        return matchesSearch && matchesRole && matchesStatus;
-      }).toList();
+  
+  /// Debounced search - chỉ search sau 500ms user ngừng gõ
+  void _onSearchChanged() {
+    if (_debounce?.isActive ?? false) _debounce!.cancel();
+    _debounce = Timer(const Duration(milliseconds: 500), () {
+      _resetAndLoad();
     });
   }
+  
+  /// Infinite scroll - load more khi scroll gần cuối
+  void _onScroll() {
+    if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent - 200) {
+      if (!_isLoadingMore && _hasMore) {
+        _loadMoreUsers();
+      }
+    }
+  }
+  
+  /// Reset về page 1 và load lại (dùng khi search/filter)
+  Future<void> _resetAndLoad() async {
+    setState(() {
+      _currentPage = 1;
+      _users = [];
+      _hasMore = true;
+    });
+    await _loadUsers();
+  }
 
-  Future<void> _updateUserRole(String userId, String newRole) async {
+  /// Load users với pagination và server-side filtering
+  Future<void> _loadUsers() async {
+    if (_currentPage > 1) return; // Chỉ load page 1
+    
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+
     try {
-      await _adminService.updateUserRole(userId, newRole);
-      _loadUsers(); // Reload data
+      _adminService.initialize();
+      
+      final response = await _adminService.getUsersPaginated(
+        page: _currentPage,
+        limit: 20,
+        chucVu: _selectedRole == 'all' ? null : _selectedRole,
+        search: _searchController.text.trim().isEmpty ? null : _searchController.text.trim(),
+      );
+      
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Cập nhật chức vụ thành công'),
-            backgroundColor: Colors.green,
-          ),
-        );
+        setState(() {
+          _users = response['users'] as List<UserModel>;
+          _totalPages = response['totalPages'] as int;
+          _hasMore = _currentPage < _totalPages;
+          _isLoading = false;
+        });
       }
     } catch (e) {
+      print('❌ Error loading users: $e');
+      
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Lỗi: $e'), backgroundColor: Colors.red),
-        );
+        setState(() {
+          _users = [];
+          _error = 'Không thể tải danh sách người dùng.\n${e.toString()}';
+          _isLoading = false;
+        });
+      }
+    }
+  }
+  
+  /// Load more users (infinite scroll)
+  Future<void> _loadMoreUsers() async {
+    if (_isLoadingMore || !_hasMore) return;
+    
+    setState(() {
+      _isLoadingMore = true;
+    });
+    
+    try {
+      final nextPage = _currentPage + 1;
+      
+      final response = await _adminService.getUsersPaginated(
+        page: nextPage,
+        limit: 20,
+        chucVu: _selectedRole == 'all' ? null : _selectedRole,
+        search: _searchController.text.trim().isEmpty ? null : _searchController.text.trim(),
+      );
+      
+      if (mounted) {
+        setState(() {
+          _users.addAll(response['users'] as List<UserModel>);
+          _currentPage = nextPage;
+          _totalPages = response['totalPages'] as int;
+          _hasMore = _currentPage < _totalPages;
+          _isLoadingMore = false;
+        });
+      }
+    } catch (e) {
+      print('❌ Error loading more users: $e');
+      
+      if (mounted) {
+        setState(() {
+          _isLoadingMore = false;
+        });
       }
     }
   }
 
-  Future<void> _updateUserStatus(String userId, String newStatus) async {
+  // Filtering được xử lý ở server-side trong _loadUsers()
+  // Không cần client-side filtering nữa
+
+  Future<void> _updateUserStatus(String userId, int newStatus) async {
     try {
       await _adminService.updateUserStatus(userId, newStatus);
-      _loadUsers(); // Reload data
+      await _resetAndLoad(); // Reload data
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -229,7 +287,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                     setState(() {
                       _selectedRole = value!;
                     });
-                    _filterUsers();
+                    _resetAndLoad();
                   },
                 ),
               ),
@@ -257,7 +315,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                     setState(() {
                       _selectedStatus = value!;
                     });
-                    _filterUsers();
+                    _resetAndLoad();
                   },
                 ),
               ),
@@ -293,16 +351,40 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
   }
 
   Widget _buildUsersTable() {
-    if (_filteredUsers.isEmpty) {
-      return const Center(
+    if (_users.isEmpty) {
+      return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.people_outline, size: 64, color: Colors.grey),
-            SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: Colors.grey[100],
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.people_outline,
+                size: 64,
+                color: Colors.grey[400],
+              ),
+            ),
+            const SizedBox(height: 24),
             Text(
               'Không có người dùng nào',
-              style: TextStyle(fontSize: 18, color: Colors.grey),
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Colors.grey[700],
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Danh sách người dùng trống\nhoặc không khớp với bộ lọc',
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.grey[600],
+              ),
+              textAlign: TextAlign.center,
             ),
           ],
         ),
@@ -310,196 +392,298 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     }
 
     return RefreshIndicator(
-      onRefresh: _loadUsers,
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: DataTable(
-          columns: const [
-            DataColumn(
-              label: Text(
-                'Họ tên',
-                style: TextStyle(fontWeight: FontWeight.bold),
+      onRefresh: _resetAndLoad,
+      child: ListView.builder(
+        controller: _scrollController,
+        padding: const EdgeInsets.all(16),
+        itemCount: _users.length + (_isLoadingMore ? 1 : 0),
+        itemBuilder: (context, index) {
+          // Loading indicator at bottom
+          if (index == _users.length) {
+            return const Center(
+              child: Padding(
+                padding: EdgeInsets.all(16),
+                child: CircularProgressIndicator(),
               ),
-            ),
-            DataColumn(
-              label: Text(
-                'Email',
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
-            ),
-            DataColumn(
-              label: Text(
-                'Số điện thoại',
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
-            ),
-            DataColumn(
-              label: Text(
-                'Chức vụ',
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
-            ),
-            DataColumn(
-              label: Text(
-                'Trạng thái',
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
-            ),
-            DataColumn(
-              label: Text(
-                'Ngày tạo',
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
-            ),
-            DataColumn(
-              label: Text(
-                'Thao tác',
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
-            ),
-          ],
-          rows: _filteredUsers.map((user) {
-            return DataRow(
-              cells: [
-                DataCell(
-                  Row(
-                    children: [
-                      CircleAvatar(
-                        radius: 16,
-                        backgroundImage: user.avatar != null
-                            ? NetworkImage(user.avatar!)
-                            : null,
-                        child: user.avatar == null
-                            ? Text(
-                                user.hoTen.isNotEmpty
-                                    ? user.hoTen[0].toUpperCase()
-                                    : 'U',
-                              )
-                            : null,
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Text(
-                              user.hoTen,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                            Text(
-                              user.tenDangNhap,
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.grey[600],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                DataCell(Text(user.email)),
-                DataCell(Text(user.soDienThoai)),
-                DataCell(
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: _getRoleColor(user.chucVu).withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      user.roleDisplayName,
-                      style: TextStyle(
-                        color: _getRoleColor(user.chucVu),
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ),
-                ),
-                DataCell(
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: _getStatusColor(user.trangThai).withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      user.statusDisplayName,
-                      style: TextStyle(
-                        color: _getStatusColor(user.trangThai),
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ),
-                ),
-                DataCell(Text(user.formattedNgayTao)),
-                DataCell(
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      IconButton(
-                        onPressed: () => _showEditUserDialog(user),
-                        icon: const Icon(Icons.edit, size: 16),
-                        tooltip: 'Chỉnh sửa',
-                      ),
-                      IconButton(
-                        onPressed: () => _showUserActionsDialog(user),
-                        icon: const Icon(Icons.more_vert, size: 16),
-                        tooltip: 'Thao tác',
-                      ),
-                    ],
-                  ),
-                ),
-              ],
             );
-          }).toList(),
-        ),
-      ),
-    );
-  }
-
-  void _showAddUserDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => _UserDialog(
-        onSave: (userData) async {
-          await _createUser(userData);
+          }
+          
+          final user = _users[index];
+          return _buildUserCard(user);
         },
       ),
     );
   }
 
-  Future<void> _createUser(Map<String, dynamic> userData) async {
-    try {
-      await _adminService.createUser(userData);
+  Widget _buildUserCard(UserModel user) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      elevation: 2,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header: Name and Status
+            Row(
+              children: [
+                CircleAvatar(
+                  radius: 24,
+                  backgroundColor: _getRoleColor(user.chucVu),
+                  child: Text(
+                    user.hoTen.isNotEmpty ? user.hoTen[0].toUpperCase() : 'U',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 20,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        user.hoTen,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          _buildRoleBadge(user.chucVu),
+                          const SizedBox(width: 8),
+                          _buildStatusBadge(user.trangThai),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const Divider(height: 24),
+            // User Details
+            _buildInfoRow(Icons.email, user.email),
+            const SizedBox(height: 8),
+            _buildInfoRow(Icons.phone, user.soDienThoai),
+            const SizedBox(height: 16),
+            // Action Buttons
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () => _showChangeRoleDialog(user),
+                    icon: const Icon(Icons.admin_panel_settings, size: 18),
+                    label: const Text('Đổi quyền'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.purple[700],
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () => _showEditUserDialog(user),
+                    icon: const Icon(Icons.edit, size: 18),
+                    label: const Text('Sửa'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.blue[700],
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                IconButton(
+                  onPressed: () => _showDeleteUserDialog(user),
+                  icon: const Icon(Icons.delete),
+                  color: Colors.red[700],
+                  tooltip: 'Xóa',
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
+  Widget _buildInfoRow(IconData icon, String text) {
+    return Row(
+      children: [
+        Icon(icon, size: 16, color: Colors.grey[600]),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            text,
+            style: TextStyle(
+              fontSize: 14,
+              color: Colors.grey[800],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildRoleBadge(String role) {
+    String displayRole;
+    Color color;
+    
+    switch (role.toLowerCase()) {
+      case 'admin':
+        displayRole = 'Admin';
+        color = Colors.red;
+        break;
+      case 'hotelmanager':
+        displayRole = 'Quản lý KS';
+        color = Colors.orange;
+        break;
+      default:
+        displayRole = 'Người dùng';
+        color = Colors.blue;
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withOpacity(0.3)),
+      ),
+      child: Text(
+        displayRole,
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.bold,
+          color: color,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStatusBadge(String status) {
+    final isActive = status.toLowerCase() == 'active' || status == '1';
+    
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: isActive ? Colors.green.withOpacity(0.1) : Colors.grey.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isActive ? Colors.green.withOpacity(0.3) : Colors.grey.withOpacity(0.3),
+        ),
+      ),
+      child: Text(
+        isActive ? 'Hoạt động' : 'Không hoạt động',
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.bold,
+          color: isActive ? Colors.green : Colors.grey,
+        ),
+      ),
+    );
+  }
+
+  Color _getRoleColor(String role) {
+    switch (role.toLowerCase()) {
+      case 'admin':
+        return Colors.red[700]!;
+      case 'hotelmanager':
+        return Colors.orange[700]!;
+      default:
+        return Colors.blue[700]!;
+    }
+  }
+
+  // Dialog for changing user role
+  void _showChangeRoleDialog(UserModel user) {
+    String selectedRole = user.chucVu;
+    
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: const Text('Đổi quyền người dùng'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Người dùng: ${user.hoTen}'),
+              const SizedBox(height: 16),
+              const Text(
+                'Chọn quyền mới:',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              RadioListTile<String>(
+                title: const Text('Admin'),
+                value: 'Admin',
+                groupValue: selectedRole,
+                onChanged: (value) => setState(() => selectedRole = value!),
+              ),
+              RadioListTile<String>(
+                title: const Text('Quản lý khách sạn'),
+                value: 'HotelManager',
+                groupValue: selectedRole,
+                onChanged: (value) => setState(() => selectedRole = value!),
+              ),
+              RadioListTile<String>(
+                title: const Text('Người dùng'),
+                value: 'User',
+                groupValue: selectedRole,
+                onChanged: (value) => setState(() => selectedRole = value!),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Hủy'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(context);
+                _updateUserRole(user.id, selectedRole);
+              },
+              child: const Text('Lưu'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _updateUserRole(String userId, String newRole) async {
+    try {
+      await _adminService.updateUser(userId, {'chuc_vu': newRole});
+      
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Thêm người dùng thành công')),
+          const SnackBar(
+            content: Text('Cập nhật quyền thành công'),
+            backgroundColor: Colors.green,
+          ),
         );
-        _loadUsers(); // Reload users
+        await _resetAndLoad();
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Lỗi tạo người dùng: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Lỗi: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
       }
     }
   }
 
+  // Dialog for editing user
   void _showEditUserDialog(UserModel user) {
     showDialog(
       context: context,
@@ -512,114 +696,27 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     );
   }
 
-  Future<void> _updateUser(String userId, Map<String, dynamic> userData) async {
-    try {
-      await _adminService.updateUser(userId, userData);
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Cập nhật người dùng thành công')),
-        );
-        _loadUsers(); // Reload users
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Lỗi cập nhật người dùng: $e')));
-      }
-    }
-  }
-
-  void _showUserActionsDialog(UserModel user) {
+  // Dialog for deleting user
+  void _showDeleteUserDialog(UserModel user) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('Thao tác với ${user.hoTen}'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: const Icon(Icons.admin_panel_settings),
-              title: const Text('Thay đổi chức vụ'),
-              onTap: () {
-                Navigator.pop(context);
-                _showRoleChangeDialog(user);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.block),
-              title: Text(
-                user.isActive ? 'Khóa tài khoản' : 'Mở khóa tài khoản',
-              ),
-              onTap: () {
-                Navigator.pop(context);
-                _updateUserStatus(
-                  user.id,
-                  user.isActive ? 'blocked' : 'active',
-                );
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.delete, color: Colors.red),
-              title: const Text(
-                'Xóa người dùng',
-                style: TextStyle(color: Colors.red),
-              ),
-              onTap: () {
-                Navigator.pop(context);
-                _showDeleteConfirmation(user);
-              },
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _showRoleChangeDialog(UserModel user) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Thay đổi chức vụ'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: _roleOptions.where((role) => role['value'] != 'all').map((
-            role,
-          ) {
-            return RadioListTile<String>(
-              title: Text(role['label']!),
-              value: role['value']!,
-              groupValue: user.chucVu,
-              onChanged: (value) {
-                Navigator.pop(context);
-                _updateUserRole(user.id, value!);
-              },
-            );
-          }).toList(),
-        ),
-      ),
-    );
-  }
-
-  void _showDeleteConfirmation(UserModel user) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Xác nhận xóa'),
-        content: Text('Bạn có chắc chắn muốn xóa người dùng ${user.hoTen}?'),
+        title: const Text('Xóa người dùng'),
+        content: Text('Bạn có chắc chắn muốn xóa người dùng "${user.hoTen}"?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
             child: const Text('Hủy'),
           ),
           ElevatedButton(
-            onPressed: () async {
+            onPressed: () {
               Navigator.pop(context);
-              await _deleteUser(user.id);
+              _deleteUser(user.id);
             },
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            child: const Text('Xóa', style: TextStyle(color: Colors.white)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+            ),
+            child: const Text('Xóa'),
           ),
         ],
       ),
@@ -629,49 +726,94 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
   Future<void> _deleteUser(String userId) async {
     try {
       await _adminService.deleteUser(userId);
-
+      
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Xóa người dùng thành công')),
+          const SnackBar(
+            content: Text('Xóa người dùng thành công'),
+            backgroundColor: Colors.green,
+          ),
         );
-        _loadUsers(); // Reload users
+        await _resetAndLoad();
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Lỗi xóa người dùng: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Lỗi: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
       }
     }
   }
 
-  Color _getRoleColor(String role) {
-    switch (role.toLowerCase()) {
-      case 'admin':
-        return Colors.red;
-      case 'hotelmanager':
-        return Colors.blue;
-      case 'user':
-        return Colors.green;
-      default:
-        return Colors.grey;
+  // Show dialog to add new user
+  void _showAddUserDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => _UserDialog(
+        onSave: (userData) async {
+          await _createUser(userData);
+        },
+      ),
+    );
+  }
+
+  // Create new user
+  Future<void> _createUser(Map<String, dynamic> userData) async {
+    try {
+      await _adminService.createUser(userData);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Thêm người dùng thành công'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        await _resetAndLoad();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Lỗi: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 
-  Color _getStatusColor(String status) {
-    switch (status) {
-      case 'active':
-        return Colors.green;
-      case 'inactive':
-        return Colors.orange;
-      case 'blocked':
-        return Colors.red;
-      default:
-        return Colors.grey;
+  // Update existing user
+  Future<void> _updateUser(String userId, Map<String, dynamic> userData) async {
+    try {
+      await _adminService.updateUser(userId, userData);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Cập nhật người dùng thành công'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        await _resetAndLoad();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Lỗi: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 }
 
+// Dialog widget for adding/editing users
 class _UserDialog extends StatefulWidget {
   final UserModel? user;
   final Function(Map<String, dynamic>) onSave;
@@ -703,8 +845,12 @@ class _UserDialogState extends State<_UserDialog> {
       _soDienThoaiController.text = widget.user!.soDienThoai;
       _diaChiController.text = widget.user!.diaChi ?? '';
       _ghiChuController.text = widget.user!.ghiChu ?? '';
-      _selectedRole = widget.user!.chucVu;
-      _selectedStatus = widget.user!.trangThai;
+      
+      // Normalize role to lowercase to match dropdown items
+      _selectedRole = widget.user!.chucVu.toLowerCase();
+      
+      // Normalize status to lowercase
+      _selectedStatus = widget.user!.trangThai.toLowerCase();
     }
   }
 
@@ -724,13 +870,16 @@ class _UserDialogState extends State<_UserDialog> {
     return AlertDialog(
       title: Text(
         widget.user == null ? 'Thêm người dùng mới' : 'Chỉnh sửa người dùng',
+        style: const TextStyle(fontSize: 18),
       ),
-      content: Form(
-        key: _formKey,
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
+      content: SizedBox(
+        width: MediaQuery.of(context).size.width * 0.9,
+        child: Form(
+          key: _formKey,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
               TextFormField(
                 controller: _hoTenController,
                 decoration: const InputDecoration(
@@ -794,66 +943,64 @@ class _UserDialogState extends State<_UserDialog> {
                 },
               ),
               const SizedBox(height: 16),
-              Row(
-                children: [
-                  Expanded(
-                    child: DropdownButtonFormField<String>(
-                      value: _selectedRole,
-                      decoration: const InputDecoration(
-                        labelText: 'Chức vụ',
-                        border: OutlineInputBorder(),
-                      ),
-                      items: const [
-                        DropdownMenuItem(
-                          value: 'admin',
-                          child: Text('Quản trị viên'),
-                        ),
-                        DropdownMenuItem(
-                          value: 'hotelmanager',
-                          child: Text('Quản lý khách sạn'),
-                        ),
-                        DropdownMenuItem(
-                          value: 'user',
-                          child: Text('Người dùng'),
-                        ),
-                      ],
-                      onChanged: (value) {
-                        setState(() {
-                          _selectedRole = value!;
-                        });
-                      },
-                    ),
+              // Chức vụ dropdown
+              DropdownButtonFormField<String>(
+                value: _selectedRole,
+                decoration: const InputDecoration(
+                  labelText: 'Chức vụ',
+                  border: OutlineInputBorder(),
+                  contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                ),
+                isExpanded: true,
+                items: const [
+                  DropdownMenuItem(
+                    value: 'admin',
+                    child: Text('Admin', overflow: TextOverflow.ellipsis),
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: DropdownButtonFormField<String>(
-                      value: _selectedStatus,
-                      decoration: const InputDecoration(
-                        labelText: 'Trạng thái',
-                        border: OutlineInputBorder(),
-                      ),
-                      items: const [
-                        DropdownMenuItem(
-                          value: 'active',
-                          child: Text('Hoạt động'),
-                        ),
-                        DropdownMenuItem(
-                          value: 'inactive',
-                          child: Text('Không hoạt động'),
-                        ),
-                        DropdownMenuItem(
-                          value: 'blocked',
-                          child: Text('Bị khóa'),
-                        ),
-                      ],
-                      onChanged: (value) {
-                        setState(() {
-                          _selectedStatus = value!;
-                        });
-                      },
-                    ),
+                  DropdownMenuItem(
+                    value: 'hotelmanager',
+                    child: Text('Quản lý KS', overflow: TextOverflow.ellipsis),
+                  ),
+                  DropdownMenuItem(
+                    value: 'user',
+                    child: Text('Người dùng', overflow: TextOverflow.ellipsis),
                   ),
                 ],
+                onChanged: (value) {
+                  setState(() {
+                    _selectedRole = value!;
+                  });
+                },
+              ),
+              const SizedBox(height: 16),
+              // Trạng thái dropdown
+              DropdownButtonFormField<String>(
+                value: _selectedStatus,
+                decoration: const InputDecoration(
+                  labelText: 'Trạng thái',
+                  border: OutlineInputBorder(),
+                  contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                ),
+                isExpanded: true,
+                items: const [
+                  DropdownMenuItem(
+                    value: 'active',
+                    child: Text('Hoạt động', overflow: TextOverflow.ellipsis),
+                  ),
+                  DropdownMenuItem(
+                    value: 'inactive',
+                    child: Text('Không hoạt động', overflow: TextOverflow.ellipsis),
+                  ),
+                  DropdownMenuItem(
+                    value: 'blocked',
+                    child: Text('Bị khóa', overflow: TextOverflow.ellipsis),
+                  ),
+                ],
+                onChanged: (value) {
+                  setState(() {
+                    _selectedStatus = value!;
+                  });
+                },
               ),
               const SizedBox(height: 16),
               TextFormField(
@@ -873,7 +1020,8 @@ class _UserDialogState extends State<_UserDialog> {
                 ),
                 maxLines: 2,
               ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -892,12 +1040,22 @@ class _UserDialogState extends State<_UserDialog> {
 
   void _saveUser() {
     if (_formKey.currentState!.validate()) {
+      // Normalize role to PascalCase for backend
+      String normalizedRole = _selectedRole;
+      if (_selectedRole == 'hotelmanager') {
+        normalizedRole = 'HotelManager';
+      } else if (_selectedRole == 'admin') {
+        normalizedRole = 'Admin';
+      } else if (_selectedRole == 'user') {
+        normalizedRole = 'User';
+      }
+      
       final userData = {
         'ho_ten': _hoTenController.text,
         'email': _emailController.text,
         'ten_dang_nhap': _tenDangNhapController.text,
         'so_dien_thoai': _soDienThoaiController.text,
-        'chuc_vu': _selectedRole,
+        'chuc_vu': normalizedRole,
         'trang_thai': _selectedStatus,
         'dia_chi': _diaChiController.text,
         'ghi_chu': _ghiChuController.text,

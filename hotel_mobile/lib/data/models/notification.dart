@@ -32,23 +32,60 @@ class NotificationModel {
   });
 
   factory NotificationModel.fromJson(Map<String, dynamic> json) {
+    // Safe parsing for id
+    int? parseId(dynamic value) {
+      if (value == null) return null;
+      if (value is int) return value;
+      if (value is String) return int.tryParse(value);
+      return null;
+    }
+
+    // Safe parsing for dates
+    DateTime? parseDate(dynamic value) {
+      if (value == null) return null;
+      try {
+        if (value is String) {
+          return DateTime.parse(value);
+        } else if (value is DateTime) {
+          return value;
+        }
+        return null;
+      } catch (e) {
+        print('⚠️ Error parsing date: $value');
+        return null;
+      }
+    }
+
+    // Safe parsing for hotel_id
+    int? parseHotelId(dynamic value) {
+      if (value == null) return null;
+      if (value is int) return value;
+      if (value is String) return int.tryParse(value);
+      return null;
+    }
+
+    // Get fields with fallbacks
+    final id = parseId(json['id']) ?? parseId(json['ma_thong_bao']) ?? 0;
+    final title = json['title'] ?? json['tieu_de'] ?? '';
+    final content = json['content'] ?? json['noi_dung'] ?? '';
+    final type = json['type'] ?? json['loai_thong_bao'] ?? 'promotion';
+    final createdAt = parseDate(json['created_at'] ?? json['ngay_tao']) ?? DateTime.now();
+    
     return NotificationModel(
-      id: json['id'] as int,
-      title: json['title'] as String,
-      content: json['content'] as String,
-      type: json['type'] as String,
-      imageUrl: json['image_url'] as String?,
-      actionUrl: json['action_url'] as String?,
-      actionText: json['action_text'] as String?,
-      isRead: json['is_read'] as bool? ?? false,
-      createdAt: DateTime.parse(json['created_at'] as String),
-      expiresAt: json['expires_at'] != null 
-          ? DateTime.parse(json['expires_at'] as String) 
-          : null,
-      senderName: json['sender_name'] as String?,
-      senderType: json['sender_type'] as String?,
-      hotelId: json['hotel_id'] as int?,
-      metadata: json['metadata'] as Map<String, dynamic>?,
+      id: id,
+      title: title.toString(),
+      content: content.toString(),
+      type: type.toString(),
+      imageUrl: json['image_url']?.toString() ?? json['url_hinh_anh']?.toString(),
+      actionUrl: json['action_url']?.toString() ?? json['url_hanh_dong']?.toString(),
+      actionText: json['action_text']?.toString() ?? json['van_ban_nut']?.toString(),
+      isRead: json['is_read'] == true || json['da_doc'] == 1 || json['da_doc'] == true,
+      createdAt: createdAt,
+      expiresAt: parseDate(json['expires_at'] ?? json['ngay_het_han']),
+      senderName: json['sender_name']?.toString() ?? json['nguoi_tao']?.toString(),
+      senderType: json['sender_type']?.toString() ?? json['loai_nguoi_gui']?.toString(),
+      hotelId: parseHotelId(json['hotel_id'] ?? json['khach_san_id']),
+      metadata: json['metadata'] is Map<String, dynamic> ? json['metadata'] : null,
     );
   }
 

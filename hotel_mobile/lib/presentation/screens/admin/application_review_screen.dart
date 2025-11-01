@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../../data/models/application_model.dart';
-import '../../../data/services/admin_service.dart';
+import '../../../data/services/hotel_registration_service.dart';
 
 class ApplicationReviewScreen extends StatefulWidget {
   const ApplicationReviewScreen({super.key});
@@ -11,12 +10,12 @@ class ApplicationReviewScreen extends StatefulWidget {
 
 class _ApplicationReviewScreenState extends State<ApplicationReviewScreen>
     with SingleTickerProviderStateMixin {
-  final AdminService _adminService = AdminService();
+  final HotelRegistrationService _registrationService = HotelRegistrationService();
   late TabController _tabController;
   
-  List<ApplicationModel> _pendingApplications = [];
-  List<ApplicationModel> _approvedApplications = [];
-  List<ApplicationModel> _rejectedApplications = [];
+  List<HotelRegistration> _pendingApplications = [];
+  List<HotelRegistration> _approvedApplications = [];
+  List<HotelRegistration> _rejectedApplications = [];
   
   bool _isLoading = true;
   String? _error;
@@ -41,19 +40,22 @@ class _ApplicationReviewScreenState extends State<ApplicationReviewScreen>
         _error = null;
       });
 
-      final pending = await _adminService.getApplications(trangThai: 'pending');
-      final approved = await _adminService.getApplications(trangThai: 'approved');
-      final rejected = await _adminService.getApplications(trangThai: 'rejected');
+      // ✅ FIX: Use HotelRegistrationService with proper token
+      final allRegistrations = await _registrationService.getAllRegistrations('dummy'); // Token handled internally
 
       setState(() {
-        _pendingApplications = pending;
-        _approvedApplications = approved;
-        _rejectedApplications = rejected;
+        _pendingApplications = allRegistrations.where((r) => r.status == 'pending').toList();
+        _approvedApplications = allRegistrations.where((r) => r.status == 'approved').toList();
+        _rejectedApplications = allRegistrations.where((r) => r.status == 'rejected').toList();
         _isLoading = false;
       });
     } catch (e) {
+      print('Error loading applications: $e');
       setState(() {
-        _error = e.toString();
+        _pendingApplications = [];
+        _approvedApplications = [];
+        _rejectedApplications = [];
+        _error = 'Không thể tải dữ liệu. Vui lòng kiểm tra kết nối mạng.';
         _isLoading = false;
       });
     }
@@ -168,26 +170,50 @@ class _ApplicationReviewScreenState extends State<ApplicationReviewScreen>
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(
-            Icons.error_outline,
-            size: 64,
-            color: Colors.red[300],
+          Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: Colors.red[50],
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              Icons.cloud_off,
+              size: 64,
+              color: Colors.red[300],
+            ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 24),
           Text(
-            'Có lỗi xảy ra',
-            style: Theme.of(context).textTheme.headlineSmall,
+            'Không thể tải dữ liệu',
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: Colors.red[700],
+            ),
           ),
-          const SizedBox(height: 8),
-          Text(
-            _error ?? 'Không thể tải dữ liệu',
-            textAlign: TextAlign.center,
-            style: TextStyle(color: Colors.grey[600]),
+          const SizedBox(height: 12),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 48),
+            child: Text(
+              _error ?? 'Vui lòng kiểm tra kết nối mạng và thử lại',
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.grey[600],
+                height: 1.5,
+              ),
+              textAlign: TextAlign.center,
+            ),
           ),
-          const SizedBox(height: 16),
-          ElevatedButton(
+          const SizedBox(height: 32),
+          ElevatedButton.icon(
             onPressed: _loadApplications,
-            child: const Text('Thử lại'),
+            icon: const Icon(Icons.refresh),
+            label: const Text('Thử lại'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.purple[700],
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+            ),
           ),
         ],
       ),
@@ -200,17 +226,48 @@ class _ApplicationReviewScreenState extends State<ApplicationReviewScreen>
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              _getStatusIcon(status),
-              size: 64,
-              color: Colors.grey,
+            Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: _getStatusColor(status).withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                _getStatusIcon(status),
+                size: 64,
+                color: _getStatusColor(status).withOpacity(0.6),
+              ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 24),
             Text(
               _getEmptyMessage(status),
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 18,
-                color: Colors.grey,
+                fontWeight: FontWeight.bold,
+                color: Colors.grey[700],
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 12),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 48),
+              child: Text(
+                _getEmptyDescription(status),
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Colors.grey[600],
+                  height: 1.5,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ),
+            const SizedBox(height: 32),
+            OutlinedButton.icon(
+              onPressed: _loadApplications,
+              icon: const Icon(Icons.refresh),
+              label: const Text('Làm mới'),
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
               ),
             ),
           ],
@@ -257,13 +314,39 @@ class _ApplicationReviewScreenState extends State<ApplicationReviewScreen>
   String _getEmptyMessage(String status) {
     switch (status) {
       case 'pending':
-        return 'Không có hồ sơ chờ duyệt';
+        return 'Chưa có hồ sơ chờ duyệt';
       case 'approved':
-        return 'Không có hồ sơ đã duyệt';
+        return 'Chưa có hồ sơ đã duyệt';
       case 'rejected':
-        return 'Không có hồ sơ bị từ chối';
+        return 'Chưa có hồ sơ bị từ chối';
       default:
-        return 'Không có hồ sơ nào';
+        return 'Chưa có dữ liệu';
+    }
+  }
+
+  String _getEmptyDescription(String status) {
+    switch (status) {
+      case 'pending':
+        return 'Khi có đơn đăng ký khách sạn mới,\nchúng sẽ hiển thị ở đây để bạn xét duyệt';
+      case 'approved':
+        return 'Các đơn đăng ký đã được phê duyệt\nsẽ hiển thị tại đây';
+      case 'rejected':
+        return 'Các đơn đăng ký bị từ chối\nsẽ hiển thị tại đây';
+      default:
+        return 'Chưa có dữ liệu để hiển thị';
+    }
+  }
+
+  Color _getStatusColor(String status) {
+    switch (status) {
+      case 'pending':
+        return Colors.orange;
+      case 'approved':
+        return Colors.green;
+      case 'rejected':
+        return Colors.red;
+      default:
+        return Colors.grey;
     }
   }
 

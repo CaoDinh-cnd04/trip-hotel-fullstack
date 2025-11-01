@@ -74,21 +74,24 @@ class _FeedbackManagementScreenState extends State<FeedbackManagementScreen> {
         priority: _selectedPriority,
       );
 
-      if (response.success && response.data != null) {
+      if (response.success) {
         setState(() {
-          _feedbacks = response.data!;
+          _feedbacks = response.data ?? [];
           _filterFeedbacks();
           _isLoading = false;
         });
       } else {
         setState(() {
-          _error = response.message;
+          _feedbacks = [];
+          _filteredFeedbacks = [];
           _isLoading = false;
         });
       }
     } catch (e) {
+      print('Error loading feedbacks: $e');
       setState(() {
-        _error = e.toString();
+        _feedbacks = [];
+        _filteredFeedbacks = [];
         _isLoading = false;
       });
     }
@@ -258,17 +261,50 @@ class _FeedbackManagementScreenState extends State<FeedbackManagementScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Icon(Icons.error_outline, size: 64, color: Colors.red),
-          const SizedBox(height: 16),
-          Text(
-            _error ?? 'Có lỗi xảy ra',
-            style: const TextStyle(fontSize: 16),
-            textAlign: TextAlign.center,
+          Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: Colors.red[50],
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              Icons.cloud_off,
+              size: 64,
+              color: Colors.red[300],
+            ),
           ),
-          const SizedBox(height: 16),
-          ElevatedButton(
+          const SizedBox(height: 24),
+          Text(
+            'Không thể tải dữ liệu',
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: Colors.red[700],
+            ),
+          ),
+          const SizedBox(height: 12),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 48),
+            child: Text(
+              _error ?? 'Vui lòng kiểm tra kết nối mạng và thử lại',
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.grey[600],
+                height: 1.5,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ),
+          const SizedBox(height: 32),
+          ElevatedButton.icon(
             onPressed: _loadFeedbacks,
-            child: const Text('Thử lại'),
+            icon: const Icon(Icons.refresh),
+            label: const Text('Thử lại'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red[700],
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+            ),
           ),
         ],
       ),
@@ -276,20 +312,52 @@ class _FeedbackManagementScreenState extends State<FeedbackManagementScreen> {
   }
 
   Widget _buildEmptyWidget() {
-    return const Center(
+    return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.feedback_outlined, size: 64, color: Colors.grey),
-          SizedBox(height: 16),
-          Text(
-            'Không có phản hồi nào',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500),
+          Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: Colors.grey[100],
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              Icons.chat_bubble_outline,
+              size: 64,
+              color: Colors.grey[400],
+            ),
           ),
-          SizedBox(height: 8),
+          const SizedBox(height: 24),
           Text(
-            'Chưa có phản hồi nào phù hợp với bộ lọc',
-            style: TextStyle(color: Colors.grey),
+            'Chưa có phản hồi nào',
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: Colors.grey[700],
+            ),
+          ),
+          const SizedBox(height: 12),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 48),
+            child: Text(
+              'Khi người dùng gửi phản hồi, báo cáo lỗi hoặc góp ý,\nchúng sẽ hiển thị tại đây',
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.grey[600],
+                height: 1.5,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ),
+          const SizedBox(height: 32),
+          OutlinedButton.icon(
+            onPressed: _loadFeedbacks,
+            icon: const Icon(Icons.refresh),
+            label: const Text('Làm mới'),
+            style: OutlinedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+            ),
           ),
         ],
       ),

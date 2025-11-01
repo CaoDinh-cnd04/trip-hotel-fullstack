@@ -17,6 +17,7 @@ android {
         targetCompatibility = JavaVersion.VERSION_11
         isCoreLibraryDesugaringEnabled = true
     }
+    
 
     kotlinOptions {
         jvmTarget = JavaVersion.VERSION_11.toString()
@@ -32,15 +33,16 @@ android {
         versionCode = flutter.versionCode
         versionName = flutter.versionName
         
-        // Tối ưu APK size
+        // Tối ưu APK size - chỉ build cho emulator x86_64 (giảm kích thước)
         ndk {
-            abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64")
+            abiFilters += listOf("x86_64") // Chỉ build cho emulator
+            // Đổi thành listOf("arm64-v8a", "armeabi-v7a", "x86_64") khi build cho thiết bị thật
         }
     }
 
     buildTypes {
         debug {
-            // Tối ưu cho debug build
+            // Tối ưu cho debug build - giảm kích thước
             isMinifyEnabled = false
             isShrinkResources = false
             isDebuggable = true
@@ -54,12 +56,40 @@ android {
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }
+    
+    // Giảm kích thước APK
+    packaging {
+        resources {
+            excludes += "/META-INF/{AL2.0,LGPL2.1}"
+            excludes += "**/attach_hotspot_windows.dll"
+            excludes += "META-INF/licenses/**"
+            excludes += "META-INF/AL2.0"
+            excludes += "META-INF/LGPL2.1"
+        }
+    }
 }
 
 flutter {
     source = "../.."
 }
 
+repositories {
+    flatDir {
+        dirs("libs")
+    }
+}
+
 dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
+    
+    // AndroidX dependencies (bắt buộc cho AppCompatActivity và LocalBroadcastManager)
+    implementation("androidx.appcompat:appcompat:1.6.1")
+    implementation("androidx.localbroadcastmanager:localbroadcastmanager:1.1.0")
+    
+    // VNPay SDK - chỉ load nếu AAR file tồn tại
+    if (file("libs/merchant-1.0.25.aar").exists()) {
+        implementation(files("libs/merchant-1.0.25.aar"))
+        implementation("com.google.code.gson:gson:2.10.1")
+        implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    }
 }

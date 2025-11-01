@@ -1,6 +1,17 @@
 const ViTri = require('../models/vitri');
 const { validationResult } = require('express-validator');
 
+// Helper function to transform location image URLs
+const transformLocationImageUrl = (imagePath) => {
+    if (!imagePath) return null;
+    const baseUrl = process.env.BASE_URL || 'http://localhost:5000';
+    
+    if (imagePath.startsWith('http')) return imagePath;
+    if (imagePath.startsWith('/')) return `${baseUrl}${imagePath}`;
+    
+    return `${baseUrl}/images/provinces/${imagePath}`;
+};
+
 const vitriController = {
     // Lấy tất cả vị trí
     async getAllViTri(req, res) {
@@ -20,10 +31,18 @@ const vitriController = {
                 }, parseInt(page), parseInt(limit));
             }
 
+            // Transform image URLs
+            const transformedResults = Array.isArray(results) 
+                ? results.map(loc => ({
+                    ...loc,
+                    hinh_anh: transformLocationImageUrl(loc.hinh_anh)
+                  }))
+                : results;
+
             res.status(200).json({
                 success: true,
                 message: 'Lấy danh sách vị trí thành công',
-                data: results
+                data: transformedResults
             });
         } catch (error) {
             console.error('Error in getAllViTri:', error);
@@ -50,6 +69,9 @@ const vitriController = {
                 });
             }
 
+            // Transform image URL
+            result.hinh_anh = transformLocationImageUrl(result.hinh_anh);
+
             res.status(200).json({
                 success: true,
                 message: 'Lấy thông tin vị trí thành công',
@@ -73,10 +95,18 @@ const vitriController = {
             
             const results = await viTri.searchViTri(keyword, ma_tinh_thanh, ma_quoc_gia);
 
+            // Transform image URLs
+            const transformedResults = Array.isArray(results) 
+                ? results.map(loc => ({
+                    ...loc,
+                    hinh_anh: transformLocationImageUrl(loc.hinh_anh)
+                  }))
+                : results;
+
             res.status(200).json({
                 success: true,
                 message: 'Tìm kiếm vị trí thành công',
-                data: results
+                data: transformedResults
             });
         } catch (error) {
             console.error('Error in searchViTri:', error);

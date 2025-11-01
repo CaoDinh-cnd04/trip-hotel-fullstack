@@ -211,4 +211,301 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get changeLanguage => 'Change Language';
+
+  @override
+  String get profile => 'Profile';
+
+  @override
+  String get myProfile => 'My Profile';
+
+  @override
+  String get personalInfo => 'Personal Information';
+
+  @override
+  String get accountSecurity => 'Account Security';
+
+  @override
+  String get notifications => 'Notifications';
+
+  @override
+  String get messages => 'Messages';
+
+  @override
+  String get savedItems => 'Saved Items';
+
+  @override
+  String get myReviews => 'My Reviews';
+
+  @override
+  String get bookingHistory => 'Booking History';
+
+  @override
+  String get chooseLanguage => 'Choose Language';
+
+  @override
+  String get languageChanged => 'Changed to English';
+
+  @override
+  String get currency => 'Currency';
+
+  @override
+  String get chooseCurrency => 'Choose Currency';
+
+  @override
+  String get priceDisplay => 'Price Display';
+
+  @override
+  String get perNight => 'Per night';
+
+  @override
+  String get perStay => 'Per entire stay';
+
+  @override
+  String get distance => 'Distance';
+
+  @override
+  String get hotelOwner => 'Hotel Owner';
+
+  @override
+  String get registerHotel => 'Register Hotel';
+
+  @override
+  String get myHotels => 'My Hotels';
+
+  @override
+  String get manageHotels => 'Manage Hotels';
+
+  @override
+  String get hotelDashboard => 'Dashboard';
+
+  @override
+  String get accountSettings => 'Account Settings';
+
+  @override
+  String get preferences => 'Preferences';
+
+  @override
+  String get support => 'Support';
+
+  @override
+  String get helpCenter => 'Help Center';
+
+  @override
+  String get contactUs => 'Contact Us';
+
+  @override
+  String get aboutUs => 'About Us';
+
+  @override
+  String get termsAndConditions => 'Terms & Conditions';
+
+  @override
+  String get privacyPolicy => 'Privacy Policy';
+
+  @override
+  String get vipStatus => 'VIP Status';
+
+  @override
+  String get vipBronze => 'Bronze';
+
+  @override
+  String get vipSilver => 'Silver';
+
+  @override
+  String get vipGold => 'Gold';
+
+  @override
+  String get vipPlatinum => 'Platinum';
+
+  @override
+  String get unreadMessages => 'Unread Messages';
+
+  @override
+  String get unreadReviews => 'Unread Reviews';
+
+  @override
+  String get refreshing => 'Refreshing...';
+
+  @override
+  String get noData => 'No data';
+
+  @override
+  String get tryAgain => 'Try again';
+
+  @override
+  String get aboutUsTitle => 'About Us';
+
+  @override
+  String get aboutUsDescription =>
+      'Hotel Booking is a leading hotel reservation app, providing convenient and reliable booking experience.';
+
+  @override
+  String get ourMission => 'Our Mission';
+
+  @override
+  String get ourMissionText =>
+      'To provide customers with the best booking experience at reasonable prices and high-quality service.';
+
+  @override
+  String get ourVision => 'Our Vision';
+
+  @override
+  String get ourVisionText =>
+      'To become the most trusted hotel booking platform in Vietnam.';
+
+  @override
+  String get contactInfo => 'Contact Information';
+
+  @override
+  String get emailAddress => 'Email Address';
+
+  @override
+  String get phoneContact => 'Phone';
+
+  @override
+  String get address => 'Address';
+
+  @override
+  String get version => 'Version';
+
+  @override
+  String get helpCenterTitle => 'Help Center';
+
+  @override
+  String get faq => 'Frequently Asked Questions';
+
+  @override
+  String get sendFeedback => 'Send Feedback';
+
+  @override
+  String get feedbackTitle => 'Title';
+
+  @override
+  String get feedbackMessage => 'Feedback Message';
+
+  @override
+  String get feedbackCategory => 'Category';
+
+  @override
+  String get feedbackGeneral => 'General';
+
+  @override
+  String get feedbackBooking => 'Booking';
+
+  @override
+  String get feedbackPayment => 'Payment';
+
+  @override
+  String get feedbackTechnical => 'Technical';
+
+  @override
+  String get feedbackOther => 'Other';
+
+  @override
+  String get send => 'Send';
+
+  @override
+  String get feedbackSent => 'Feedback sent successfully';
+
+  @override
+  String get feedbackError => 'Error sending feedback';
+
+  @override
+  String get pleaseEnterTitle => 'Please enter title';
+
+  @override
+  String get pleaseEnterMessage => 'Please enter message';
+
+  @override
+  String get faqHowToBook => 'How to book a room?';
+
+  @override
+  String get faqHowToBookAnswer =>
+      '1. Search for hotels by location and date\n2. Choose a suitable room\n3. Fill in information and confirm\n4. Pay and receive booking confirmation';
+
+  @override
+  String get faqCancelBooking => 'Can I cancel my booking?';
+
+  @override
+  String get faqCancelBookingAnswer =>
+      'Yes, you can cancel your booking in \'Booking History\'. Cancellation policy depends on each hotel.';
+
+  @override
+  String get faqPaymentMethod => 'What payment methods are accepted?';
+
+  @override
+  String get faqPaymentMethodAnswer =>
+      'We accept credit cards, debit cards, e-wallets and bank transfers.';
+
+  @override
+  String get faqChangeBooking => 'How to change booking information?';
+
+  @override
+  String get faqChangeBookingAnswer =>
+      'Please contact customer support via email or hotline for assistance with changing information.';
+
+  @override
+  String get faqRefund => 'What is the refund policy?';
+
+  @override
+  String get faqRefundAnswer =>
+      'Refund policy depends on each hotel\'s terms. Usually within 5-7 business days after cancellation.';
+
+  @override
+  String get myAccount => 'My Account';
+
+  @override
+  String get messagesFromHotel => 'Messages from Hotel';
+
+  @override
+  String get savedCards => 'My Saved Cards';
+
+  @override
+  String get manageMyHotels => 'Manage My Hotels';
+
+  @override
+  String get registerNewHotel => 'Register New Hotel';
+
+  @override
+  String get priceDisplayTitle => 'Price Display';
+
+  @override
+  String get priceDisplayPerNight => 'Per night';
+
+  @override
+  String get priceDisplayPerStay => 'Per entire stay';
+
+  @override
+  String get chooseDistance => 'Choose Distance';
+
+  @override
+  String get receiveEmailNotifications => 'Receive Email Notifications';
+
+  @override
+  String get accountSettingsTitle => 'Account Settings';
+
+  @override
+  String get supportAndFeedback => 'Support & Feedback';
+
+  @override
+  String get helpAndSupport => 'Help & Support';
+
+  @override
+  String get logoutConfirm => 'Logout';
+
+  @override
+  String get logoutConfirmMessage => 'Are you sure you want to log out?';
+
+  @override
+  String get logoutConfirmTitle => 'Confirm Logout';
+
+  @override
+  String get deleteAccountTitle => 'Delete Account';
+
+  @override
+  String get deleteAccountMessage =>
+      'Are you sure you want to delete your account? This action cannot be undone.';
+
+  @override
+  String get deleteAccount => 'Delete Account';
 }

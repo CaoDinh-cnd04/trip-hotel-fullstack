@@ -467,6 +467,39 @@ const nguoidungController = {
                 error: error.message
             });
         }
+    },
+
+    // Cập nhật cài đặt nhận email thông báo
+    async updateEmailNotificationPreference(req, res) {
+        try {
+            const userId = req.user.id; // From auth middleware
+            const { nhan_thong_bao_email } = req.body;
+
+            if (typeof nhan_thong_bao_email !== 'boolean') {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Giá trị nhan_thong_bao_email phải là boolean'
+                });
+            }
+
+            // NguoiDung is already an instance, not a class
+            await NguoiDung.update(userId, { 
+                nhan_thong_bao_email: nhan_thong_bao_email ? 1 : 0 
+            });
+
+            res.status(200).json({
+                success: true,
+                message: `Đã ${nhan_thong_bao_email ? 'bật' : 'tắt'} nhận email thông báo`,
+                data: { nhan_thong_bao_email }
+            });
+        } catch (error) {
+            console.error('Error in updateEmailNotificationPreference:', error);
+            res.status(500).json({
+                success: false,
+                message: 'Lỗi server khi cập nhật cài đặt email',
+                error: error.message
+            });
+        }
     }
 };
 

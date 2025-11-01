@@ -16,10 +16,12 @@ class BaseModel {
       const request = pool.request();
       
       // Add parameters to request
+      // ✅ FIX: Add ALL parameters, including null values
       Object.keys(params).forEach(key => {
         const value = params[key];
-        if (value !== null && value !== undefined && value !== '') {
-          request.input(key, value);
+        // Add parameter even if null (SQL needs it declared)
+        if (value !== undefined) {
+          request.input(key, value === '' ? null : value);
         }
       });
       
@@ -91,19 +93,52 @@ class BaseModel {
 
   // Create new record
   async create(data) {
-    const columns = Object.keys(data);
+    // Filter out null, undefined, and empty string values
+    const filteredData = {};
+    Object.keys(data).forEach(key => {
+      const value = data[key];
+      if (value !== null && value !== undefined && value !== '') {
+        filteredData[key] = value;
+      }
+    });
+    
+    const columns = Object.keys(filteredData);
     const values = columns.map(col => `@${col}`).join(', ');
     const columnList = columns.join(', ');
     
     const query = `
       INSERT INTO ${this.tableName} (${columnList})
-      OUTPUT INSERTED.*
       VALUES (${values})
     `;
     
     try {
-      const result = await this.executeQuery(query, data);
-      return result.recordset[0];
+      const { getPool } = require('../config/db');
+      const pool = getPool();
+      const request = pool.request();
+      
+      // Add parameters
+      Object.keys(filteredData).forEach(key => {
+        const value = filteredData[key];
+        if (value !== null && value !== undefined && value !== '') {
+          request.input(key, value);
+        }
+      });
+      
+      const result = await request.query(query);
+      
+      // Get the inserted record using SCOPE_IDENTITY()
+      const idResult = await pool.request().query('SELECT SCOPE_IDENTITY() as id');
+      const insertedId = idResult.recordset[0]?.id;
+      
+      // If no ID returned (table doesn't have IDENTITY column), return the data as-is
+      if (!insertedId || insertedId === null || insertedId === undefined) {
+        console.warn(`⚠️ SCOPE_IDENTITY() returned null for table ${this.tableName}`);
+        // Return the inserted data without fetching
+        return filteredData;
+      }
+      
+      // Fetch and return the inserted record
+      return await this.findById(insertedId);
     } catch (error) {
       throw error;
     }
@@ -119,15 +154,15 @@ class BaseModel {
     const query = `
       UPDATE ${this.tableName} 
       SET ${updates}, updated_at = GETDATE()
-      OUTPUT INSERTED.*
       WHERE ${this.primaryKey} = @id
     `;
     
     const params = { ...data, id };
     
     try {
-      const result = await this.executeQuery(query, params);
-      return result.recordset[0];
+      await this.executeQuery(query, params);
+      // Fetch and return the updated record
+      return await this.findById(id);
     } catch (error) {
       throw error;
     }

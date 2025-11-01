@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import '../models/feedback_model.dart';
 import '../models/api_response.dart';
 import '../../core/constants/app_constants.dart';
+import 'backend_auth_service.dart';
 
 class FeedbackService {
   static final FeedbackService _instance = FeedbackService._internal();
@@ -9,6 +10,7 @@ class FeedbackService {
   FeedbackService._internal();
 
   late Dio _dio;
+  final BackendAuthService _authService = BackendAuthService();
   
   void initialize() {
     _dio = Dio(BaseOptions(
@@ -28,7 +30,18 @@ class FeedbackService {
       error: true,
     ));
 
+    // Add auth token interceptor
     _dio.interceptors.add(InterceptorsWrapper(
+      onRequest: (options, handler) async {
+        final token = await _authService.getToken();
+        if (token != null && token.isNotEmpty) {
+          options.headers['Authorization'] = 'Bearer $token';
+          print('✅ Feedback: Added token to header');
+        } else {
+          print('⚠️ Feedback: No token available');
+        }
+        return handler.next(options);
+      },
       onError: (error, handler) {
         print('Feedback API Error: ${error.message}');
         print('Response: ${error.response?.data}');
@@ -37,7 +50,7 @@ class FeedbackService {
     ));
   }
 
-  // Set authorization token
+  // Set authorization token (kept for backward compatibility)
   void setAuthToken(String token) {
     _dio.options.headers['Authorization'] = 'Bearer $token';
   }
@@ -93,15 +106,25 @@ class FeedbackService {
   // Create new feedback
   Future<ApiResponse<FeedbackModel>> createFeedback(FeedbackModel feedback) async {
     try {
+      print('🔄 FeedbackService: Sending POST to /feedback');
+      print('📦 Data: ${feedback.toJson()}');
+      
       final response = await _dio.post(
         '/feedback',
         data: feedback.toJson(),
       );
+      
+      print('✅ FeedbackService: Response received');
+      print('📦 Response data: ${response.data}');
+      
       return ApiResponse<FeedbackModel>.fromJson(
         response.data,
         (data) => FeedbackModel.fromJson(data),
       );
     } catch (e) {
+      print('❌ FeedbackService: Error occurred');
+      print('Error type: ${e.runtimeType}');
+      print('Error: $e');
       throw _handleError(e);
     }
   }

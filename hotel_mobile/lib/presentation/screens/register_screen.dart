@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:hotel_mobile/data/services/backend_auth_service.dart';
 import 'package:hotel_mobile/data/models/user_role_model.dart';
+import 'package:hotel_mobile/presentation/screens/auth/email_otp_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -14,11 +15,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
-  final TextEditingController _confirmPasswordController =
-      TextEditingController();
+  final TextEditingController _confirmPasswordController = TextEditingController();
+  final TextEditingController _phoneController = TextEditingController();
   bool _isLoading = false;
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
+  String _selectedGender = 'Không xác định';
+  DateTime? _selectedDate;
 
   @override
   void dispose() {
@@ -26,6 +29,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     _emailController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
+    _phoneController.dispose();
     super.dispose();
   }
 
@@ -33,7 +37,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
     if (_nameController.text.isEmpty ||
         _emailController.text.isEmpty ||
         _passwordController.text.isEmpty ||
-        _confirmPasswordController.text.isEmpty) {
+        _confirmPasswordController.text.isEmpty ||
+        _phoneController.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Vui lòng điền đầy đủ thông tin')),
       );
@@ -78,6 +83,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
       return;
     }
 
+    // Kiểm tra số điện thoại
+    if (!RegExp(r'^[0-9]{10,11}$').hasMatch(_phoneController.text.replaceAll(' ', ''))) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Số điện thoại không hợp lệ')),
+      );
+      return;
+    }
+
     setState(() => _isLoading = true);
 
     try {
@@ -85,7 +98,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
         hoTen: _nameController.text,
         email: _emailController.text,
         matKhau: _passwordController.text,
-        sdt: '0123456789', // Số điện thoại mặc định để tránh lỗi validation
+        sdt: _phoneController.text,
+        gioiTinh: _selectedGender,
+        ngaySinh: _selectedDate,
       );
 
       if (result.isSuccess && mounted) {
@@ -114,14 +129,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
           ),
         );
 
-        // Navigate based on role
-        if (result.userRole?.role == UserRole.admin) {
-          Navigator.pushReplacementNamed(context, '/admin/dashboard');
-        } else if (result.userRole?.role == UserRole.hotelManager) {
-          Navigator.pushReplacementNamed(context, '/hotel-manager/dashboard');
-        } else {
-          Navigator.pushReplacementNamed(context, '/main');
-        }
+        // Let MainWrapper handle routing based on user role
+        Navigator.pushNamedAndRemoveUntil(context, '/', (route) => false);
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(result.error ?? 'Đăng ký thất bại')),
@@ -133,6 +142,70 @@ class _RegisterScreenState extends State<RegisterScreen> {
       ).showSnackBar(SnackBar(content: Text('Lỗi đăng ký: $e')));
     } finally {
       setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _handleOTPRegister() async {
+    if (_nameController.text.isEmpty ||
+        _emailController.text.isEmpty ||
+        _phoneController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Vui lòng điền đầy đủ thông tin')),
+      );
+      return;
+    }
+
+    // Kiểm tra email hợp lệ
+    if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(_emailController.text)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Email không hợp lệ')),
+      );
+      return;
+    }
+
+    // Kiểm tra tên không được quá ngắn
+    if (_nameController.text.trim().length < 2) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Họ và tên phải có ít nhất 2 ký tự')),
+      );
+      return;
+    }
+
+    // Kiểm tra số điện thoại
+    if (!RegExp(r'^[0-9]{10,11}$').hasMatch(_phoneController.text.replaceAll(' ', ''))) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Số điện thoại không hợp lệ')),
+      );
+      return;
+    }
+
+    // Navigate to OTP screen
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => EmailOTPScreen(
+          email: _emailController.text,
+          hoTen: _nameController.text,
+          sdt: _phoneController.text,
+          matKhau: _passwordController.text,
+          gioiTinh: _selectedGender,
+          ngaySinh: _selectedDate,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _selectDate(BuildContext context) async {
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: DateTime.now(),
+      firstDate: DateTime(1900),
+      lastDate: DateTime.now(),
+    );
+    if (picked != null && picked != _selectedDate) {
+      setState(() {
+        _selectedDate = picked;
+      });
     }
   }
 
@@ -169,14 +242,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
           ),
         );
 
-        // Navigate based on role
-        if (result.userRole?.role == UserRole.admin) {
-          Navigator.pushReplacementNamed(context, '/admin/dashboard');
-        } else if (result.userRole?.role == UserRole.hotelManager) {
-          Navigator.pushReplacementNamed(context, '/hotel-manager/dashboard');
-        } else {
-          Navigator.pushReplacementNamed(context, '/main');
-        }
+        // Let MainWrapper handle routing based on user role
+        Navigator.pushNamedAndRemoveUntil(context, '/', (route) => false);
       } else if (result.isCancelled && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -237,14 +304,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
           ),
         );
 
-        // Navigate based on role
-        if (result.userRole?.role == UserRole.admin) {
-          Navigator.pushReplacementNamed(context, '/admin/dashboard');
-        } else if (result.userRole?.role == UserRole.hotelManager) {
-          Navigator.pushReplacementNamed(context, '/hotel-manager/dashboard');
-        } else {
-          Navigator.pushReplacementNamed(context, '/main');
-        }
+        // Let MainWrapper handle routing based on user role
+        Navigator.pushNamedAndRemoveUntil(context, '/', (route) => false);
       } else if (result.isCancelled && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -274,33 +335,39 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Color(0xFF2196F3), Color(0xFF21CBF3), Color(0xFF42A5F5)],
+    return WillPopScope(
+      onWillPop: () async {
+        // Khi nhấn back, quay về MainWrapper thay vì pop ra màn hình đen
+        Navigator.pushNamedAndRemoveUntil(context, '/', (route) => false);
+        return false;
+      },
+      child: Scaffold(
+        body: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color(0xFF2196F3), Color(0xFF21CBF3), Color(0xFF42A5F5)],
+            ),
           ),
-        ),
-        child: SafeArea(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              children: [
-                const SizedBox(height: 40),
+          child: SafeArea(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                children: [
+                  const SizedBox(height: 40),
 
-                // Logo and Title
-                _buildHeader(),
+                  // Logo and Title
+                  _buildHeader(),
 
-                const SizedBox(height: 40),
+                  const SizedBox(height: 40),
 
-                // Register Form
-                _buildRegisterForm(),
+                  // Register Form
+                  _buildRegisterForm(),
 
-                const SizedBox(height: 32),
+                  const SizedBox(height: 32),
 
-                // Social Register Buttons
+                  // Social Register Buttons
                 _buildSocialRegisterButtons(),
 
                 const SizedBox(height: 24),
@@ -317,6 +384,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
           ),
         ),
       ),
+    ),
     );
   }
 
@@ -414,6 +482,69 @@ class _RegisterScreenState extends State<RegisterScreen> {
           ),
           const SizedBox(height: 16),
 
+          // Phone Field
+          TextFormField(
+            controller: _phoneController,
+            keyboardType: TextInputType.phone,
+            decoration: InputDecoration(
+              labelText: 'Số điện thoại',
+              prefixIcon: const Icon(Icons.phone_outlined),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              filled: true,
+              fillColor: const Color(0xFFF8F9FA),
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // Gender Field
+          DropdownButtonFormField<String>(
+            value: _selectedGender,
+            decoration: InputDecoration(
+              labelText: 'Giới tính',
+              prefixIcon: const Icon(Icons.people_outline),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              filled: true,
+              fillColor: const Color(0xFFF8F9FA),
+            ),
+            items: ['Nam', 'Nữ', 'Khác', 'Không xác định'].map((String gender) {
+              return DropdownMenuItem<String>(
+                value: gender,
+                child: Text(gender),
+              );
+            }).toList(),
+            onChanged: (String? newValue) {
+              setState(() {
+                _selectedGender = newValue!;
+              });
+            },
+          ),
+          const SizedBox(height: 16),
+
+          // Date of Birth Field
+          GestureDetector(
+            onTap: () => _selectDate(context),
+            child: AbsorbPointer(
+              child: TextFormField(
+                decoration: InputDecoration(
+                  labelText: _selectedDate == null
+                      ? 'Ngày sinh'
+                      : 'Ngày sinh: ${_selectedDate!.toLocal().toString().split(' ')[0]}',
+                  prefixIcon: const Icon(Icons.calendar_today_outlined),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  filled: true,
+                  fillColor: const Color(0xFFF8F9FA),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+
           // Password Field
           TextFormField(
             controller: _passwordController,
@@ -463,31 +594,54 @@ class _RegisterScreenState extends State<RegisterScreen> {
           ),
           const SizedBox(height: 24),
 
-          // Register Button
-          ElevatedButton(
-            onPressed: _isLoading ? null : _handleRegister,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF2196F3),
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-              elevation: 2,
-            ),
-            child: _isLoading
-                ? const SizedBox(
-                    height: 20,
-                    width: 20,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                    ),
-                  )
-                : const Text(
-                    'Đăng ký',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+          // Register Buttons
+          Column(
+            children: [
+              // Traditional Register Button
+              ElevatedButton(
+                onPressed: _isLoading ? null : _handleRegister,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF2196F3),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
                   ),
+                  elevation: 2,
+                ),
+                child: _isLoading
+                    ? const SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                        ),
+                      )
+                    : const Text(
+                        'Đăng ký với mật khẩu',
+                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                      ),
+              ),
+              const SizedBox(height: 12),
+              
+              // OTP Register Button
+              OutlinedButton(
+                onPressed: _isLoading ? null : _handleOTPRegister,
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: const Color(0xFF2196F3),
+                  side: const BorderSide(color: Color(0xFF2196F3)),
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child: const Text(
+                  'Đăng ký với mã OTP',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                ),
+              ),
+            ],
           ),
         ],
       ),

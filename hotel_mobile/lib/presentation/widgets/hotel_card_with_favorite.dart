@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:hotel_mobile/data/models/hotel.dart';
-import 'package:hotel_mobile/presentation/screens/favorites/favorites_screen.dart';
+import 'package:hotel_mobile/data/services/saved_items_service.dart';
+import 'package:hotel_mobile/core/utils/currency_formatter.dart';
+import 'improved_image_widget.dart';
 
 class HotelCardWithFavorite extends StatefulWidget {
   final Hotel hotel;
@@ -22,6 +24,8 @@ class HotelCardWithFavorite extends StatefulWidget {
 
 class _HotelCardWithFavoriteState extends State<HotelCardWithFavorite> {
   bool _isFavorite = false;
+  bool _isLoading = false;
+  final SavedItemsService _savedItemsService = SavedItemsService();
 
   @override
   void initState() {
@@ -30,34 +34,127 @@ class _HotelCardWithFavoriteState extends State<HotelCardWithFavorite> {
   }
 
   Future<void> _checkFavoriteStatus() async {
-    final isFavorite = await FavoritesManager.isFavorite(
-      widget.hotel.id.toString(),
-    );
-    if (mounted) {
-      setState(() {
-        _isFavorite = isFavorite;
-      });
+    try {
+      final result = await _savedItemsService.isSaved(
+        widget.hotel.id.toString(),
+        'hotel',
+      );
+      if (mounted) {
+        setState(() {
+          _isFavorite = result.success && (result.data ?? false);
+        });
+      }
+    } catch (e) {
+      print('Error checking favorite status: $e');
+      if (mounted) {
+        setState(() {
+          _isFavorite = false;
+        });
+      }
     }
   }
 
   Future<void> _toggleFavorite() async {
-    await FavoritesManager.toggleFavorite(widget.hotel.id.toString());
-    if (mounted) {
-      setState(() {
-        _isFavorite = !_isFavorite;
-      });
+    if (_isLoading) return;
+    
+    setState(() {
+      _isLoading = true;
+    });
 
+    try {
+      if (_isFavorite) {
+        // Remove from saved items
+        final result = await _savedItemsService.removeFromSavedByItemId(
+          widget.hotel.id.toString(),
+          'hotel',
+        );
+        
+        // Update UI regardless of API result
+        if (mounted) {
+          setState(() {
+            _isFavorite = false;
+          });
+          
+          if (result.success) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Row(
+                  children: [
+                    const Icon(Icons.heart_broken, color: Colors.white, size: 20),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text('Đã xóa "${widget.hotel.ten}" khỏi danh sách'),
+                    ),
+                  ],
+                ),
+                backgroundColor: Colors.grey[700],
+                duration: const Duration(seconds: 2),
+              ),
+            );
+          } else {
+            print('⚠️ Xóa failed: ${result.message}');
+            // Don't show error to user, just update UI
+          }
+        }
+      } else {
+        // Add to saved items
+        final result = await _savedItemsService.addToSaved(
+          itemId: widget.hotel.id.toString(),
+          type: 'hotel',
+          name: widget.hotel.ten,
+          location: widget.hotel.diaChi,
+          price: widget.hotel.giaTb != null 
+              ? CurrencyFormatter.formatVND(widget.hotel.giaTb!)
+              : null,
+          imageUrl: widget.hotel.hinhAnh,
+          metadata: {
+            'diemDanhGia': widget.hotel.diemDanhGiaTrungBinh,
+            'soSao': widget.hotel.soSao,
+          },
+        );
+        if (result.success && mounted) {
+          setState(() {
+            _isFavorite = true;
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  const Icon(Icons.favorite, color: Colors.white, size: 20),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text('❤️ Đã lưu "${widget.hotel.ten}"'),
+                  ),
+                ],
+              ),
+              backgroundColor: Colors.red,
+              duration: const Duration(seconds: 2),
+              action: SnackBarAction(
+                label: 'Xem',
+                textColor: Colors.white,
+                onPressed: () {
+                  Navigator.pushNamed(context, '/favorites');
+                },
+              ),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      print('Error toggling favorite: $e');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            _isFavorite
-                ? 'Đã thêm vào danh sách yêu thích'
-                : 'Đã xóa khỏi danh sách yêu thích',
-          ),
-          backgroundColor: _isFavorite ? Colors.green : Colors.orange,
+          content: Text('Lỗi: $e'),
+          backgroundColor: Colors.red,
           duration: const Duration(seconds: 2),
         ),
       );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -86,32 +183,13 @@ class _HotelCardWithFavoriteState extends State<HotelCardWithFavorite> {
                     ),
                     child: Container(
                       width: double.infinity,
-                      height: widget.height != null
-                          ? widget.height! * 0.6
-                          : 160,
-                      child: widget.hotel.hinhAnh != null
-                          ? Image.network(
-                              widget.hotel.hinhAnh!,
-                              fit: BoxFit.cover,
-                              errorBuilder: (context, error, stackTrace) {
-                                return Container(
-                                  color: Colors.grey[300],
-                                  child: const Icon(
-                                    Icons.hotel,
-                                    size: 60,
-                                    color: Colors.grey,
-                                  ),
-                                );
-                              },
-                            )
-                          : Container(
-                              color: Colors.grey[300],
-                              child: const Icon(
-                                Icons.hotel,
-                                size: 60,
-                                color: Colors.grey,
-                              ),
-                            ),
+                      height: 160,
+                      child: HotelImageWidget(
+                        imageUrl: widget.hotel.hinhAnh,
+                        width: double.infinity,
+                        height: 160,
+                        onTap: widget.onTap,
+                      ),
                     ),
                   ),
                   // Favorite Button
@@ -133,11 +211,20 @@ class _HotelCardWithFavoriteState extends State<HotelCardWithFavorite> {
                             ),
                           ],
                         ),
-                        child: Icon(
-                          _isFavorite ? Icons.favorite : Icons.favorite_border,
-                          color: _isFavorite ? Colors.red : Colors.grey,
-                          size: 20,
-                        ),
+                        child: _isLoading
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation<Color>(Colors.red),
+                                ),
+                              )
+                            : Icon(
+                                _isFavorite ? Icons.favorite : Icons.favorite_border,
+                                color: _isFavorite ? Colors.red : Colors.grey,
+                                size: 20,
+                              ),
                       ),
                     ),
                   ),
@@ -260,7 +347,7 @@ class _HotelCardWithFavoriteState extends State<HotelCardWithFavorite> {
                               ),
                           ],
                         ),
-                      const Spacer(),
+                      const SizedBox(height: 8),
                       // Description (if available)
                       if (widget.hotel.moTa != null)
                         Text(
@@ -269,7 +356,7 @@ class _HotelCardWithFavoriteState extends State<HotelCardWithFavorite> {
                             fontSize: 11,
                             color: Colors.grey[600],
                           ),
-                          maxLines: 2,
+                          maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
                     ],

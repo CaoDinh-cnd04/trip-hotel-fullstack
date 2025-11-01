@@ -31,8 +31,11 @@ class _RoleManagementScreenState extends State<RoleManagementScreen> {
         _isLoading = false;
       });
     } catch (e) {
-      setState(() => _isLoading = false);
-      _showErrorSnackBar('Lỗi tải danh sách người dùng: $e');
+      setState(() {
+        _users = [];
+        _isLoading = false;
+      });
+      _showErrorSnackBar('Không thể kết nối đến server. Vui lòng thử lại sau.');
     }
   }
 

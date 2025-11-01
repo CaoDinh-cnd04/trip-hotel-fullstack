@@ -142,68 +142,66 @@ class PersonalOffersCard extends StatelessWidget {
 
   Widget _buildEmptyState(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
-      padding: const EdgeInsets.all(20),
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
         color: Colors.grey[100],
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(color: Colors.grey[300]!),
       ),
-      child: Column(
+      child: Row(
         children: [
           Icon(
             Icons.account_balance_wallet_outlined,
-            size: 48,
+            size: 32,
             color: Colors.grey[400],
           ),
-          const SizedBox(height: 12),
-          Text(
-            'Chưa có ưu đãi cá nhân',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-              color: Colors.grey[600],
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Đặt phòng để tích điểm và nhận ưu đãi độc quyền',
-            style: TextStyle(
-              fontSize: 14,
-              color: Colors.grey[500],
-            ),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 16),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: () {
-                // Navigate to hotel search
-                Navigator.pushNamed(
-                  context,
-                  '/search-results',
-                  arguments: {
-                    'location': 'Tất cả khách sạn',
-                    'checkInDate': DateTime.now().add(const Duration(days: 1)),
-                    'checkOutDate': DateTime.now().add(const Duration(days: 3)),
-                    'guestCount': 2,
-                    'roomCount': 1,
-                  },
-                );
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF2196F3),
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Chưa có ưu đãi cá nhân',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.grey[700],
+                  ),
                 ),
-              ),
-              child: const Text(
-                'Khám phá khách sạn',
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
+                const SizedBox(height: 2),
+                Text(
+                  'Đặt phòng để tích điểm',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey[500],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pushNamed(
+                context,
+                '/search-results',
+                arguments: {
+                  'location': 'Tất cả khách sạn',
+                  'checkInDate': DateTime.now().add(const Duration(days: 1)),
+                  'checkOutDate': DateTime.now().add(const Duration(days: 3)),
+                  'guestCount': 2,
+                  'roomCount': 1,
+                },
+              );
+            },
+            style: TextButton.styleFrom(
+              foregroundColor: const Color(0xFF2196F3),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            ),
+            child: const Text(
+              'Khám phá',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
             ),
           ),
         ],

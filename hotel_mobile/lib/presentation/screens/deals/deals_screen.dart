@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:hotel_mobile/data/models/promotion.dart';
 import 'package:hotel_mobile/data/services/api_service.dart';
+import 'package:hotel_mobile/data/services/promotion_notification_service.dart';
 import 'package:hotel_mobile/presentation/widgets/deals_header.dart';
 import 'package:hotel_mobile/presentation/widgets/personal_offers_card.dart';
 import 'package:hotel_mobile/presentation/widgets/deals_tab_bar.dart';
 import 'package:hotel_mobile/presentation/widgets/promotion_card.dart';
+import 'package:hotel_mobile/presentation/widgets/promo_carousel.dart';
+import 'package:hotel_mobile/presentation/screens/property/property_detail_screen.dart';
+import 'package:hotel_mobile/presentation/screens/hotel/hotel_list_screen.dart';
 
 class DealsScreen extends StatefulWidget {
   const DealsScreen({super.key});
@@ -16,6 +20,7 @@ class DealsScreen extends StatefulWidget {
 class _DealsScreenState extends State<DealsScreen>
     with SingleTickerProviderStateMixin {
   final ApiService _apiService = ApiService();
+  final PromotionNotificationService _notificationService = PromotionNotificationService();
   late TabController _tabController;
 
   List<Promotion> _allPromotions = [];
@@ -27,14 +32,19 @@ class _DealsScreenState extends State<DealsScreen>
   // User's actual data
   int _personalPoints = 0;
   String _personalPromoCode = '';
+  
+  // New promotions notification
+  int _newPromotionsCount = 0;
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+    _tabController = TabController(length: 3, vsync: this, initialIndex: 1); // Start with "Gần tôi" tab
+    _selectedTabIndex = 1; // Set initial selected tab to "Gần tôi"
     _tabController.addListener(_handleTabSelection);
     _loadPromotions();
     _loadUserData();
+    _checkForNewPromotions();
   }
 
   @override
@@ -60,23 +70,33 @@ class _DealsScreenState extends State<DealsScreen>
         _error = null;
       });
 
-      final response = await _apiService.getPromotions(active: true);
+      // Tăng limit lên 50 để lấy hết tất cả khuyến mãi
+      final response = await _apiService.getPromotions(active: true, limit: 50);
+
+      print('🎁 Promotions API Response:');
+      print('   Success: ${response.success}');
+      print('   Data count: ${response.data?.length ?? 0}');
+      print('   Message: ${response.message}');
 
       if (response.success) {
         setState(() {
           _allPromotions = response.data ?? [];
+          print('   ✅ All promotions loaded: ${_allPromotions.length}');
           _filterPromotions();
+          print('   ✅ Filtered promotions: ${_filteredPromotions.length}');
           _isLoading = false;
         });
       } else {
+        print('   ❌ Error: ${response.message}');
         setState(() {
           _error = response.message;
           _isLoading = false;
         });
       }
     } catch (e) {
+      print('   ❌ Exception: $e');
       setState(() {
-        _error = 'Lỗi kết nối: $e';
+        _error = 'Không thể kết nối với máy chủ';
         _isLoading = false;
       });
     }
@@ -96,6 +116,65 @@ class _DealsScreenState extends State<DealsScreen>
     }
   }
 
+  Future<void> _checkForNewPromotions() async {
+    try {
+      // Check if we should check for new promotions
+      final shouldCheck = await _notificationService.shouldCheckForNewPromotions();
+      
+      if (!shouldCheck) {
+        print('⏭️ Skipping promotion check (checked recently)');
+        return;
+      }
+
+      print('🔍 Checking for new promotions...');
+      final newPromotions = await _notificationService.checkForNewPromotions();
+      
+      if (newPromotions.isNotEmpty && mounted) {
+        setState(() {
+          _newPromotionsCount = newPromotions.length;
+        });
+
+        // Show notification snackbar
+        if (!mounted) return;
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.celebration, color: Colors.white),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    '🎉 Có ${newPromotions.length} ưu đãi mới! Xem ngay!',
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            backgroundColor: Colors.green.shade600,
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 4),
+            action: SnackBarAction(
+              label: 'XEM',
+              textColor: Colors.white,
+              onPressed: () {
+                // Scroll to top to see new promotions
+                setState(() {
+                  _newPromotionsCount = 0;
+                });
+              },
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      print('❌ Error checking for new promotions: $e');
+    }
+  }
+
   void _filterPromotions() {
     final now = DateTime.now();
 
@@ -103,26 +182,25 @@ class _DealsScreenState extends State<DealsScreen>
       switch (_selectedTabIndex) {
         case 0: // Giờ chót
           _filteredPromotions = _allPromotions.where((promotion) {
-            // Filter for promotions ending within 24 hours
+            // Filter for promotions ending within 48 hours
             final hoursLeft = promotion.ngayKetThuc.difference(now).inHours;
-            return hoursLeft <= 24 && hoursLeft > 0;
+            return hoursLeft <= 48 && hoursLeft > 0 && promotion.isActive;
           }).toList();
           break;
         case 1: // Gần tôi
           _filteredPromotions = _allPromotions.where((promotion) {
-            // For demo, show all active promotions
-            // In real app, filter by location
-            return promotion.ngayKetThuc.isAfter(now);
+            // Show all active promotions (in real app, filter by location)
+            return promotion.isActive && promotion.ngayKetThuc.isAfter(now);
           }).toList();
           break;
-        case 2: // Khuyến mãi theo điểm đến
+        case 2: // Theo điểm đến
           _filteredPromotions = _allPromotions.where((promotion) {
-            // Show promotions with higher discount rates
-            return promotion.phanTramGiam >= 10;
+            // Show all active promotions with any discount
+            return promotion.isActive && promotion.phanTramGiam > 0;
           }).toList();
           break;
         default:
-          _filteredPromotions = _allPromotions;
+          _filteredPromotions = _allPromotions.where((p) => p.isActive).toList();
       }
 
       // Sort by discount percentage (highest first)
@@ -160,150 +238,529 @@ class _DealsScreenState extends State<DealsScreen>
       body: SafeArea(
         child: Column(
           children: [
-            // Header
+            // Compact Header
             const DealsHeader(),
 
-            // Personal Offers Card
-            PersonalOffersCard(
-              points: _personalPoints,
-              promoCode: _personalPromoCode,
+            // Scrollable Content
+            Expanded(
+              child: RefreshIndicator(
+                onRefresh: _loadPromotions,
+                child: CustomScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  slivers: [
+                    // Personal Offers Card
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: PersonalOffersCard(
+                          points: _personalPoints,
+                          promoCode: _personalPromoCode,
+                        ),
+                      ),
+                    ),
+
+                    // Tab Bar
+                    SliverPersistentHeader(
+                      pinned: true,
+                      delegate: _StickyTabBarDelegate(
+                        child: Container(
+                          color: Colors.grey[50],
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          child: DealsTabBar(
+                            tabController: _tabController,
+                            tabs: const ['Giờ chót', 'Gần tôi', 'Theo điểm đến'],
+                          ),
+                        ),
+                      ),
+                    ),
+
+                    // Content
+                    _buildSliverContent(),
+                  ],
+                ),
+              ),
             ),
-
-            const SizedBox(height: 16),
-
-            // Tab Bar
-            DealsTabBar(
-              tabController: _tabController,
-              tabs: const ['Giờ chót', 'Gần tôi', 'Theo điểm đến'],
-            ),
-
-            const SizedBox(height: 16),
-
-            // Content
-            Expanded(child: _buildContent()),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildContent() {
+  Widget _buildSliverContent() {
     if (_isLoading) {
-      return const Center(child: CircularProgressIndicator());
+      return SliverFillRemaining(
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF003580)),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Đang tải ưu đãi...',
+                style: TextStyle(
+                  color: Colors.grey[600],
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
     }
 
     if (_error != null) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.error_outline, size: 64, color: Colors.grey[400]),
-            const SizedBox(height: 16),
-            Text(
-              _error!,
-              style: TextStyle(color: Colors.grey[600], fontSize: 16),
-              textAlign: TextAlign.center,
+      return SliverFillRemaining(
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(32.0),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: Colors.red[50],
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.error_outline,
+                    size: 64,
+                    color: Colors.red[400],
+                  ),
+                ),
+                const SizedBox(height: 24),
+                Text(
+                  'Oops! Có lỗi xảy ra',
+                  style: TextStyle(
+                    color: Colors.grey[800],
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  _error!,
+                  style: TextStyle(color: Colors.grey[600], fontSize: 15),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 24),
+                ElevatedButton.icon(
+                  onPressed: _loadPromotions,
+                  icon: const Icon(Icons.refresh),
+                  label: const Text('Thử lại'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF003580),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 32,
+                      vertical: 14,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: _loadPromotions,
-              child: const Text('Thử lại'),
-            ),
-          ],
+          ),
         ),
       );
     }
 
     if (_filteredPromotions.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.local_offer_outlined, size: 64, color: Colors.grey[400]),
-            const SizedBox(height: 16),
-            Text(
-              'Không có ưu đãi nào',
-              style: TextStyle(color: Colors.grey[600], fontSize: 16),
+      return SliverFillRemaining(
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(32.0),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: Colors.blue[50],
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.local_offer_outlined,
+                    size: 64,
+                    color: Colors.blue[400],
+                  ),
+                ),
+                const SizedBox(height: 24),
+                Text(
+                  'Chưa có ưu đãi nào',
+                  style: TextStyle(
+                    color: Colors.grey[800],
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'Hãy quay lại sau để xem ưu đãi mới nhất!',
+                  style: TextStyle(
+                    color: Colors.grey[600],
+                    fontSize: 15,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 24),
+                TextButton.icon(
+                  onPressed: _loadPromotions,
+                  icon: const Icon(Icons.refresh),
+                  label: const Text('Làm mới'),
+                  style: TextButton.styleFrom(
+                    foregroundColor: const Color(0xFF003580),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 24,
+                      vertical: 12,
+                    ),
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 8),
-            Text(
-              'Hãy quay lại sau để xem ưu đãi mới',
-              style: TextStyle(color: Colors.grey[500], fontSize: 14),
-            ),
-          ],
+          ),
         ),
       );
     }
 
-    return RefreshIndicator(
-      onRefresh: _loadPromotions,
-      child: ListView.builder(
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        itemCount: _filteredPromotions.length,
-        itemBuilder: (context, index) {
-          final promotion = _filteredPromotions[index];
-          return Padding(
-            padding: const EdgeInsets.only(bottom: 16),
-            child: PromotionCard(
-              promotion: promotion,
-              timeLeft: _getTimeLeft(promotion.ngayKetThuc),
-              onTap: () => _handlePromotionTap(promotion),
-            ),
-          );
-        },
-      ),
-    );
-  }
-
-  void _handlePromotionTap(Promotion promotion) {
-    // Navigate to promotion detail or apply promotion
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(promotion.ten),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (promotion.moTa != null) ...[
-              Text(promotion.moTa!),
-              const SizedBox(height: 16),
-            ],
-            Text(
-              'Giảm ${promotion.phanTramGiam.toStringAsFixed(0)}%',
-              style: const TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: Colors.green,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Có hiệu lực đến: ${promotion.ngayKetThuc.day}/${promotion.ngayKetThuc.month}/${promotion.ngayKetThuc.year}',
-              style: TextStyle(color: Colors.grey[600], fontSize: 14),
-            ),
-          ],
+    return SliverList(
+      delegate: SliverChildListDelegate([
+        const SizedBox(height: 8),
+        
+        // Auto-scroll Carousel
+        PromoCarousel(
+          promotions: _filteredPromotions,
+          onPromotionTap: _handlePromotionTap,
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Đóng'),
+        
+        const SizedBox(height: 24),
+        
+        // All Promotions List
+        if (_filteredPromotions.length > 3) ...[
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Tất cả ưu đãi',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                ),
+                Text(
+                  '${_filteredPromotions.length} ưu đãi',
+                  style: TextStyle(
+                    color: Colors.grey[600],
+                    fontSize: 14,
+                  ),
+                ),
+              ],
+            ),
           ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-              // Apply promotion logic here
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Đã áp dụng ưu đãi ${promotion.ten}'),
-                  backgroundColor: Colors.green,
+          const SizedBox(height: 16),
+          ...List.generate(
+            _filteredPromotions.length,
+            (index) {
+              final promotion = _filteredPromotions[index];
+              return Padding(
+                padding: const EdgeInsets.only(left: 16, right: 16, bottom: 16),
+                child: PromotionCard(
+                  promotion: promotion,
+                  timeLeft: _getTimeLeft(promotion.ngayKetThuc),
+                  onTap: () => _handlePromotionTap(promotion),
                 ),
               );
             },
-            child: const Text('Áp dụng'),
           ),
         ],
+        
+        const SizedBox(height: 24),
+      ]),
+    );
+  }
+
+  /// Áp dụng promotion và chuyển sang màn hình khách sạn
+  Future<void> _applyPromotion(Promotion promotion) async {
+    // Nếu có khachSanId, fetch hotel details và navigate
+    if (promotion.khachSanId != null) {
+      try {
+        // Show loading
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => const Center(
+            child: CircularProgressIndicator(),
+          ),
+        );
+
+        // Fetch hotel details
+        final hotelResponse = await _apiService.getHotelById(promotion.khachSanId!);
+
+        if (mounted) {
+          Navigator.pop(context); // Close loading
+
+          if (hotelResponse.success && hotelResponse.data != null) {
+            final hotel = hotelResponse.data!;
+            
+            // Navigate to PropertyDetailScreen để chọn phòng
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => PropertyDetailScreen(
+                  hotel: hotel,
+                  checkInDate: DateTime.now().add(const Duration(days: 1)),
+                  checkOutDate: DateTime.now().add(const Duration(days: 2)),
+                  guestCount: 1,
+                ),
+              ),
+            );
+
+            // Show success message
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Đã áp dụng ưu đãi ${promotion.ten}'),
+                backgroundColor: Colors.green,
+                duration: const Duration(seconds: 2),
+              ),
+            );
+          } else {
+            // Nếu không tìm thấy hotel, navigate to hotel list với location
+            _navigateToHotelListByLocation(promotion);
+          }
+        }
+      } catch (e) {
+        print('❌ Error fetching hotel: $e');
+        if (mounted) {
+          Navigator.pop(context); // Close loading if still open
+          _navigateToHotelListByLocation(promotion);
+        }
+      }
+    } else {
+      // Không có khachSanId, navigate to hotel list với location
+      _navigateToHotelListByLocation(promotion);
+    }
+  }
+
+  /// Navigate to hotel list với location từ promotion
+  void _navigateToHotelListByLocation(Promotion promotion) {
+    if (promotion.location != null) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => HotelListScreen(
+            location: promotion.location!,
+            title: 'Khách sạn tại ${promotion.location}',
+          ),
+        ),
+      );
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Đã áp dụng ưu đãi ${promotion.ten}'),
+          backgroundColor: Colors.green,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    } else {
+      // Nếu không có location, chỉ show message
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Đã áp dụng ưu đãi ${promotion.ten}'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    }
+  }
+
+  void _handlePromotionTap(Promotion promotion) {
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Image Header
+              if (promotion.image != null)
+                ClipRRect(
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(16),
+                  ),
+                  child: Image.network(
+                    'http://10.0.2.2:5000/images/hotels/${promotion.image}',
+                    height: 200,
+                    width: double.infinity,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) => Container(
+                      height: 200,
+                      color: Colors.blue,
+                      child: const Center(
+                        child: Icon(Icons.local_offer, size: 64, color: Colors.white),
+                      ),
+                    ),
+                  ),
+                ),
+              
+              Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Title
+                    Text(
+                      promotion.ten,
+                      style: const TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    
+                    const SizedBox(height: 12),
+                    
+                    // Location
+                    if (promotion.location != null) ...[
+                      Row(
+                        children: [
+                          Icon(Icons.location_on, size: 18, color: Colors.grey[600]),
+                          const SizedBox(width: 4),
+                          Text(
+                            promotion.location!,
+                            style: TextStyle(
+                              color: Colors.grey[700],
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                    ],
+                    
+                    // Description
+                    if (promotion.moTa != null) ...[
+                      Text(
+                        promotion.moTa!,
+                        style: TextStyle(
+                          color: Colors.grey[700],
+                          height: 1.5,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                    ],
+                    
+                    // Discount Badge
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [Colors.green[400]!, Colors.green[600]!],
+                        ),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.local_offer, color: Colors.white, size: 28),
+                          const SizedBox(width: 12),
+                          Text(
+                            'Giảm ${promotion.phanTramGiam.toStringAsFixed(0)}%',
+                            style: const TextStyle(
+                              fontSize: 22,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    
+                    const SizedBox(height: 12),
+                    
+                    // Expiry Date
+                    Row(
+                      children: [
+                        Icon(Icons.access_time, size: 16, color: Colors.grey[600]),
+                        const SizedBox(width: 4),
+                        Text(
+                          'Có hiệu lực đến: ${promotion.ngayKetThuc.day}/${promotion.ngayKetThuc.month}/${promotion.ngayKetThuc.year}',
+                          style: TextStyle(color: Colors.grey[600], fontSize: 14),
+                        ),
+                      ],
+                    ),
+                    
+                    const SizedBox(height: 20),
+                    
+                    // Actions
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: () => Navigator.of(context).pop(),
+                            style: OutlinedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                            ),
+                            child: const Text('Đóng'),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: ElevatedButton(
+                            onPressed: () async {
+                              // Đóng dialog trước
+                              Navigator.of(context).pop();
+                              
+                              // Áp dụng promotion và chuyển sang màn hình khách sạn
+                              await _applyPromotion(promotion);
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF003580),
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                            ),
+                            child: const Text(
+                              'Áp dụng',
+                              style: TextStyle(color: Colors.white),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
+  }
+}
+
+// Sticky Tab Bar Delegate
+class _StickyTabBarDelegate extends SliverPersistentHeaderDelegate {
+  final Widget child;
+
+  _StickyTabBarDelegate({required this.child});
+
+  @override
+  double get minExtent => 60;
+
+  @override
+  double get maxExtent => 60;
+
+  @override
+  Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
+    return child;
+  }
+
+  @override
+  bool shouldRebuild(_StickyTabBarDelegate oldDelegate) {
+    return false;
   }
 }

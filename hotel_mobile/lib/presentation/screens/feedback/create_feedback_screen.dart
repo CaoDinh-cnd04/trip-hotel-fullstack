@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../data/models/feedback_model.dart';
 import '../../../data/services/feedback_service.dart';
+import '../../../data/services/backend_auth_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
@@ -14,6 +15,7 @@ class CreateFeedbackScreen extends StatefulWidget {
 
 class _CreateFeedbackScreenState extends State<CreateFeedbackScreen> {
   final FeedbackService _feedbackService = FeedbackService();
+  final BackendAuthService _backendAuthService = BackendAuthService();
   final _formKey = GlobalKey<FormState>();
   final _titleController = TextEditingController();
   final _contentController = TextEditingController();
@@ -83,8 +85,9 @@ class _CreateFeedbackScreenState extends State<CreateFeedbackScreen> {
       return;
     }
 
-    final currentUser = FirebaseAuth.instance.currentUser;
-    if (currentUser == null) {
+    // ✅ FIX: Lấy backend user thay vì Firebase user
+    final backendUser = _backendAuthService.currentUser;
+    if (backendUser == null || backendUser.id == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Vui lòng đăng nhập để gửi phản hồi')),
       );
@@ -110,9 +113,9 @@ class _CreateFeedbackScreenState extends State<CreateFeedbackScreen> {
       // Create feedback
       final feedback = FeedbackModel(
         id: 0, // Will be assigned by backend
-        nguoiDungId: int.parse(currentUser.uid), // Assuming UID is numeric
-        hoTen: currentUser.displayName,
-        email: currentUser.email,
+        nguoiDungId: backendUser.id!, // ✅ Safe to use ! because checked above
+        hoTen: backendUser.hoTen,
+        email: backendUser.email,
         tieuDe: _titleController.text.trim(),
         noiDung: _contentController.text.trim(),
         loaiPhanHoi: _selectedType,

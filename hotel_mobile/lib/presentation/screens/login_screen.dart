@@ -3,6 +3,7 @@ import '../../l10n/app_localizations.dart';
 import '../../data/services/backend_auth_service.dart';
 import '../../data/models/user_role_model.dart';
 import '../widgets/language_switcher.dart';
+import 'auth/email_otp_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -65,14 +66,8 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
         );
 
-        // Navigate based on role
-        if (result.userRole?.role == UserRole.admin) {
-          Navigator.pushReplacementNamed(context, '/admin/dashboard');
-        } else if (result.userRole?.role == UserRole.hotelManager) {
-          Navigator.pushReplacementNamed(context, '/hotel-manager/dashboard');
-        } else {
-          Navigator.pushReplacementNamed(context, '/main');
-        }
+        // Let MainWrapper handle routing based on user role
+        Navigator.pushNamedAndRemoveUntil(context, '/', (route) => false);
       } else if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -90,6 +85,33 @@ class _LoginScreenState extends State<LoginScreen> {
     } finally {
       setState(() => _isLoading = false);
     }
+  }
+
+  Future<void> _handleOTPLogin() async {
+    if (_emailController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Vui lòng nhập email')),
+      );
+      return;
+    }
+
+    // Kiểm tra email hợp lệ
+    if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(_emailController.text)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Email không hợp lệ')),
+      );
+      return;
+    }
+
+    // Navigate to OTP screen
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => EmailOTPScreen(
+          email: _emailController.text,
+        ),
+      ),
+    );
   }
 
   Future<void> _handleGoogleLogin() async {
@@ -123,14 +145,8 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
         );
 
-        // Navigate based on role
-        if (result.userRole?.role == UserRole.admin) {
-          Navigator.pushReplacementNamed(context, '/admin/dashboard');
-        } else if (result.userRole?.role == UserRole.hotelManager) {
-          Navigator.pushReplacementNamed(context, '/hotel-manager/dashboard');
-        } else {
-          Navigator.pushReplacementNamed(context, '/main');
-        }
+        // Let MainWrapper handle routing based on user role
+        Navigator.pushNamedAndRemoveUntil(context, '/', (route) => false);
       } else if (result.isCancelled && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -193,14 +209,8 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
         );
 
-        // Navigate based on role
-        if (result.userRole?.role == UserRole.admin) {
-          Navigator.pushReplacementNamed(context, '/admin/dashboard');
-        } else if (result.userRole?.role == UserRole.hotelManager) {
-          Navigator.pushReplacementNamed(context, '/hotel-manager/dashboard');
-        } else {
-          Navigator.pushReplacementNamed(context, '/main');
-        }
+        // Let MainWrapper handle routing based on user role
+        Navigator.pushNamedAndRemoveUntil(context, '/', (route) => false);
       } else if (result.isCancelled && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -236,50 +246,57 @@ class _LoginScreenState extends State<LoginScreen> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
 
-    return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Color(0xFF2196F3), Color(0xFF21CBF3), Color(0xFF42A5F5)],
+    return WillPopScope(
+      onWillPop: () async {
+        // Khi nhấn back, quay về MainWrapper thay vì pop ra màn hình đen
+        Navigator.pushNamedAndRemoveUntil(context, '/', (route) => false);
+        return false;
+      },
+      child: Scaffold(
+        body: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color(0xFF2196F3), Color(0xFF21CBF3), Color(0xFF42A5F5)],
+            ),
           ),
-        ),
-        child: SafeArea(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              children: [
-                // Language Switcher
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [LanguageSwitcher()],
-                ),
-                const SizedBox(height: 20),
+          child: SafeArea(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                children: [
+                  // Language Switcher
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [LanguageSwitcher()],
+                  ),
+                  const SizedBox(height: 20),
 
-                // Logo and Title
-                _buildHeader(l10n),
+                  // Logo and Title
+                  _buildHeader(l10n),
 
-                const SizedBox(height: 60),
+                  const SizedBox(height: 60),
 
-                // Login Form
-                _buildLoginForm(l10n),
+                  // Login Form
+                  _buildLoginForm(l10n),
 
-                const SizedBox(height: 32),
+                  const SizedBox(height: 32),
 
-                // Social Login Buttons
-                _buildSocialLoginButtons(),
+                  // Social Login Buttons
+                  _buildSocialLoginButtons(),
 
-                const SizedBox(height: 24),
+                  const SizedBox(height: 24),
 
-                // Register Link
-                _buildRegisterLink(),
+                  // Register Link
+                  _buildRegisterLink(),
 
-                const SizedBox(height: 20),
+                  const SizedBox(height: 20),
 
-                // Guest Mode
-                _buildGuestModeButton(),
-              ],
+                  // Guest Mode
+                  _buildGuestModeButton(),
+                ],
+              ),
             ),
           ),
         ),
@@ -401,31 +418,54 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
           const SizedBox(height: 16),
 
-          // Login Button
-          ElevatedButton(
-            onPressed: _isLoading ? null : _handleEmailLogin,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF2196F3),
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-              elevation: 2,
-            ),
-            child: _isLoading
-                ? const SizedBox(
-                    height: 20,
-                    width: 20,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                    ),
-                  )
-                : const Text(
-                    'Đăng nhập',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+          // Login Buttons
+          Column(
+            children: [
+              // Traditional Login Button
+              ElevatedButton(
+                onPressed: _isLoading ? null : _handleEmailLogin,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF2196F3),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
                   ),
+                  elevation: 2,
+                ),
+                child: _isLoading
+                    ? const SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                        ),
+                      )
+                    : const Text(
+                        'Đăng nhập với mật khẩu',
+                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                      ),
+              ),
+              const SizedBox(height: 12),
+              
+              // OTP Login Button
+              OutlinedButton(
+                onPressed: _isLoading ? null : _handleOTPLogin,
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: const Color(0xFF2196F3),
+                  side: const BorderSide(color: Color(0xFF2196F3)),
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child: const Text(
+                  'Đăng nhập với mã OTP',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 16),
         ],

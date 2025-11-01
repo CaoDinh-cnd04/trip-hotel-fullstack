@@ -7,17 +7,43 @@ import '../models/promotion.dart';
 import '../models/room.dart';
 import '../models/booking.dart';
 import '../models/discount_voucher.dart';
+import '../models/hotel_review.dart';
 import '../../core/constants/app_constants.dart';
-import 'mock_data_service.dart';
 
+/// Service quản lý tất cả API calls với Backend
+/// 
+/// Chức năng:
+/// - Cấu hình Dio với interceptors (logging, caching, auth)
+/// - CRUD operations cho: Hotels, Rooms, Bookings, Promotions, Discounts
+/// - Tự động thêm JWT token vào headers
+/// - Handle API errors và convert thành Exception messages
+/// - Cache API responses để tăng performance
+/// 
+/// Interceptors:
+/// 1. LogInterceptor: Log request/response để debug
+/// 2. CacheInterceptor: Cache responses (7 ngày)
+/// 3. AuthInterceptor: Tự động thêm "Authorization: Bearer {token}"
+///                      Tự động logout nếu 401 Unauthorized
+/// 
+/// Lưu ý: Dùng Singleton pattern - chỉ có 1 instance
 class ApiService {
+  // Singleton pattern
   static final ApiService _instance = ApiService._internal();
   factory ApiService() => _instance;
   ApiService._internal();
 
   late Dio _dio;
-  String? _token;
+  String? _token; // JWT token từ Backend
 
+  /// Khởi tạo Dio client với các interceptors
+  /// 
+  /// Được gọi trong main() trước khi runApp()
+  /// 
+  /// Setup:
+  /// - Base URL, timeouts
+  /// - LogInterceptor: Log API requests/responses
+  /// - CacheInterceptor: Cache GET requests (7 ngày)
+  /// - AuthInterceptor: Thêm Bearer token, handle 401 errors
   void initialize() {
     _dio = Dio(
       BaseOptions(
@@ -84,17 +110,22 @@ class ApiService {
     _loadToken();
   }
 
+  /// [PRIVATE] Load JWT token từ SharedPreferences khi app start
   Future<void> _loadToken() async {
     final prefs = await SharedPreferences.getInstance();
     _token = prefs.getString(AppConstants.tokenKey);
   }
 
+  /// Lưu JWT token vào memory và SharedPreferences
+  /// 
+  /// Token sẽ được tự động thêm vào headers của mọi API call
   Future<void> setToken(String token) async {
     _token = token;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(AppConstants.tokenKey, token);
   }
 
+  /// Xóa token và user data (khi logout hoặc 401 error)
   Future<void> clearToken() async {
     _token = null;
     final prefs = await SharedPreferences.getInstance();
@@ -102,9 +133,16 @@ class ApiService {
     await prefs.remove(AppConstants.userKey);
   }
 
+  /// Kiểm tra có token không (không kiểm tra validity)
   bool get isAuthenticated => _token != null;
 
-  // Generic POST method
+  /// [GENERIC] POST request
+  /// 
+  /// Parameters:
+  ///   - endpoint: API endpoint (ví dụ: "/auth/login")
+  ///   - data: Request body (JSON)
+  /// 
+  /// Returns: ApiResponse<dynamic>
   Future<ApiResponse> post(String endpoint, Map<String, dynamic> data) async {
     try {
       final response = await _dio.post(endpoint, data: data);
@@ -114,7 +152,13 @@ class ApiService {
     }
   }
 
-  // Generic GET method
+  /// [GENERIC] GET request
+  /// 
+  /// Parameters:
+  ///   - endpoint: API endpoint
+  ///   - queryParameters: Query params (ví dụ: {page: 1, limit: 10})
+  /// 
+  /// Returns: ApiResponse<dynamic>
   Future<ApiResponse> get(
     String endpoint, {
     Map<String, dynamic>? queryParameters,
@@ -130,7 +174,11 @@ class ApiService {
     }
   }
 
-  // Authentication APIs
+  /// Đăng nhập với email/password
+  /// 
+  /// API: POST /auth/login
+  /// 
+  /// Returns: AuthResponse với user + token
   Future<AuthResponse> login(LoginRequest request) async {
     try {
       final response = await _dio.post(
@@ -143,6 +191,11 @@ class ApiService {
     }
   }
 
+  /// Đăng ký tài khoản mới
+  /// 
+  /// API: POST /auth/register
+  /// 
+  /// Returns: AuthResponse với user + token
   Future<AuthResponse> register(RegisterRequest request) async {
     try {
       final response = await _dio.post(
@@ -155,6 +208,11 @@ class ApiService {
     }
   }
 
+  /// Gửi email reset mật khẩu
+  /// 
+  /// API: POST /auth/forgot-password
+  /// 
+  /// Returns: ApiResponse với success message
   Future<ApiResponse<String>> forgotPassword(String email) async {
     try {
       final response = await _dio.post(
@@ -170,7 +228,17 @@ class ApiService {
     }
   }
 
-  // Hotel APIs
+  /// Lấy danh sách khách sạn (có phân trang + filters)
+  /// 
+  /// API: GET /khachsan
+  /// 
+  /// Filters:
+  /// - search: Tìm theo tên
+  /// - minPrice/maxPrice: Lọc theo giá
+  /// - soSao: Lọc theo số sao (1-5)
+  /// - viTri: Lọc theo địa điểm
+  /// 
+  /// Returns: ApiResponse<List<Hotel>>
   Future<ApiResponse<List<Hotel>>> getHotels({
     int page = 1,
     int limit = 10,
@@ -212,18 +280,34 @@ class ApiService {
       });
     } catch (e) {
       print('❌ Error getting hotels: $e');
-      // Return mock data if API fails
+      // Return empty list if API fails
       return ApiResponse<List<Hotel>>(
-        success: true,
-        message: 'Mock hotels loaded',
-        data: MockDataService().getMockHotels(search: search),
+        success: false,
+        message: 'Không thể tải danh sách khách sạn',
+        data: [],
       );
     }
   }
 
-  Future<ApiResponse<Hotel>> getHotelById(int id) async {
+  /// Lấy chi tiết khách sạn theo ID
+  /// 
+  /// API: GET /khachsan/{id}
+  /// 
+  /// Parameters:
+  ///   - withRooms: Có lấy danh sách phòng không (default: false)
+  /// 
+  /// Returns: ApiResponse<Hotel>
+  Future<ApiResponse<Hotel>> getHotelById(int id, {bool withRooms = false}) async {
     try {
-      final response = await _dio.get('${AppConstants.hotelsEndpoint}/$id');
+      final queryParams = <String, dynamic>{};
+      if (withRooms) {
+        queryParams['with_rooms'] = 'true';
+      }
+      
+      final response = await _dio.get(
+        '${AppConstants.hotelsEndpoint}/$id',
+        queryParameters: queryParams.isEmpty ? null : queryParams,
+      );
       return ApiResponse<Hotel>.fromJson(
         response.data,
         (data) => Hotel.fromJson(data),
@@ -233,6 +317,61 @@ class ApiService {
     }
   }
 
+  /// Lấy danh sách phòng của khách sạn
+  /// 
+  /// API: GET /api/khachsan/{id}/phong
+  /// 
+  /// Parameters:
+  ///   - hotelId: ID của khách sạn
+  ///   - availableFrom: Ngày bắt đầu (optional)
+  ///   - availableTo: Ngày kết thúc (optional)
+  /// 
+  /// Returns: ApiResponse<List<Room>>
+  Future<ApiResponse<List<Room>>> getHotelRooms(
+    int hotelId, {
+    String? availableFrom,
+    String? availableTo,
+  }) async {
+    try {
+      final queryParams = <String, dynamic>{};
+      if (availableFrom != null) {
+        queryParams['available_from'] = availableFrom;
+      }
+      if (availableTo != null) {
+        queryParams['available_to'] = availableTo;
+      }
+
+      final response = await _dio.get(
+        '${AppConstants.hotelsEndpoint}/$hotelId/phong',
+        queryParameters: queryParams.isEmpty ? null : queryParams,
+      );
+
+      return ApiResponse<List<Room>>.fromJson(response.data, (data) {
+        if (data is List) {
+          return data.map((item) => Room.fromJson(item)).toList();
+        }
+        return <Room>[];
+      });
+    } catch (e) {
+      print('❌ Error getting hotel rooms: $e');
+      return ApiResponse<List<Room>>(
+        success: false,
+        message: 'Không thể tải danh sách phòng',
+        data: [],
+      );
+    }
+  }
+
+  /// Tìm kiếm khách sạn theo query + filters
+  /// 
+  /// API: GET /khachsan/search
+  /// 
+  /// Parameters:
+  ///   - query: Từ khóa tìm kiếm
+  ///   - checkIn/checkOut: Ngày checkin/checkout (ISO8601)
+  ///   - guests: Số lượng khách
+  /// 
+  /// Returns: ApiResponse<List<Hotel>>
   Future<ApiResponse<List<Hotel>>> searchHotels({
     required String query,
     String? checkIn,
@@ -268,11 +407,15 @@ class ApiService {
     }
   }
 
-  // Test connection method
+  /// Test kết nối với Backend API
+  /// 
+  /// Gọi GET /khachsan?limit=1 để check backend có online không
+  /// 
+  /// Returns: true nếu kết nối thành công, false nếu lỗi
   Future<bool> testConnection() async {
     try {
       // Testing connection to: ${AppConstants.baseUrl}
-      final response = await _dio.get('/khachsan?limit=1');
+      final response = await _dio.get('/api/khachsan?limit=1');
       // Connection test successful: ${response.statusCode}
       return response.statusCode == 200;
     } catch (e) {
@@ -286,6 +429,13 @@ class ApiService {
     }
   }
 
+  /// [PRIVATE] Xử lý lỗi API và convert thành Exception với message dễ hiểu
+  /// 
+  /// DioException types:
+  /// - connectionTimeout/sendTimeout/receiveTimeout → "Kết nối timeout"
+  /// - badResponse → Lấy message từ response body
+  /// - cancel → "Yêu cầu đã bị hủy"
+  /// - unknown → "Không có kết nối internet"
   Exception _handleError(dynamic error) {
     if (error is DioException) {
       switch (error.type) {
@@ -309,6 +459,16 @@ class ApiService {
 
   // ================== PROMOTION CRUD ==================
 
+  /// Lấy danh sách khuyến mãi
+  /// 
+  /// API: GET /khuyenmai
+  /// 
+  /// Parameters:
+  ///   - page: Trang hiện tại
+  ///   - limit: Số lượng items/trang
+  ///   - active: Lọc theo trạng thái (true=đang hoạt động)
+  /// 
+  /// Returns: ApiResponse<List<Promotion>>
   Future<ApiResponse<List<Promotion>>> getPromotions({
     int page = 1,
     int limit = 10,
@@ -339,11 +499,11 @@ class ApiService {
           print('🔄 Backend error, using mock data...');
         }
       }
-      // Return mock data if API fails
+      // Return empty list if API fails
       return ApiResponse<List<Promotion>>(
-        success: true,
-        message: 'Mock promotions loaded',
-        data: MockDataService().getMockPromotions(),
+        success: false,
+        message: 'Không thể tải danh sách khuyến mãi',
+        data: [],
       );
     }
   }
@@ -404,6 +564,11 @@ class ApiService {
 
   // ================== DISCOUNT CODES (MAGIAMGIA) ==================
 
+  /// Lấy danh sách mã giảm giá
+  /// 
+  /// API: GET /magiamgia
+  /// 
+  /// Returns: ApiResponse<List<DiscountVoucher>>
   Future<ApiResponse<List<DiscountVoucher>>> getDiscountCodes({
     int page = 1,
     int limit = 10,
@@ -416,7 +581,7 @@ class ApiService {
       }
 
       final response = await _dio.get(
-        '/magiamgia',
+        '/api/magiamgia',
         queryParameters: queryParams,
       );
 
@@ -438,15 +603,20 @@ class ApiService {
       return ApiResponse<List<DiscountVoucher>>(
         success: true,
         message: 'Mock discount codes loaded',
-        data: MockDataService().getMockDiscountCodes(),
+        data: [],
       );
     }
   }
 
+  /// Validate mã giảm giá (check còn hạn không, còn lượt sử dụng không)
+  /// 
+  /// API: POST /magiamgia/validate
+  /// 
+  /// Returns: ApiResponse<DiscountVoucher> nếu valid, error nếu invalid
   Future<ApiResponse<DiscountVoucher>> validateDiscountCode(String code) async {
     try {
       final response = await _dio.post(
-        '/magiamgia/validate',
+        '/api/magiamgia/validate',
         data: {'code': code},
       );
 
@@ -473,6 +643,11 @@ class ApiService {
 
   // ================== ROOM CRUD ==================
 
+  /// Lấy danh sách phòng (có filter theo khách sạn)
+  /// 
+  /// API: GET /phong
+  /// 
+  /// Returns: ApiResponse<List<Room>>
   Future<ApiResponse<List<Room>>> getRooms({
     int page = 1,
     int limit = 10,
@@ -488,7 +663,7 @@ class ApiService {
         queryParams['available'] = available;
       }
 
-      final response = await _dio.get('/phong', queryParameters: queryParams);
+      final response = await _dio.get('/api/phong', queryParameters: queryParams);
 
       return ApiResponse<List<Room>>.fromJson(response.data, (data) {
         if (data is List) {
@@ -503,7 +678,7 @@ class ApiService {
 
   Future<ApiResponse<Room>> getRoomById(int id) async {
     try {
-      final response = await _dio.get('/phong/$id');
+      final response = await _dio.get('/api/phong/$id');
       return ApiResponse<Room>.fromJson(
         response.data,
         (data) => Room.fromJson(data),
@@ -513,9 +688,14 @@ class ApiService {
     }
   }
 
+  /// Lấy tất cả phòng của 1 khách sạn
+  /// 
+  /// API: GET /khachsan/{hotelId}/phong
+  /// 
+  /// Returns: ApiResponse<List<Room>>
   Future<ApiResponse<List<Room>>> getRoomsByHotel(int hotelId) async {
     try {
-      final response = await _dio.get('/khachsan/$hotelId/phong');
+      final response = await _dio.get('/api/khachsan/$hotelId/phong');
       return ApiResponse<List<Room>>.fromJson(response.data, (data) {
         if (data is List) {
           return data.map((item) => Room.fromJson(item)).toList();
@@ -529,7 +709,7 @@ class ApiService {
 
   Future<ApiResponse<Room>> createRoom(Room room) async {
     try {
-      final response = await _dio.post('/phong', data: room.toJson());
+      final response = await _dio.post('/api/phong', data: room.toJson());
       return ApiResponse<Room>.fromJson(
         response.data,
         (data) => Room.fromJson(data),
@@ -541,7 +721,7 @@ class ApiService {
 
   Future<ApiResponse<Room>> updateRoom(Room room) async {
     try {
-      final response = await _dio.put('/phong/${room.id}', data: room.toJson());
+      final response = await _dio.put('/api/phong/${room.id}', data: room.toJson());
       return ApiResponse<Room>.fromJson(
         response.data,
         (data) => Room.fromJson(data),
@@ -553,7 +733,7 @@ class ApiService {
 
   Future<ApiResponse<String>> deleteRoom(int id) async {
     try {
-      final response = await _dio.delete('/phong/$id');
+      final response = await _dio.delete('/api/phong/$id');
       return ApiResponse<String>.fromJson(
         response.data,
         (data) => data.toString(),
@@ -565,6 +745,11 @@ class ApiService {
 
   // ================== BOOKING CRUD ==================
 
+  /// Lấy danh sách booking (có filter theo user ID và trạng thái)
+  /// 
+  /// API: GET /phieudatphong
+  /// 
+  /// Returns: ApiResponse<List<Booking>>
   Future<ApiResponse<List<Booking>>> getBookings({
     int page = 1,
     int limit = 10,
@@ -581,7 +766,7 @@ class ApiService {
       }
 
       final response = await _dio.get(
-        '/phieudatphong',
+        '/api/phieudatphong',
         queryParameters: queryParams,
       );
 
@@ -598,7 +783,7 @@ class ApiService {
 
   Future<ApiResponse<Booking>> getBookingById(int id) async {
     try {
-      final response = await _dio.get('/phieudatphong/$id');
+      final response = await _dio.get('/api/phieudatphong/$id');
       return ApiResponse<Booking>.fromJson(
         response.data,
         (data) => Booking.fromJson(data),
@@ -608,10 +793,15 @@ class ApiService {
     }
   }
 
+  /// Tạo booking mới
+  /// 
+  /// API: POST /phieudatphong
+  /// 
+  /// Returns: ApiResponse<Booking> với booking ID mới
   Future<ApiResponse<Booking>> createBooking(Booking booking) async {
     try {
       final response = await _dio.post(
-        '/phieudatphong',
+        '/api/phieudatphong',
         data: booking.toJson(),
       );
       return ApiResponse<Booking>.fromJson(
@@ -626,7 +816,7 @@ class ApiService {
   Future<ApiResponse<Booking>> updateBooking(Booking booking) async {
     try {
       final response = await _dio.put(
-        '/phieudatphong/${booking.id}',
+        '/api/phieudatphong/${booking.id}',
         data: booking.toJson(),
       );
       return ApiResponse<Booking>.fromJson(
@@ -638,9 +828,14 @@ class ApiService {
     }
   }
 
+  /// Hủy booking (update trạng thái thành "cancelled")
+  /// 
+  /// API: PUT /phieudatphong/{id}/cancel
+  /// 
+  /// Returns: ApiResponse<String> với success message
   Future<ApiResponse<String>> cancelBooking(int id) async {
     try {
-      final response = await _dio.put('/phieudatphong/$id/cancel');
+      final response = await _dio.put('/api/phieudatphong/$id/cancel');
       return ApiResponse<String>.fromJson(
         response.data,
         (data) => data.toString(),
@@ -652,7 +847,7 @@ class ApiService {
 
   Future<ApiResponse<String>> deleteBooking(int id) async {
     try {
-      final response = await _dio.delete('/phieudatphong/$id');
+      final response = await _dio.delete('/api/phieudatphong/$id');
       return ApiResponse<String>.fromJson(
         response.data,
         (data) => data.toString(),
@@ -664,6 +859,16 @@ class ApiService {
 
   // ================== ROOM AVAILABILITY ==================
 
+  /// Kiểm tra phòng trống trong khoảng thời gian
+  /// 
+  /// API: GET /phong/available
+  /// 
+  /// Parameters:
+  ///   - hotelId: ID khách sạn
+  ///   - checkIn/checkOut: Ngày checkin/checkout
+  ///   - guests: Số lượng khách
+  /// 
+  /// Returns: ApiResponse<List<Room>> - Danh sách phòng còn trống
   Future<ApiResponse<List<Room>>> checkRoomAvailability({
     required int hotelId,
     required DateTime checkIn,
@@ -679,7 +884,7 @@ class ApiService {
       };
 
       final response = await _dio.get(
-        '/phong/available',
+        '/api/phong/available',
         queryParameters: queryParams,
       );
 
@@ -690,6 +895,60 @@ class ApiService {
         return <Room>[];
       });
     } catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  // ================== HOTEL REVIEWS ==================
+
+  /// Lấy danh sách đánh giá của một khách sạn (Public - không cần auth)
+  /// 
+  /// API: GET /api/khachsan/:id/reviews
+  /// 
+  /// Parameters:
+  ///   - hotelId: ID khách sạn
+  /// 
+  /// Returns: ApiResponse<List<HotelReview>> - Danh sách đánh giá đã được duyệt
+  Future<ApiResponse<List<HotelReview>>> getHotelReviews(int hotelId) async {
+    try {
+      print('📞 Calling API: ${AppConstants.hotelsEndpoint}/$hotelId/reviews');
+      final response = await _dio.get('${AppConstants.hotelsEndpoint}/$hotelId/reviews');
+      print('📥 API Response status: ${response.statusCode}');
+      print('📥 API Response data: ${response.data}');
+      
+      // Handle different response formats
+      if (response.data is Map<String, dynamic>) {
+        final dataMap = response.data as Map<String, dynamic>;
+        
+        // If response has 'data' field
+        if (dataMap.containsKey('data')) {
+          return ApiResponse<List<HotelReview>>.fromJson(response.data, (data) {
+            if (data is List) {
+              return data.map((item) => HotelReview.fromJson(item)).toList();
+            }
+            return <HotelReview>[];
+          });
+        } 
+        // If response is directly a list (unlikely but handle it)
+        else if (dataMap.containsKey('success')) {
+          return ApiResponse<List<HotelReview>>.fromJson(response.data, (data) {
+            if (data is List) {
+              return data.map((item) => HotelReview.fromJson(item)).toList();
+            }
+            return <HotelReview>[];
+          });
+        }
+      }
+      
+      // Default parsing
+      return ApiResponse<List<HotelReview>>.fromJson(response.data, (data) {
+        if (data is List) {
+          return data.map((item) => HotelReview.fromJson(item)).toList();
+        }
+        return <HotelReview>[];
+      });
+    } catch (e) {
+      print('❌ Error in getHotelReviews: $e');
       throw _handleError(e);
     }
   }
