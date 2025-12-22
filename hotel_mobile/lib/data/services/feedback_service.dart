@@ -4,6 +4,14 @@ import '../models/api_response.dart';
 import '../../core/constants/app_constants.dart';
 import 'backend_auth_service.dart';
 
+/// Service xử lý phản hồi (feedback) từ người dùng
+/// 
+/// Chức năng:
+/// - Tạo, đọc, cập nhật, xóa phản hồi
+/// - Lọc và tìm kiếm phản hồi
+/// - Phản hồi của admin cho phản hồi người dùng
+/// - Upload hình ảnh kèm phản hồi
+/// - Lấy thống kê phản hồi
 class FeedbackService {
   static final FeedbackService _instance = FeedbackService._internal();
   factory FeedbackService() => _instance;
@@ -12,6 +20,9 @@ class FeedbackService {
   late Dio _dio;
   final BackendAuthService _authService = BackendAuthService();
   
+  /// Khởi tạo service với cấu hình Dio
+  /// 
+  /// Thiết lập interceptors cho logging, authentication và error handling
   void initialize() {
     _dio = Dio(BaseOptions(
       baseUrl: AppConstants.baseUrl,
@@ -50,12 +61,26 @@ class FeedbackService {
     ));
   }
 
-  // Set authorization token (kept for backward compatibility)
+  /// Thiết lập JWT token cho các request
+  /// 
+  /// [token] - JWT token
+  /// 
+  /// Lưu ý: Giữ lại để tương thích ngược, nhưng token sẽ được tự động thêm qua interceptor
   void setAuthToken(String token) {
     _dio.options.headers['Authorization'] = 'Bearer $token';
   }
 
-  // Get all feedbacks with filters
+  /// Lấy danh sách phản hồi với các bộ lọc
+  /// 
+  /// [page] - Trang cần lấy (mặc định: 1)
+  /// [limit] - Số lượng phản hồi mỗi trang (mặc định: 20)
+  /// [status] - Trạng thái phản hồi (pending, resolved, closed, all)
+  /// [type] - Loại phản hồi (bug, feature, complaint, all)
+  /// [priority] - Độ ưu tiên (1-5)
+  /// [userId] - ID người dùng (lọc theo người dùng)
+  /// [search] - Từ khóa tìm kiếm
+  /// 
+  /// Trả về ApiResponse chứa danh sách FeedbackModel
   Future<ApiResponse<List<FeedbackModel>>> getFeedbacks({
     int page = 1,
     int limit = 20,
@@ -90,7 +115,11 @@ class FeedbackService {
     }
   }
 
-  // Get feedback by ID
+  /// Lấy thông tin chi tiết một phản hồi theo ID
+  /// 
+  /// [id] - ID của phản hồi
+  /// 
+  /// Trả về ApiResponse chứa FeedbackModel
   Future<ApiResponse<FeedbackModel>> getFeedbackById(int id) async {
     try {
       final response = await _dio.get('/feedback/$id');
@@ -103,7 +132,11 @@ class FeedbackService {
     }
   }
 
-  // Create new feedback
+  /// Tạo phản hồi mới
+  /// 
+  /// [feedback] - Đối tượng FeedbackModel chứa thông tin phản hồi
+  /// 
+  /// Trả về ApiResponse chứa FeedbackModel đã được tạo
   Future<ApiResponse<FeedbackModel>> createFeedback(FeedbackModel feedback) async {
     try {
       print('🔄 FeedbackService: Sending POST to /feedback');
@@ -129,7 +162,11 @@ class FeedbackService {
     }
   }
 
-  // Update feedback
+  /// Cập nhật thông tin phản hồi
+  /// 
+  /// [feedback] - Đối tượng FeedbackModel với ID và thông tin cần cập nhật
+  /// 
+  /// Trả về ApiResponse chứa FeedbackModel đã được cập nhật
   Future<ApiResponse<FeedbackModel>> updateFeedback(FeedbackModel feedback) async {
     try {
       final response = await _dio.put(
@@ -145,7 +182,14 @@ class FeedbackService {
     }
   }
 
-  // Admin response to feedback
+  /// Admin phản hồi lại cho phản hồi của người dùng
+  /// 
+  /// [feedbackId] - ID của phản hồi cần phản hồi
+  /// [response] - Nội dung phản hồi của admin
+  /// [status] - Trạng thái mới (pending, resolved, closed)
+  /// [priority] - Độ ưu tiên (tùy chọn, 1-5)
+  /// 
+  /// Trả về ApiResponse chứa FeedbackModel đã được cập nhật
   Future<ApiResponse<FeedbackModel>> respondToFeedback({
     required int feedbackId,
     required String response,
@@ -177,7 +221,13 @@ class FeedbackService {
     }
   }
 
-  // Update feedback status
+  /// Cập nhật trạng thái của phản hồi
+  /// 
+  /// [feedbackId] - ID của phản hồi
+  /// [status] - Trạng thái mới (pending, resolved, closed)
+  /// [note] - Ghi chú về thay đổi trạng thái (tùy chọn)
+  /// 
+  /// Trả về ApiResponse chứa FeedbackModel đã được cập nhật
   Future<ApiResponse<FeedbackModel>> updateFeedbackStatus({
     required int feedbackId,
     required String status,
@@ -207,7 +257,11 @@ class FeedbackService {
     }
   }
 
-  // Delete feedback
+  /// Xóa phản hồi
+  /// 
+  /// [id] - ID của phản hồi cần xóa
+  /// 
+  /// Trả về ApiResponse với thông báo kết quả
   Future<ApiResponse<String>> deleteFeedback(int id) async {
     try {
       final response = await _dio.delete('/feedback/$id');
@@ -220,7 +274,12 @@ class FeedbackService {
     }
   }
 
-  // Get feedback statistics
+  /// Lấy thống kê về phản hồi
+  /// 
+  /// [fromDate] - Ngày bắt đầu (tùy chọn)
+  /// [toDate] - Ngày kết thúc (tùy chọn)
+  /// 
+  /// Trả về ApiResponse chứa dữ liệu thống kê (số lượng theo trạng thái, loại, v.v.)
   Future<ApiResponse<Map<String, dynamic>>> getFeedbackStatistics({
     DateTime? fromDate,
     DateTime? toDate,
@@ -241,7 +300,11 @@ class FeedbackService {
     }
   }
 
-  // Upload feedback images
+  /// Upload hình ảnh kèm phản hồi
+  /// 
+  /// [imagePaths] - Danh sách đường dẫn file hình ảnh trên thiết bị
+  /// 
+  /// Trả về ApiResponse chứa danh sách URL của hình ảnh đã upload
   Future<ApiResponse<List<String>>> uploadFeedbackImages(List<String> imagePaths) async {
     try {
       final formData = FormData();
@@ -264,7 +327,14 @@ class FeedbackService {
     }
   }
 
-  // Get user's feedbacks
+  /// Lấy danh sách phản hồi của một người dùng cụ thể
+  /// 
+  /// [userId] - ID của người dùng (bắt buộc)
+  /// [page] - Trang cần lấy (mặc định: 1)
+  /// [limit] - Số lượng phản hồi mỗi trang (mặc định: 20)
+  /// [status] - Lọc theo trạng thái (tùy chọn)
+  /// 
+  /// Trả về ApiResponse chứa danh sách FeedbackModel
   Future<ApiResponse<List<FeedbackModel>>> getUserFeedbacks({
     required int userId,
     int page = 1,
@@ -297,6 +367,11 @@ class FeedbackService {
     }
   }
 
+  /// Xử lý và chuyển đổi lỗi thành Exception với thông báo tiếng Việt
+  /// 
+  /// [error] - Lỗi từ DioException hoặc các exception khác
+  /// 
+  /// Trả về Exception với thông báo lỗi bằng tiếng Việt
   Exception _handleError(dynamic error) {
     if (error is DioException) {
       switch (error.type) {

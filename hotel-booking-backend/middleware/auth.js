@@ -20,7 +20,8 @@ const authenticateToken = async (req, res, next) => {
     
     // Get user from database
     const userId = decoded.id || decoded.ma_nguoi_dung;
-    const user = await NguoiDung.findById(userId);
+    const nguoiDung = new NguoiDung();
+    const user = await nguoiDung.findById(userId);
     
     if (!user) {
       return res.status(401).json({

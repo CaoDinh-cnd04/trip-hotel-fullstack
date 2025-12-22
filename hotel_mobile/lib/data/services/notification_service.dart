@@ -2,9 +2,11 @@ import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/notification.dart';
+import '../models/notification_model.dart' as NotificationModelVN;
 import '../models/api_response.dart';
 import '../../core/constants/app_constants.dart';
 import 'backend_auth_service.dart';
+import 'email_notification_service.dart';
 
 class NotificationService {
   static final NotificationService _instance = NotificationService._internal();
@@ -48,11 +50,14 @@ class NotificationService {
     // Add auth interceptor - automatically get token from BackendAuthService
     _dio.interceptors.add(
       InterceptorsWrapper(
-        onRequest: (options, handler) {
-          // Get token from BackendAuthService automatically
-          final token = _backendAuthService.getToken();
-          if (token != null) {
+        onRequest: (options, handler) async {
+          // Get token from BackendAuthService automatically (async)
+          final token = await _backendAuthService.getToken();
+          if (token != null && token.isNotEmpty) {
             options.headers['Authorization'] = 'Bearer $token';
+            print('✅ NotificationService: Added token to header');
+          } else {
+            print('⚠️ NotificationService: No token available');
           }
           handler.next(options);
         },
@@ -92,17 +97,172 @@ class NotificationService {
       if (type != null) queryParams['type'] = type;
       if (unreadOnly != null) queryParams['unread_only'] = unreadOnly;
 
+      print('📞 Calling GET ${AppConstants.notificationsEndpoint} with params: $queryParams');
       final response = await _dio.get(
         AppConstants.notificationsEndpoint,
         queryParameters: queryParams,
       );
 
-      return ApiResponse<List<NotificationModel>>.fromJson(response.data, (data) {
-        if (data != null && data is List) {
-          return data.map((item) => NotificationModel.fromJson(item)).toList();
+      print('📥 Response status: ${response.statusCode}');
+      print('📥 Response data type: ${response.data.runtimeType}');
+      print('📥 Full response data: ${response.data}');
+      
+      // Backend trả về: { success: true, data: [...], pagination: {...} }
+      // Hoặc có thể trả về trực tiếp array
+      List<dynamic> dataList = [];
+      if (response.data['data'] != null) {
+        if (response.data['data'] is List) {
+          dataList = response.data['data'] as List;
+        } else {
+          print('⚠️ Response data is not a List: ${response.data['data'].runtimeType}');
         }
-        return <NotificationModel>[];
-      });
+      } else if (response.data is List) {
+        dataList = response.data as List;
+      } else {
+        print('⚠️ Response does not contain data field and is not a List');
+      }
+      
+      print('📦 Found ${dataList.length} notifications in response');
+      if (dataList.isNotEmpty) {
+        print('📦 First notification sample keys: ${(dataList[0] as Map).keys.toList()}');
+        print('📦 First notification sample: ${dataList[0]}');
+        print('📦 First notification visible: ${(dataList[0] as Map)['visible'] ?? (dataList[0] as Map)['hien_thi'] ?? (dataList[0] as Map)['is_visible']}');
+      } else {
+        print('⚠️ No notifications in response data');
+      }
+
+      // Helper functions
+      String mapType(String? type) {
+        if (type == null) return 'promotion';
+        switch (type.toLowerCase()) {
+          case 'ưu đãi':
+          case 'promotion':
+            return 'promotion';
+          case 'phòng mới':
+          case 'new_room':
+            return 'new_room';
+          case 'chương trình app':
+          case 'app_program':
+            return 'app_program';
+          case 'đặt phòng thành công':
+          case 'booking_success':
+            return 'booking_success';
+          case 'general':
+          case 'system':
+          default:
+            return 'promotion'; // Default to promotion for general/system types
+        }
+      }
+      
+      DateTime? parseDate(dynamic value) {
+        if (value == null) return null;
+        try {
+          if (value is String) {
+            return DateTime.parse(value);
+          } else if (value is DateTime) {
+            return value;
+          }
+        } catch (e) {
+          print('⚠️ Error parsing date: $value');
+        }
+        return null;
+      }
+      
+      int? parseInt(dynamic value) {
+        if (value == null) return null;
+        if (value is int) return value;
+        if (value is String) return int.tryParse(value);
+        return null;
+      }
+      
+      bool parseBool(dynamic value) {
+        if (value == null) return false;
+        if (value is bool) return value;
+        if (value is int) return value == 1 || value != 0; // SQL Server BIT: 1 = true, 0 = false
+        if (value is String) {
+          final lower = value.toLowerCase().trim();
+          return lower == 'true' || lower == '1' || lower == 'yes';
+        }
+        // SQL Server có thể trả về object với property value
+        if (value is Map && value.containsKey('value')) {
+          return parseBool(value['value']);
+        }
+        return false;
+      }
+
+      // Parse notifications từ dataList trực tiếp
+      final notifications = <NotificationModel>[];
+      for (var item in dataList) {
+        try {
+          if (item is Map<String, dynamic>) {
+            final itemId = parseInt(item['id'] ?? item['ma_thong_bao']);
+            final itemTitle = item['tieu_de'] ?? item['title'] ?? '';
+            print('📋 Parsing notification: $itemId - $itemTitle');
+            print('📋 Notification fields: ${item.keys.toList()}');
+            
+            // Kiểm tra visible field - chỉ parse notification nếu visible = true
+            // Backend có thể trả về: visible, hien_thi, hoặc is_visible
+            // SQL Server BIT có thể trả về dạng object hoặc int
+            final visibleValue = item['visible'] ?? item['hien_thi'] ?? item['is_visible'];
+            final isVisible = parseBool(visibleValue ?? true); // Default true nếu không có field
+            print('📋 Notification visible field: $visibleValue (type: ${visibleValue.runtimeType}) -> parsed: $isVisible');
+            
+            if (!isVisible) {
+              print('⚠️ Skipping notification ${itemId} - not visible (visible=$visibleValue, parsed=$isVisible)');
+              continue;
+            }
+            
+            print('✅ Notification ${itemId} is visible, proceeding to parse...');
+            
+            // Kiểm tra expiration date
+            final expiresAt = parseDate(item['ngay_het_han'] ?? item['expires_at']);
+            if (expiresAt != null && expiresAt.isBefore(DateTime.now())) {
+              print('⚠️ Skipping notification ${itemId} - expired (expires_at=$expiresAt)');
+              continue;
+            }
+            
+            // Helper để safe toString
+            String? safeToString(dynamic value) {
+              if (value == null) return null;
+              return value.toString();
+            }
+            
+            // Tạo NotificationModel từ field tiếng Việt hoặc tiếng Anh
+            final notification = NotificationModel(
+              id: itemId ?? 0,
+              title: itemTitle.toString(),
+              content: (item['noi_dung'] ?? item['content'] ?? '').toString(),
+              type: mapType(item['loai_thong_bao'] ?? item['type']),
+              imageUrl: safeToString(item['url_hinh_anh'] ?? item['image_url']),
+              actionUrl: safeToString(item['url_hanh_dong'] ?? item['action_url']),
+              actionText: safeToString(item['van_ban_nut'] ?? item['action_text']),
+              isRead: parseBool(item['da_doc'] ?? item['is_read']),
+              createdAt: parseDate(item['ngay_tao'] ?? item['created_at']) ?? DateTime.now(),
+              expiresAt: expiresAt,
+              senderName: safeToString(item['nguoi_tao'] ?? item['sender_name']),
+              senderType: safeToString(item['loai_nguoi_gui'] ?? item['sender_type']),
+              hotelId: parseInt(item['khach_san_id'] ?? item['hotel_id']),
+            );
+            
+            notifications.add(notification);
+            print('✅ Parsed notification: ${notification.id} - ${notification.title} (type: ${notification.type})');
+          } else {
+            print('⚠️ Item is not a Map: ${item.runtimeType}');
+          }
+        } catch (e, stackTrace) {
+          print('❌ Error parsing notification: $e');
+          print('❌ Stack trace: $stackTrace');
+          print('❌ Item data: $item');
+        }
+      }
+      
+      print('✅ Successfully parsed ${notifications.length} out of ${dataList.length} notifications');
+      
+      return ApiResponse<List<NotificationModel>>(
+        success: response.data['success'] ?? true,
+        message: response.data['message'] ?? 'Success',
+        data: notifications,
+      );
     } catch (e) {
       print('❌ Error getting notifications: $e');
       // Return mock data if API fails
@@ -194,13 +354,81 @@ class NotificationService {
 
       final response = await _dio.post(AppConstants.notificationsEndpoint, data: data);
 
-      return ApiResponse<NotificationModel>.fromJson(
+      final notificationResponse = ApiResponse<NotificationModel>.fromJson(
         response.data,
         (data) => NotificationModel.fromJson(data),
       );
+
+      // Nếu tạo thông báo thành công và sendEmail = true, gửi email hàng loạt
+      if (notificationResponse.success && sendEmail) {
+        try {
+          await _sendBulkEmailNotification(
+            title: title,
+            content: content,
+            type: type,
+            imageUrl: imageUrl,
+            actionUrl: actionUrl,
+            hotelId: hotelId,
+          );
+        } catch (e) {
+          print('⚠️ Error sending bulk email notification: $e');
+          // Không throw error vì thông báo đã được tạo thành công
+        }
+      }
+
+      return notificationResponse;
     } catch (e) {
       print('❌ Error creating notification: $e');
       throw _handleError(e);
+    }
+  }
+
+  /// Gửi email thông báo hàng loạt đến tất cả người dùng
+  Future<void> _sendBulkEmailNotification({
+    required String title,
+    required String content,
+    required String type,
+    String? imageUrl,
+    String? actionUrl,
+    int? hotelId,
+  }) async {
+    try {
+      // Import EmailNotificationService
+      final emailService = EmailNotificationService();
+      emailService.initialize();
+
+      // Xác định template type và data dựa trên notification type
+      String templateType = 'general_notification';
+      Map<String, dynamic> emailData = {
+        'title': title,
+        'content': content,
+        'image_url': imageUrl,
+        'action_url': actionUrl,
+      };
+
+      if (type == 'new_room' || type == 'promotion') {
+        templateType = 'new_promotion';
+        emailData['promotion_title'] = title;
+        emailData['promotion_description'] = content;
+        emailData['promotion_image_url'] = imageUrl;
+        emailData['promotion_id'] = hotelId; // Có thể là promotion ID
+      }
+
+      // Gửi email hàng loạt
+      final emailResult = await emailService.sendBulkNotificationEmail(
+        subject: title,
+        templateType: templateType,
+        data: emailData,
+      );
+
+      if (emailResult['success'] == true) {
+        print('✅ Đã gửi email thông báo đến ${emailResult['sent_count']} người dùng');
+      } else {
+        print('⚠️ Gửi email thất bại: ${emailResult['message']}');
+      }
+    } catch (e) {
+      print('❌ Lỗi gửi email hàng loạt: $e');
+      // Không throw để không ảnh hưởng đến việc tạo thông báo
     }
   }
 

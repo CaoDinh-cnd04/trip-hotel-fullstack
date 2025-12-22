@@ -5,10 +5,21 @@ import '../models/hotel_registration.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/services/backend_auth_service.dart';
 
+/// Service xử lý các chức năng cho chủ khách sạn
+/// 
+/// Bao gồm:
+/// - Đăng ký khách sạn mới
+/// - Lấy danh sách khách sạn của chủ sở hữu
+/// - Lấy thống kê khách sạn
 class HotelOwnerService {
   final Dio _dio = Dio(BaseOptions(baseUrl: AppConstants.baseUrl));
   final BackendAuthService _authService = BackendAuthService();
 
+  /// Gửi đơn đăng ký khách sạn lên server
+  /// 
+  /// [registration] - Thông tin đăng ký khách sạn bao gồm hình ảnh
+  /// 
+  /// Trả về ApiResponse chứa kết quả đăng ký (thành công/thất bại)
   Future<ApiResponse<Map<String, dynamic>>> submitHotelRegistration(
     HotelRegistration registration,
   ) async {
@@ -82,6 +93,10 @@ class HotelOwnerService {
     }
   }
 
+  /// Lấy danh sách tất cả khách sạn của chủ sở hữu hiện tại
+  /// 
+  /// Trả về danh sách khách sạn dưới dạng ApiResponse
+  /// Yêu cầu đăng nhập (JWT token)
   Future<ApiResponse<List<Map<String, dynamic>>>> getMyHotels() async {
     try {
       final token = await _authService.getToken();
@@ -121,6 +136,10 @@ class HotelOwnerService {
     }
   }
 
+  /// Lấy thống kê về khách sạn của chủ sở hữu
+  /// 
+  /// Bao gồm: số lượt đặt, doanh thu, đánh giá, v.v.
+  /// Trả về ApiResponse chứa dữ liệu thống kê
   Future<ApiResponse<Map<String, dynamic>>> getHotelStats() async {
     try {
       final token = await _authService.getToken();

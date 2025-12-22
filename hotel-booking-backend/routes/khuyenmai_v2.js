@@ -81,11 +81,11 @@ router.delete('/:id',
 );
 
 // PUT /api/khuyenmai/:id/toggle - Bật/tắt khuyến mãi (Admin only)
-// router.put('/:id/toggle', 
-//     authenticateUser,
-//     requireRole('Admin'),
-//     validateId,
-//     khuyenmaiController.toggleKhuyenMai
-// );
+router.put('/:id/toggle', 
+    authenticateUser,
+    requireRole('Admin'),
+    validateId,
+    khuyenmaiController.toggleKhuyenMai
+);
 
 module.exports = router;

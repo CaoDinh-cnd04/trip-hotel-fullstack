@@ -25,6 +25,7 @@ class BookingCard extends StatefulWidget {
 class _BookingCardState extends State<BookingCard> {
   Timer? _countdownTimer;
   int _secondsLeft = 0;
+  bool _isExpanded = false; // Trạng thái mở rộng chi tiết
 
   @override
   void initState() {
@@ -117,6 +118,45 @@ class _BookingCardState extends State<BookingCard> {
     }
   }
 
+  Widget _buildDetailRow({
+    required IconData icon,
+    required String label,
+    required String value,
+    Color? valueColor,
+  }) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, size: 18, color: Colors.grey[700]),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.grey[600],
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                value,
+                style: TextStyle(
+                  fontSize: 14,
+                  color: valueColor ?? Colors.grey[800],
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final dateFormat = DateFormat('dd/MM/yyyy');
@@ -135,15 +175,21 @@ class _BookingCardState extends State<BookingCard> {
     final hoursUntilCheckIn = timeUntilCheckIn.inHours;
     
     // Kiểm tra có thể hủy: cancellationAllowed + status hợp lệ + >= 24h
-    final canCancel = widget.booking.cancellationAllowed &&
+    final canCancelFree = widget.booking.cancellationAllowed &&
         ['pending', 'confirmed'].contains(widget.booking.bookingStatus) &&
         hoursUntilCheckIn >= 24;
     
-    final showCancelButton = canCancel && _secondsLeft > 0;
+    // Có thể hủy (bao gồm cả trường hợp không miễn phí)
+    final canCancel = ['pending', 'confirmed'].contains(widget.booking.bookingStatus);
+    
+    final showCancelButton = canCancelFree && _secondsLeft > 0;
+    final showCancelButtonGeneral = canCancel && !canCancelFree && widget.booking.bookingStatus != 'cancelled';
     
     print('   - hoursUntilCheckIn: $hoursUntilCheckIn');
-    print('   - canCancel (recalculated): $canCancel');
+    print('   - canCancelFree (recalculated): $canCancelFree');
+    print('   - canCancel (general): $canCancel');
     print('   - showCancelButton: $showCancelButton');
+    print('   - showCancelButtonGeneral: $showCancelButtonGeneral');
 
     return Card(
       margin: const EdgeInsets.only(bottom: 16),
@@ -436,7 +482,7 @@ class _BookingCardState extends State<BookingCard> {
                   ),
                 ],
                 
-                // Non-refundable booking notice
+                // Non-refundable booking notice OR Cancel button for non-free cancellation
                 if (!widget.booking.cancellationAllowed && 
                     widget.booking.bookingStatus == 'confirmed') ...[
                   const SizedBox(height: 16),
@@ -464,6 +510,93 @@ class _BookingCardState extends State<BookingCard> {
                     ),
                   ),
                 ],
+
+                // Nút hủy cho trường hợp có thể hủy nhưng không miễn phí (hết thời gian hoặc không hoàn tiền)
+                if (showCancelButtonGeneral) ...[
+                  const SizedBox(height: 16),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.orange[50],
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.orange[300]!),
+                    ),
+                    child: Column(
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(Icons.warning_amber_rounded, color: Colors.orange[700], size: 20),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    widget.booking.cancellationAllowed 
+                                        ? 'Hủy có thể không hoàn tiền hoặc mất phí'
+                                        : 'Hủy không hoàn tiền',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.orange[900],
+                                      fontSize: 13,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            SizedBox(
+                              height: 36,
+                              child: ElevatedButton(
+                                onPressed: widget.onCancel,
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.orange,
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                                ),
+                                child: const Text('Hủy phòng'),
+                              ),
+                            ),
+                          ],
+                        ),
+                        if (hoursUntilCheckIn < 24) ...[
+                          const SizedBox(height: 8),
+                          Row(
+                            children: [
+                              Icon(Icons.info_outline, color: Colors.orange[700], size: 16),
+                              const SizedBox(width: 4),
+                              Expanded(
+                                child: Text(
+                                  'Đã qua thời gian hủy miễn phí (24h trước check-in)',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: Colors.grey[700],
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ] else if (!widget.booking.cancellationAllowed) ...[
+                          const SizedBox(height: 8),
+                          Row(
+                            children: [
+                              Icon(Icons.info_outline, color: Colors.orange[700], size: 16),
+                              const SizedBox(width: 4),
+                              Expanded(
+                                child: Text(
+                                  'Giá ưu đãi - Hủy sẽ không được hoàn tiền',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: Colors.grey[700],
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ],
                 
                 // Chat with hotel button
                 const SizedBox(height: 16),
@@ -480,6 +613,247 @@ class _BookingCardState extends State<BookingCard> {
                     ),
                   ),
                 ),
+
+                // Xem thêm / Thu gọn chi tiết
+                const SizedBox(height: 12),
+                InkWell(
+                  onTap: () {
+                    setState(() {
+                      _isExpanded = !_isExpanded;
+                    });
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    decoration: BoxDecoration(
+                      border: Border(
+                        top: BorderSide(color: Colors.grey[300]!, width: 1),
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          _isExpanded ? 'Thu gọn chi tiết' : 'Xem thêm chi tiết',
+                          style: TextStyle(
+                            color: const Color(0xFF8B4513),
+                            fontWeight: FontWeight.w600,
+                            fontSize: 14,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Icon(
+                          _isExpanded ? Icons.expand_less : Icons.expand_more,
+                          color: const Color(0xFF8B4513),
+                          size: 20,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+
+                // Chi tiết mở rộng
+                if (_isExpanded) ...[
+                  const SizedBox(height: 16),
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.grey[50],
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.grey[300]!),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Thông tin người đặt
+                        if (widget.booking.userName != null || widget.booking.userPhone != null) ...[
+                          _buildDetailRow(
+                            icon: Icons.person,
+                            label: 'Người đặt',
+                            value: widget.booking.userName ?? 'N/A',
+                          ),
+                          if (widget.booking.userPhone != null) ...[
+                            const SizedBox(height: 8),
+                            _buildDetailRow(
+                              icon: Icons.phone,
+                              label: 'Số điện thoại',
+                              value: widget.booking.userPhone!,
+                            ),
+                          ],
+                          const SizedBox(height: 12),
+                          const Divider(height: 1),
+                          const SizedBox(height: 12),
+                        ],
+
+                        // Chi tiết giá
+                        _buildDetailRow(
+                          icon: Icons.attach_money,
+                          label: 'Giá phòng/đêm',
+                          value: CurrencyFormatter.format(widget.booking.roomPrice),
+                        ),
+                        const SizedBox(height: 8),
+                        _buildDetailRow(
+                          icon: Icons.receipt_long,
+                          label: 'Tổng giá',
+                          value: CurrencyFormatter.format(widget.booking.totalPrice),
+                        ),
+                        if (widget.booking.discountAmount > 0) ...[
+                          const SizedBox(height: 8),
+                          _buildDetailRow(
+                            icon: Icons.local_offer,
+                            label: 'Giảm giá',
+                            value: '-${CurrencyFormatter.format(widget.booking.discountAmount)}',
+                            valueColor: Colors.green[700],
+                          ),
+                        ],
+                        const SizedBox(height: 12),
+                        const Divider(height: 1),
+                        const SizedBox(height: 12),
+
+                        // Thông tin thanh toán
+                        _buildDetailRow(
+                          icon: Icons.payment,
+                          label: 'Trạng thái thanh toán',
+                          value: widget.booking.paymentStatusText,
+                          valueColor: widget.booking.paymentStatus == 'paid' 
+                              ? Colors.green[700] 
+                              : Colors.orange[700],
+                        ),
+                        if (widget.booking.paymentDate != null) ...[
+                          const SizedBox(height: 8),
+                          _buildDetailRow(
+                            icon: Icons.calendar_today,
+                            label: 'Ngày thanh toán',
+                            value: DateFormat('dd/MM/yyyy HH:mm').format(widget.booking.paymentDate!),
+                          ),
+                        ],
+                        if (widget.booking.paymentTransactionId != null) ...[
+                          const SizedBox(height: 8),
+                          _buildDetailRow(
+                            icon: Icons.receipt,
+                            label: 'Mã giao dịch',
+                            value: widget.booking.paymentTransactionId!,
+                          ),
+                        ],
+                        const SizedBox(height: 12),
+                        const Divider(height: 1),
+                        const SizedBox(height: 12),
+
+                        // Thông tin đặt phòng
+                        _buildDetailRow(
+                          icon: Icons.access_time,
+                          label: 'Ngày tạo đơn',
+                          value: DateFormat('dd/MM/yyyy HH:mm').format(widget.booking.createdAt),
+                        ),
+                        if (widget.booking.cancelledAt != null) ...[
+                          const SizedBox(height: 8),
+                          _buildDetailRow(
+                            icon: Icons.cancel,
+                            label: 'Ngày hủy',
+                            value: DateFormat('dd/MM/yyyy HH:mm').format(widget.booking.cancelledAt!),
+                            valueColor: Colors.red[700],
+                          ),
+                        ],
+                        const SizedBox(height: 8),
+                        _buildDetailRow(
+                          icon: Icons.hotel,
+                          label: 'Số phòng',
+                          value: '${widget.booking.roomCount} phòng',
+                        ),
+
+                        // Yêu cầu đặc biệt
+                        if (widget.booking.specialRequests != null && widget.booking.specialRequests!.isNotEmpty) ...[
+                          const SizedBox(height: 12),
+                          const Divider(height: 1),
+                          const SizedBox(height: 12),
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Icon(Icons.note, size: 18, color: Colors.grey[700]),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Yêu cầu đặc biệt',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: Colors.grey[600],
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      widget.booking.specialRequests!,
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        color: Colors.grey[800],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+
+                        // Thông tin hoàn tiền (nếu có)
+                        if (widget.booking.refundTransactionId != null || widget.booking.refundDate != null) ...[
+                          const SizedBox(height: 12),
+                          const Divider(height: 1),
+                          const SizedBox(height: 12),
+                          if (widget.booking.refundTransactionId != null)
+                            _buildDetailRow(
+                              icon: Icons.receipt_long,
+                              label: 'Mã giao dịch hoàn tiền',
+                              value: widget.booking.refundTransactionId!,
+                            ),
+                          if (widget.booking.refundDate != null) ...[
+                            const SizedBox(height: 8),
+                            _buildDetailRow(
+                              icon: Icons.event,
+                              label: 'Ngày hoàn tiền',
+                              value: DateFormat('dd/MM/yyyy HH:mm').format(widget.booking.refundDate!),
+                            ),
+                          ],
+                          if (widget.booking.refundReason != null && widget.booking.refundReason!.isNotEmpty) ...[
+                            const SizedBox(height: 8),
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Icon(Icons.info, size: 18, color: Colors.grey[700]),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'Lý do hoàn tiền',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: Colors.grey[600],
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        widget.booking.refundReason!,
+                                        style: TextStyle(
+                                          fontSize: 14,
+                                          color: Colors.grey[800],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ],
+                      ],
+                    ),
+                  ),
+                ],
               ],
             ),
           ),

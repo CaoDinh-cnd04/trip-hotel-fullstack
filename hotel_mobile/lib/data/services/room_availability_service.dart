@@ -2,6 +2,12 @@ import 'package:dio/dio.dart';
 import '../models/room_availability.dart';
 import '../../core/constants/app_constants.dart';
 
+/// Service kiểm tra tình trạng phòng khách sạn
+/// 
+/// Chức năng:
+/// - Kiểm tra phòng có sẵn trong khoảng thời gian
+/// - Lấy availability của tất cả loại phòng trong khách sạn
+/// - Lấy availability của một loại phòng cụ thể
 class RoomAvailabilityService {
   static final RoomAvailabilityService _instance =
       RoomAvailabilityService._internal();
@@ -10,6 +16,9 @@ class RoomAvailabilityService {
 
   late Dio _dio;
 
+  /// Khởi tạo service với cấu hình Dio
+  /// 
+  /// Thiết lập interceptors cho logging
   void initialize() {
     _dio = Dio(
       BaseOptions(
@@ -35,7 +44,13 @@ class RoomAvailabilityService {
     );
   }
 
-  /// Lấy availability của tất cả loại phòng trong khách sạn
+  /// Lấy tình trạng sẵn có của tất cả loại phòng trong khách sạn
+  /// 
+  /// [hotelId] - ID khách sạn (bắt buộc)
+  /// [checkinDate] - Ngày check-in (bắt buộc)
+  /// [checkoutDate] - Ngày check-out (bắt buộc)
+  /// 
+  /// Trả về HotelAvailabilityResponse chứa danh sách phòng và số lượng còn trống
   Future<HotelAvailabilityResponse> getHotelAvailability({
     required String hotelId,
     required DateTime checkinDate,
@@ -76,7 +91,14 @@ class RoomAvailabilityService {
     }
   }
 
-  /// Lấy availability của một loại phòng cụ thể
+  /// Lấy tình trạng sẵn có của một loại phòng cụ thể
+  /// 
+  /// [hotelId] - ID khách sạn (bắt buộc)
+  /// [roomTypeId] - ID loại phòng (bắt buộc)
+  /// [checkinDate] - Ngày check-in (bắt buộc)
+  /// [checkoutDate] - Ngày check-out (bắt buộc)
+  /// 
+  /// Trả về RoomAvailability nếu có dữ liệu, null nếu có lỗi
   Future<RoomAvailability?> getRoomTypeAvailability({
     required String hotelId,
     required String roomTypeId,
@@ -102,7 +124,19 @@ class RoomAvailabilityService {
     }
   }
 
-  /// Đặt phòng an toàn (với xử lý race condition)
+  /// Đặt phòng an toàn với xử lý race condition
+  /// 
+  /// Đảm bảo không có nhiều user đặt cùng một phòng vào cùng lúc
+  /// 
+  /// [hotelId] - ID khách sạn (bắt buộc)
+  /// [roomTypeId] - ID loại phòng (bắt buộc)
+  /// [checkinDate] - Ngày check-in (bắt buộc)
+  /// [checkoutDate] - Ngày check-out (bắt buộc)
+  /// [userId] - ID người dùng (bắt buộc)
+  /// [guestCount] - Số lượng khách (bắt buộc)
+  /// [totalPrice] - Tổng tiền (bắt buộc)
+  /// 
+  /// Trả về Map chứa success, message, data
   Future<Map<String, dynamic>> bookRoomSafe({
     required String hotelId,
     required String roomTypeId,
@@ -153,6 +187,11 @@ class RoomAvailabilityService {
     }
   }
 
+  /// Xử lý và chuyển đổi lỗi DioException thành thông báo tiếng Việt
+  /// 
+  /// [error] - Lỗi DioException
+  /// 
+  /// Trả về chuỗi thông báo lỗi bằng tiếng Việt
   String _getErrorMessage(DioException error) {
     switch (error.type) {
       case DioExceptionType.connectionTimeout:

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../data/services/discount_service.dart';
+import 'discount_code_list_sheet.dart';
 
 /// Widget để nhập và áp dụng mã giảm giá
 /// 
@@ -26,6 +27,12 @@ class DiscountCodeInput extends StatefulWidget {
   
   /// ID địa điểm (không bắt buộc - mã giảm giá áp dụng cho tất cả địa điểm)
   final int? locationId;
+  
+  /// Mã giảm giá đã được áp dụng sẵn (tự động)
+  final String? initialCode;
+  
+  /// Số tiền giảm giá đã được tính sẵn (nếu có initialCode)
+  final double? initialDiscountAmount;
 
   const DiscountCodeInput({
     super.key,
@@ -34,6 +41,8 @@ class DiscountCodeInput extends StatefulWidget {
     required this.originalPrice,
     this.hotelId,
     this.locationId,
+    this.initialCode,
+    this.initialDiscountAmount,
   });
 
   @override
@@ -51,9 +60,75 @@ class _DiscountCodeInputState extends State<DiscountCodeInput> {
   String? _errorMessage;
 
   @override
+  void initState() {
+    super.initState();
+    
+    // Nếu có initial code, tự động áp dụng
+    if (widget.initialCode != null && widget.initialCode!.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _applyInitialCode();
+      });
+    }
+  }
+
+  @override
+  void didUpdateWidget(DiscountCodeInput oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    
+    // Cập nhật khi initialCode thay đổi (ví dụ: khi mã được tự động áp dụng)
+    if (widget.initialCode != null && 
+        widget.initialCode!.isNotEmpty && 
+        widget.initialCode != oldWidget.initialCode) {
+      // Chỉ cập nhật nếu chưa có mã nào được áp dụng, hoặc mã mới khác mã cũ
+      if (!_isApplied || _appliedCode != widget.initialCode) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _applyInitialCode();
+        });
+      }
+    } else if (widget.initialCode == null || widget.initialCode!.isEmpty) {
+      // Nếu initialCode bị xóa, xóa mã đã áp dụng
+      if (_isApplied && oldWidget.initialCode != null && oldWidget.initialCode!.isNotEmpty) {
+        _removeDiscountCode();
+      }
+    }
+  }
+
+  @override
   void dispose() {
     _codeController.dispose();
     super.dispose();
+  }
+  
+  /// Áp dụng mã giảm giá ban đầu (tự động)
+  void _applyInitialCode() {
+    if (widget.initialCode == null || widget.initialCode!.isEmpty) return;
+    
+    final discountAmount = widget.initialDiscountAmount ?? 0;
+    
+    // Chỉ áp dụng nếu chưa có mã nào được áp dụng, hoặc mã mới khác mã cũ
+    if ((!_isApplied || _appliedCode != widget.initialCode) && discountAmount > 0) {
+      setState(() {
+        _isApplied = true;
+        _appliedCode = widget.initialCode;
+        _discountAmount = discountAmount;
+        _codeController.text = widget.initialCode!;
+        _errorMessage = null; // Xóa lỗi nếu có
+      });
+      
+      print('✅ Applied initial discount code: ${widget.initialCode} - ${discountAmount.toStringAsFixed(0)}₫');
+      
+      // Callback to parent (chỉ gọi nếu mã thực sự thay đổi)
+      if (_appliedCode != widget.initialCode) {
+        widget.onDiscountApplied(widget.initialCode!, discountAmount);
+      }
+    } else if (_isApplied && _appliedCode == widget.initialCode) {
+      // Nếu mã đã được áp dụng và giống với initialCode, chỉ cập nhật discountAmount nếu khác
+      if (_discountAmount != discountAmount && discountAmount > 0) {
+        setState(() {
+          _discountAmount = discountAmount;
+        });
+      }
+    }
   }
 
   /// Validate và áp dụng mã giảm giá
@@ -165,6 +240,40 @@ class _DiscountCodeInputState extends State<DiscountCodeInput> {
     }
   }
 
+  /// Hiển thị bottom sheet danh sách mã giảm giá
+  void _showDiscountCodeList() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => DraggableScrollableSheet(
+        initialChildSize: 0.9,
+        minChildSize: 0.5,
+        maxChildSize: 0.95,
+        builder: (context, scrollController) => DiscountCodeListSheet(
+          originalPrice: widget.originalPrice,
+          hotelId: widget.hotelId,
+          locationId: widget.locationId,
+          currentAppliedCode: _appliedCode,
+          scrollController: scrollController,
+          onCodeSelected: (code, discountAmount) {
+            // Áp dụng mã được chọn
+            setState(() {
+              _isApplied = true;
+              _appliedCode = code;
+              _discountAmount = discountAmount;
+              _codeController.text = code;
+              _errorMessage = null;
+            });
+            
+            // Callback to parent
+            widget.onDiscountApplied(code, discountAmount);
+          },
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Card(
@@ -184,11 +293,35 @@ class _DiscountCodeInputState extends State<DiscountCodeInput> {
                   size: 20,
                 ),
                 const SizedBox(width: 8),
-                const Text(
-                  'Mã giảm giá',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
+                const Expanded(
+                  child: Text(
+                    'Mã giảm giá',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                // Nút xem danh sách mã giảm giá
+                TextButton.icon(
+                  onPressed: _showDiscountCodeList,
+                  icon: Icon(
+                    Icons.list,
+                    size: 18,
+                    color: Colors.blue.shade600,
+                  ),
+                  label: Text(
+                    'Xem danh sách',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.blue.shade600,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                   ),
                 ),
               ],

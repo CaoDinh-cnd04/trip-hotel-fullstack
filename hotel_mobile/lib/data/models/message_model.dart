@@ -1,5 +1,14 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+/// Model đại diện cho tin nhắn trong chat (Firestore)
+/// 
+/// Chứa thông tin:
+/// - Thông tin người gửi: senderId, senderName, senderEmail, senderRole
+/// - Thông tin người nhận: receiverId, receiverName, receiverEmail, receiverRole
+/// - Nội dung: content, type (text/image), imageUrl
+/// - Trạng thái: isRead, timestamp
+/// - Tính năng reply: replyToMessageId, replyToContent
+/// - Metadata: metadata (chứa thông tin booking, hotel, v.v.)
 class MessageModel {
   final String id;
   final String senderId;
@@ -39,6 +48,14 @@ class MessageModel {
     this.replyToContent,
   });
 
+  /// Tạo đối tượng MessageModel từ Firestore DocumentSnapshot
+  /// 
+  /// [doc] - DocumentSnapshot từ Firestore
+  /// 
+  /// Xử lý:
+  /// - Hỗ trợ cả camelCase và snake_case
+  /// - Parse Timestamp thành DateTime
+  /// - Xử lý các giá trị null an toàn
   factory MessageModel.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
     
@@ -74,7 +91,12 @@ class MessageModel {
     );
   }
 
-  // Helper to parse field with multiple possible names
+  /// Helper để parse field với nhiều tên có thể
+  /// 
+  /// [data] - Map chứa dữ liệu
+  /// [fieldNames] - Danh sách tên field có thể (ví dụ: ['senderId', 'sender_id'])
+  /// 
+  /// Trả về giá trị string đầu tiên tìm thấy, hoặc null nếu không tìm thấy
   static String? _parseField(Map<String, dynamic> data, List<String> fieldNames) {
     for (final fieldName in fieldNames) {
       final value = data[fieldName];
@@ -85,6 +107,12 @@ class MessageModel {
     return null;
   }
 
+  /// Tạo đối tượng MessageModel từ Map (dùng cho testing hoặc offline)
+  /// 
+  /// [data] - Map chứa dữ liệu
+  /// [id] - ID của tin nhắn
+  /// 
+  /// Parse các trường từ Map, xử lý Timestamp
   factory MessageModel.fromMap(Map<String, dynamic> data, String id) {
     return MessageModel(
       id: id,
@@ -109,6 +137,10 @@ class MessageModel {
     );
   }
 
+  /// Chuyển đổi đối tượng MessageModel sang Map để lưu vào Firestore
+  /// 
+  /// Trả về Map với các trường ở dạng camelCase
+  /// Chuyển đổi DateTime sang Timestamp để lưu vào Firestore
   Map<String, dynamic> toFirestore() {
     return {
       'senderId': senderId,
@@ -130,6 +162,11 @@ class MessageModel {
     };
   }
 
+  /// Tạo bản sao của MessageModel với các trường được cập nhật
+  /// 
+  /// Cho phép cập nhật từng trường riêng lẻ mà không cần tạo mới toàn bộ object
+  /// 
+  /// Tất cả các tham số đều tùy chọn, nếu không cung cấp sẽ giữ nguyên giá trị cũ
   MessageModel copyWith({
     String? id,
     String? senderId,
@@ -232,6 +269,7 @@ class ChatConversation {
   final bool isActive;
   final Map<String, bool> readStatus; // userId -> isRead
   final Map<String, int> unreadCount; // userId -> count
+  final Map<String, dynamic>? metadata; // ✅ NEW: Booking info, hotel info, etc.
 
   ChatConversation({
     required this.id,
@@ -244,6 +282,7 @@ class ChatConversation {
     this.isActive = true,
     this.readStatus = const {},
     this.unreadCount = const {},
+    this.metadata, // ✅ NEW
   });
 
   factory ChatConversation.fromFirestore(DocumentSnapshot doc) {
@@ -292,9 +331,14 @@ class ChatConversation {
       isActive: data['isActive'] ?? data['is_active'] ?? true,
       readStatus: Map<String, bool>.from(data['readStatus'] ?? data['read_status'] ?? {}),
       unreadCount: Map<String, int>.from(data['unreadCount'] ?? data['unread_count'] ?? {}),
+      metadata: data['metadata'] != null ? Map<String, dynamic>.from(data['metadata']) : null, // ✅ NEW
     );
   }
 
+  /// Chuyển đổi đối tượng MessageModel sang Map để lưu vào Firestore
+  /// 
+  /// Trả về Map với các trường ở dạng camelCase
+  /// Chuyển đổi DateTime sang Timestamp để lưu vào Firestore
   Map<String, dynamic> toFirestore() {
     return {
       'participants': participants,
@@ -306,8 +350,26 @@ class ChatConversation {
       'isActive': isActive,
       'readStatus': readStatus,
       'unreadCount': unreadCount,
+      'metadata': metadata, // ✅ NEW
     };
   }
+  
+  // ✅ NEW: Helper methods to get booking info from metadata (like web)
+  Map<String, dynamic>? get bookingInfo {
+    if (metadata == null) return null;
+    final bookingId = metadata?['booking_id'];
+    if (bookingId == null) return null;
+    return {
+      'booking_id': bookingId,
+      'hotel_name': metadata?['hotel_name'],
+      'room_name': metadata?['room_name'],
+      'check_in': metadata?['check_in'],
+      'check_out': metadata?['check_out'],
+    };
+  }
+  
+  String? get customerNameFromMetadata => metadata?['user_name'];
+  String? get customerEmailFromMetadata => metadata?['user_email'];
 
   // Helper methods
   String getOtherParticipant(String currentUserId) {

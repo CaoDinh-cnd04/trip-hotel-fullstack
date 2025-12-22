@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:ui';
 import '../../../core/widgets/empty_state_widget.dart';
 import 'package:hotel_mobile/data/models/hotel.dart';
 import 'package:hotel_mobile/data/services/api_service.dart';
@@ -9,7 +10,17 @@ import 'package:hotel_mobile/presentation/widgets/enhanced_filter_bottom_sheet.d
 import 'package:hotel_mobile/presentation/widgets/enhanced_sort_bottom_sheet.dart';
 import 'package:hotel_mobile/presentation/widgets/promotion_banner.dart';
 import 'package:hotel_mobile/presentation/widgets/edit_search_modal.dart';
+import 'package:hotel_mobile/core/widgets/glass_card.dart';
 
+/// Màn hình hiển thị kết quả tìm kiếm khách sạn
+/// Thiết kế theo phong cách Agoda: header màu xanh, filter bar đơn giản, danh sách card ngang
+/// 
+/// Tham số:
+/// - location: Địa điểm tìm kiếm
+/// - checkInDate: Ngày nhận phòng
+/// - checkOutDate: Ngày trả phòng
+/// - guestCount: Số lượng khách
+/// - roomCount: Số lượng phòng
 class SearchResultsScreen extends StatefulWidget {
   final String location;
   final DateTime checkInDate;
@@ -30,53 +41,109 @@ class SearchResultsScreen extends StatefulWidget {
   State<SearchResultsScreen> createState() => _SearchResultsScreenState();
 }
 
-class _SearchResultsScreenState extends State<SearchResultsScreen> {
+class _SearchResultsScreenState extends State<SearchResultsScreen>
+    with TickerProviderStateMixin {
+  /// ApiService để gọi API lấy danh sách khách sạn
   final ApiService _apiService = ApiService();
+  
+  /// ScrollController để điều khiển scroll của danh sách
   final ScrollController _scrollController = ScrollController();
+  
+  // Animation controller cho staggered animations
+  late AnimationController _staggerController;
 
+  /// Danh sách khách sạn đã được filter và sort
   List<Hotel> _hotels = [];
-  List<Hotel> _allHotels = []; // Store all hotels for filtering
+  
+  /// Danh sách tất cả khách sạn (trước khi filter) - dùng để filter
+  List<Hotel> _allHotels = [];
+  
+  /// Trạng thái loading khi đang tải dữ liệu
   bool _isLoading = true;
+  
+  /// Thông báo lỗi (nếu có)
   String? _error;
 
-  // Search parameters (mutable for editing)
+  /// Tham số tìm kiếm (có thể chỉnh sửa)
   late String _location;
   late DateTime _checkInDate;
   late DateTime _checkOutDate;
   late int _guestCount;
   late int _roomCount;
 
-  // Filter and sort states
-  String _sortBy = 'most_suitable';
+  /// Trạng thái sort và filter
+  String _sortBy = 'most_suitable'; // Mặc định: Phù hợp nhất
+  
+  /// Map chứa các filter đang active
+  /// - priceRange: Khoảng giá (RangeValues)
+  /// - starRating: Set các sao đã chọn (Set<int>)
+  /// - guestReviewScore: Điểm đánh giá tối thiểu (double?)
+  /// - propertyTypes: Loại khách sạn (Set<String>)
+  /// - areas: Khu vực (Set<String>)
+  /// - amenities: Tiện ích (Set<String>)
+  /// - cancellationPolicy: Có hủy miễn phí không (bool)
   Map<String, dynamic> _filters = {
-    'priceRange': const RangeValues(0, 40000000),
-    'starRating': <int>{},
-    'guestReviewScore': null,
-    'propertyTypes': <String>{},
-    'areas': <String>{},
-    'amenities': <String>{},
-    'cancellationPolicy': false,
+    'priceRange': const RangeValues(0, 40000000), // Khoảng giá mặc định
+    'starRating': <int>{}, // Chưa chọn sao nào
+    'guestReviewScore': null, // Chưa chọn điểm đánh giá
+    'propertyTypes': <String>{}, // Chưa chọn loại khách sạn
+    'areas': <String>{}, // Chưa chọn khu vực
+    'amenities': <String>{}, // Chưa chọn tiện ích
+    'cancellationPolicy': false, // Không yêu cầu hủy miễn phí
   };
 
+  /// ============================================
+  /// HÀM: initState
+  /// ============================================
+  /// Khởi tạo state khi widget được tạo
+  /// - Khởi tạo các tham số tìm kiếm từ widget
+  /// - Gọi _loadSearchResults() để tải danh sách khách sạn
   @override
   void initState() {
     super.initState();
-    // Initialize mutable search parameters
+    // Khởi tạo các tham số tìm kiếm từ widget (có thể chỉnh sửa sau)
     _location = widget.location;
     _checkInDate = widget.checkInDate;
     _checkOutDate = widget.checkOutDate;
     _guestCount = widget.guestCount;
     _roomCount = widget.roomCount;
     
+    // Initialize animation controller
+    _staggerController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    );
+    
+    // Start animation
+    _staggerController.forward();
+    
+    // Tải danh sách khách sạn từ API
     _loadSearchResults();
   }
 
+  /// ============================================
+  /// HÀM: dispose
+  /// ============================================
+  /// Giải phóng tài nguyên khi widget bị hủy
+  /// Quan trọng: Phải dispose ScrollController để tránh memory leak
   @override
   void dispose() {
     _scrollController.dispose();
+    _staggerController.dispose();
     super.dispose();
   }
 
+  /// ============================================
+  /// HÀM: _loadSearchResults
+  /// ============================================
+  /// Tải danh sách khách sạn từ API dựa trên địa điểm tìm kiếm
+  /// 
+  /// Logic:
+  /// 1. Set loading = true
+  /// 2. Gọi API getHotels() với location
+  /// 3. Lưu tất cả hotels vào _allHotels
+  /// 4. Áp dụng filter và sort
+  /// 5. Cập nhật state
   Future<void> _loadSearchResults() async {
     setState(() {
       _isLoading = true;
@@ -84,21 +151,19 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
     });
 
     try {
-      // Simulate API call with search parameters
-      await Future.delayed(const Duration(milliseconds: 800));
-
-      // Call API with location search parameter
+      // Gọi API với tham số tìm kiếm (location)
       final response = await _apiService.getHotels(
         search: _location,
-        limit: 100,
+        limit: 100, // Giới hạn 100 khách sạn
       );
 
       setState(() {
-        _allHotels = response.data ?? [];
-        _applyFiltersAndSort();
+        _allHotels = response.data ?? []; // Lưu tất cả hotels (trước khi filter)
+        _applyFiltersAndSort(); // Áp dụng filter và sort
         _isLoading = false;
       });
     } catch (e) {
+      // Xử lý lỗi
       setState(() {
         _error = e.toString();
         _isLoading = false;
@@ -106,72 +171,120 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
     }
   }
 
+  /// ============================================
+  /// HÀM: _applyFiltersAndSort
+  /// ============================================
+  /// Áp dụng các filter và sort cho danh sách khách sạn
+  /// 
+  /// Logic:
+  /// 1. Bắt đầu với tất cả hotels (_allHotels)
+  /// 2. Áp dụng filter theo sao (starRating)
+  /// 3. Áp dụng filter theo khoảng giá (priceRange)
+  /// 4. Áp dụng filter theo điểm đánh giá (guestReviewScore)
+  /// 5. Áp dụng filter theo chính sách hủy (cancellationPolicy)
+  /// 6. Áp dụng sort theo _sortBy
+  /// 7. Cập nhật _hotels với danh sách đã được filter và sort
   void _applyFiltersAndSort() {
-    // Start with all hotels
+    // Bắt đầu với tất cả hotels
     List<Hotel> filtered = List.from(_allHotels);
 
-    // Apply star rating filter
+    /// Filter 1: Lọc theo số sao
     final starRating = _filters['starRating'] as Set<int>;
     if (starRating.isNotEmpty) {
       filtered = filtered.where((hotel) {
+        // Chỉ giữ lại hotels có số sao trong danh sách đã chọn
         return hotel.soSao != null && starRating.contains(hotel.soSao!);
       }).toList();
     }
 
-    // Apply price range filter
+    /// Filter 2: Lọc theo khoảng giá
     final priceRange = _filters['priceRange'] as RangeValues;
     filtered = filtered.where((hotel) {
-      final price = hotel.giaTb ?? 1000000;
+      final price = hotel.giaTb ?? 1000000; // Giá mặc định nếu null
+      // Giữ lại hotels có giá trong khoảng đã chọn
       return price >= priceRange.start && price <= priceRange.end;
     }).toList();
 
-    // Apply guest review score filter
+    /// Filter 3: Lọc theo điểm đánh giá khách hàng
     final guestReview = _filters['guestReviewScore'];
     if (guestReview != null) {
       filtered = filtered.where((hotel) {
         final rating = hotel.diemDanhGiaTrungBinh ?? 0;
+        // Giữ lại hotels có điểm đánh giá >= điểm tối thiểu
         return rating >= guestReview;
       }).toList();
     }
 
-    // Apply cancellation policy filter
+    /// Filter 4: Lọc theo chính sách hủy (cần backend support)
     if (_filters['cancellationPolicy'] == true) {
-      // Filter hotels with free cancellation (would need backend support)
-      // For now, keep all
+      // Filter hotels with free cancellation
+      // Hiện tại chưa có dữ liệu từ backend, nên giữ lại tất cả
     }
 
-    // Apply sorting
+    /// Bước cuối: Áp dụng sort
     _sortHotels(filtered);
 
+    // Cập nhật state với danh sách đã được filter và sort
     setState(() {
       _hotels = filtered;
     });
   }
 
+  /// ============================================
+  /// HÀM: _onSortChanged
+  /// ============================================
+  /// Được gọi khi người dùng thay đổi cách sắp xếp
+  /// 
+  /// Tham số:
+  /// - sortBy: Kiểu sắp xếp mới (ví dụ: 'price_low', 'rating', etc.)
   void _onSortChanged(String sortBy) {
     setState(() {
-      _sortBy = sortBy;
-      _applyFiltersAndSort();
+      _sortBy = sortBy; // Cập nhật sort type
+      _applyFiltersAndSort(); // Áp dụng lại filter và sort
     });
   }
 
+  /// ============================================
+  /// HÀM: _onFiltersChanged
+  /// ============================================
+  /// Được gọi khi người dùng thay đổi filter
+  /// 
+  /// Tham số:
+  /// - filters: Map chứa các filter mới
   void _onFiltersChanged(Map<String, dynamic> filters) {
     setState(() {
-      _filters = filters;
-      _applyFiltersAndSort();
+      _filters = filters; // Cập nhật filters
+      _applyFiltersAndSort(); // Áp dụng lại filter và sort
     });
   }
 
+  /// ============================================
+  /// HÀM: _sortHotels
+  /// ============================================
+  /// Sắp xếp danh sách hotels theo _sortBy
+  /// 
+  /// Các kiểu sort:
+  /// - 'price_low': Giá từ thấp đến cao
+  /// - 'price_high': Giá từ cao đến thấp
+  /// - 'rating' / 'most_suitable': Điểm đánh giá từ cao đến thấp
+  /// - 'stars_high': Số sao từ cao đến thấp
+  /// - 'limited_promotion': Khuyến mãi (hiện tại sort theo rating)
+  /// 
+  /// Tham số:
+  /// - hotels: Danh sách hotels cần sort (sẽ được sort in-place)
   void _sortHotels(List<Hotel> hotels) {
     switch (_sortBy) {
       case 'price_low':
+        // Sắp xếp theo giá từ thấp đến cao
         hotels.sort((a, b) => (a.giaTb ?? 0).compareTo(b.giaTb ?? 0));
         break;
       case 'price_high':
+        // Sắp xếp theo giá từ cao đến thấp
         hotels.sort((a, b) => (b.giaTb ?? 0).compareTo(a.giaTb ?? 0));
         break;
       case 'rating':
       case 'most_suitable':
+        // Sắp xếp theo điểm đánh giá từ cao đến thấp (mặc định)
         hotels.sort(
           (a, b) => (b.diemDanhGiaTrungBinh ?? 0).compareTo(
             a.diemDanhGiaTrungBinh ?? 0,
@@ -179,11 +292,11 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
         );
         break;
       case 'stars_high':
+        // Sắp xếp theo số sao từ cao đến thấp
         hotels.sort((a, b) => (b.soSao ?? 0).compareTo(a.soSao ?? 0));
         break;
       case 'limited_promotion':
-        // Sort by hotels with promotions (would need backend support)
-        // For now, use rating
+        // Sắp xếp theo khuyến mãi (hiện tại sort theo rating vì chưa có dữ liệu)
         hotels.sort(
           (a, b) => (b.diemDanhGiaTrungBinh ?? 0).compareTo(
             a.diemDanhGiaTrungBinh ?? 0,
@@ -191,7 +304,7 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
         );
         break;
       default:
-        // Keep original order
+        // Giữ nguyên thứ tự ban đầu
         break;
     }
   }
@@ -229,114 +342,191 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
     );
   }
 
+  /// ============================================
+  /// HÀM BUILD CHÍNH
+  /// ============================================
+  /// Xây dựng giao diện màn hình kết quả tìm kiếm
+  /// 
+  /// Cấu trúc:
+  /// - Column chứa:
+  ///   1. CompactSearchHeader: Header màu xanh với input fields
+  ///   2. _buildEnhancedFilterBar: Filter bar với sort/filter/map buttons
+  ///   3. _buildResultsList: Danh sách khách sạn (có thể scroll)
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey[50],
+      backgroundColor: Colors.grey[50], // Nền xám nhẹ
       body: Column(
         children: [
-          // Compact Search Header
+          /// ============================================
+          /// COMPACT SEARCH HEADER
+          /// ============================================
+          /// Header màu xanh với các input field có thể chỉnh sửa
           CompactSearchHeader(
             location: _location,
             checkInDate: _checkInDate,
             checkOutDate: _checkOutDate,
             guestCount: _guestCount,
             roomCount: _roomCount,
-            onTap: _showEditSearchModal,
+            onTap: _showEditSearchModal, // Click để chỉnh sửa tìm kiếm
           ),
 
-          // Sticky Filter Bar
+          /// ============================================
+          /// FILTER BAR
+          /// ============================================
+          /// Bar chứa số lượng kết quả và các nút Sort/Filter/Map
           _buildEnhancedFilterBar(),
 
-          // Results List
+          /// ============================================
+          /// RESULTS LIST
+          /// ============================================
+          /// Danh sách khách sạn với layout ngang (Agoda style)
           Expanded(child: _buildResultsList()),
         ],
       ),
     );
   }
 
+  /// ============================================
+  /// HÀM: _buildEnhancedFilterBar
+  /// ============================================
+  /// Xây dựng filter bar với số lượng kết quả và các nút Sort/Filter/Map
+  /// Thiết kế Agoda style: đơn giản, rõ ràng
+  /// 
+  /// Layout:
+  /// - Dòng 1: Số lượng kết quả và nút Filter với badge
+  /// - Dòng 2: Nút Sort và Map
   Widget _buildEnhancedFilterBar() {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border(bottom: BorderSide(color: Colors.grey[200]!)),
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      child: Row(
-        children: [
-          // Sort button
-          Expanded(
-            child: _buildFilterBarButton(
-              context: context,
-              icon: Icons.sort,
-              label: _getSortLabel(_sortBy),
-              onTap: _showSortBottomSheet,
+    final activeFilterCount = _getActiveFilterCount();
+    
+    return ClipRect(
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+        child: Container(
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.9),
+            border: Border(
+              bottom: BorderSide(
+                color: Colors.grey.shade200.withValues(alpha: 0.3),
+                width: 1,
+              ),
             ),
           ),
-
-          const SizedBox(width: 12),
-
-          // Filter button (with badge if filters applied)
-          Expanded(
-            child: Stack(
-              clipBehavior: Clip.none,
-              children: [
-                _buildFilterBarButton(
-                  context: context,
-                  icon: Icons.tune,
-                  label: 'Bộ lọc',
-                  onTap: _showFilterBottomSheet,
-                ),
-                if (_hasActiveFilters())
-                  Positioned(
-                    top: -4,
-                    right: -4,
-                    child: Container(
-                      padding: const EdgeInsets.all(4),
-                      decoration: const BoxDecoration(
-                        color: Colors.red,
-                        shape: BoxShape.circle,
-                      ),
-                      constraints: const BoxConstraints(
-                        minWidth: 16,
-                        minHeight: 16,
-                      ),
+          child: Column(
+            children: [
+              /// Dòng 1: Số lượng kết quả và nút Filter
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+                child: Row(
+                  children: [
+                    // Số lượng kết quả
+                    Expanded(
                       child: Text(
-                        '${_getActiveFilterCount()}',
+                        'Tìm thấy ${_hotels.length} khách sạn',
                         style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                          color: Color(0xFF1A1A1A),
+                          fontWeight: FontWeight.w600,
                         ),
-                        textAlign: TextAlign.center,
                       ),
                     ),
-                  ),
-              ],
-            ),
+                    
+                    // Nút Filter với badge
+                    Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        _buildFilterBarButton(
+                          context: context,
+                          icon: Icons.tune,
+                          label: activeFilterCount > 0 ? '$activeFilterCount bộ lọc' : 'Bộ lọc',
+                          onTap: _showFilterBottomSheet,
+                          isActive: activeFilterCount > 0,
+                        ),
+                        // Badge đỏ nếu có filter active
+                        if (activeFilterCount > 0)
+                          Positioned(
+                            top: -4,
+                            right: -4,
+                            child: Container(
+                              padding: const EdgeInsets.all(4),
+                              decoration: const BoxDecoration(
+                                color: Color(0xFFE91E63), // Màu đỏ Agoda
+                                shape: BoxShape.circle,
+                              ),
+                              constraints: const BoxConstraints(
+                                minWidth: 16,
+                                minHeight: 16,
+                              ),
+                              child: Text(
+                                '$activeFilterCount',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              
+              /// Dòng 2: Nút Sort và Map
+              Container(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                child: Row(
+                  children: [
+                    // Sort button
+                    Expanded(
+                      child: _buildFilterBarButton(
+                        context: context,
+                        icon: Icons.sort,
+                        label: _getSortLabel(_sortBy),
+                        onTap: _showSortBottomSheet,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    // Map button
+                    Expanded(
+                      child: _buildFilterBarButton(
+                        context: context,
+                        icon: Icons.map,
+                        label: 'Bản đồ',
+                        onTap: _showMapView,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
-
-          const SizedBox(width: 12),
-
-          // Map button
-          Expanded(
-            child: _buildFilterBarButton(
-              context: context,
-              icon: Icons.map,
-              label: 'Bản đồ',
-              onTap: _showMapView,
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
 
+  /// ============================================
+  /// HÀM HELPER: _buildFilterBarButton
+  /// ============================================
+  /// Xây dựng nút trong filter bar
+  /// 
+  /// Tham số:
+  /// - context: BuildContext
+  /// - icon: Icon hiển thị
+  /// - label: Text hiển thị
+  /// - onTap: Callback khi click
+  /// - isActive: true nếu button đang active (có filter được áp dụng)
+  /// 
+  /// Trả về: Material với InkWell và Container
   Widget _buildFilterBarButton({
     required BuildContext context,
     required IconData icon,
     required String label,
     required VoidCallback onTap,
+    bool isActive = false,
   }) {
     return Material(
       color: Colors.transparent,
@@ -344,25 +534,43 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
         onTap: onTap,
         borderRadius: BorderRadius.circular(8),
         child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
           decoration: BoxDecoration(
-            border: Border.all(color: Colors.grey[300]!),
+            border: Border.all(
+              color: isActive 
+                  ? const Color(0xFF003580) // Viền xanh nếu active
+                  : const Color(0xFFE8E8E8), // Viền xám nếu không active
+              width: isActive ? 1.5 : 1,
+            ),
             borderRadius: BorderRadius.circular(8),
+            color: isActive 
+                ? const Color(0xFFF0F7FF) // Nền xanh nhạt nếu active
+                : Colors.white, // Nền trắng nếu không active
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(icon, size: 18, color: Colors.grey[700]),
-              const SizedBox(width: 4),
+              Icon(
+                icon, 
+                size: 18, 
+                color: isActive 
+                    ? const Color(0xFF003580) // Màu xanh nếu active
+                    : const Color(0xFF666666), // Màu xám nếu không active
+              ),
+              const SizedBox(width: 6),
               Flexible(
                 child: Text(
                   label,
                   style: TextStyle(
-                    color: Colors.grey[700],
+                    color: isActive 
+                        ? const Color(0xFF003580) // Màu xanh nếu active
+                        : const Color(0xFF666666), // Màu xám nếu không active
                     fontSize: 13,
-                    fontWeight: FontWeight.w500,
+                    fontWeight: isActive ? FontWeight.w600 : FontWeight.w500,
                   ),
                   overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
                 ),
               ),
             ],
@@ -423,55 +631,103 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
     return count;
   }
 
+  /// ============================================
+  /// HÀM: _buildResultsList
+  /// ============================================
+  /// Xây dựng danh sách kết quả tìm kiếm
+  /// 
+  /// Logic:
+  /// - Nếu đang loading: hiển thị CircularProgressIndicator
+  /// - Nếu có lỗi: hiển thị error message với nút "Thử lại"
+  /// - Nếu không có kết quả: hiển thị EmptySearchResultsWidget
+  /// - Nếu có kết quả: hiển thị danh sách hotels với SearchResultCard
+  /// 
+  /// Trả về: Widget tương ứng với trạng thái hiện tại
   Widget _buildResultsList() {
+    // Trạng thái loading
     if (_isLoading) {
       return const Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             CircularProgressIndicator(
-              valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF003580)),
+              valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF003580)), // Màu xanh Agoda
             ),
             SizedBox(height: 16),
-            Text('Đang tìm kiếm khách sạn...'),
+            Text(
+              'Đang tìm kiếm khách sạn...',
+              style: TextStyle(
+                color: Color(0xFF666666),
+                fontSize: 14,
+              ),
+            ),
           ],
         ),
       );
     }
 
+    // Trạng thái lỗi
     if (_error != null) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.error_outline, size: 64, color: Colors.grey[400]),
+            const Icon(
+              Icons.error_outline, 
+              size: 64, 
+              color: Color(0xFF999999),
+            ),
             const SizedBox(height: 16),
-            Text(
+            const Text(
               'Có lỗi xảy ra',
-              style: Theme.of(context).textTheme.headlineSmall,
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF1A1A1A),
+              ),
             ),
             const SizedBox(height: 8),
-            Text(
-              _error!,
-              textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.grey[600]),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 32),
+              child: Text(
+                _error!,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: Color(0xFF666666),
+                  fontSize: 13,
+                ),
+              ),
             ),
             const SizedBox(height: 16),
             ElevatedButton(
-              onPressed: _loadSearchResults,
+              onPressed: _loadSearchResults, // Thử lại
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF003580),
+                backgroundColor: const Color(0xFF003580), // Màu xanh Agoda
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
               ),
-              child: const Text('Thử lại', style: TextStyle(color: Colors.white)),
+              child: const Text(
+                'Thử lại',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
             ),
           ],
         ),
       );
     }
 
+    // Trạng thái không có kết quả
     if (_hotels.isEmpty) {
       return EmptySearchResultsWidget(
         onClearFilter: () {
+          // Reset tất cả filters về mặc định
           setState(() {
             _filters = {
               'priceRange': const RangeValues(0, 40000000),
@@ -482,7 +738,7 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
               'amenities': <String>{},
               'cancellationPolicy': false,
             };
-            _applyFiltersAndSort();
+            _applyFiltersAndSort(); // Áp dụng lại filter
           });
         },
       );
@@ -494,52 +750,58 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
       child: CustomScrollView(
         controller: _scrollController,
         slivers: [
-          // Promotion Banner
-          SliverToBoxAdapter(
-            child: PromotionBanner(
-              onTap: () {
-                // Handle promotion activation
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Khuyến mãi đã được kích hoạt!'),
-                    backgroundColor: Color(0xFF4CAF50),
-                  ),
-                );
-              },
-            ),
-          ),
+          /// ============================================
+          /// PROMOTION BANNER (Tùy chọn)
+          /// ============================================
+          /// Hiển thị banner khuyến mãi nếu có
+          /// Có thể ẩn đi nếu không cần thiết
+          // SliverToBoxAdapter(
+          //   child: PromotionBanner(
+          //     onTap: () {
+          //       ScaffoldMessenger.of(context).showSnackBar(
+          //         const SnackBar(
+          //           content: Text('Khuyến mãi đã được kích hoạt!'),
+          //           backgroundColor: Color(0xFF4CAF50),
+          //         ),
+          //       );
+          //     },
+          //   ),
+          // ),
 
-          // Results count
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-              child: Text(
-                '$_location (${_hotels.length} khách sạn)',
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-          ),
-
-          // Hotel list
+          /// ============================================
+          /// HOTEL LIST
+          /// ============================================
+          /// Danh sách các card khách sạn với layout ngang và animations
           SliverPadding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
             sliver: SliverList(
               delegate: SliverChildBuilderDelegate(
                 (context, index) {
                   final hotel = _hotels[index];
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 16),
-                    child: SearchResultCard(
-                      hotel: hotel,
-                      checkInDate: _checkInDate,
-                      checkOutDate: _checkOutDate,
-                      guestCount: _guestCount,
-                      roomCount: _roomCount,
-                      onTap: () => _navigateToHotelDetail(hotel),
-                    ),
+                  // Staggered animation delay
+                  final animationDelay = index * 0.1;
+                  final animationValue = (_staggerController.value - animationDelay).clamp(0.0, 1.0);
+                  
+                  return TweenAnimationBuilder<double>(
+                    tween: Tween(begin: 0.0, end: 1.0),
+                    duration: Duration(milliseconds: 300 + (index * 50).toInt()),
+                    curve: Curves.easeOutCubic,
+                    builder: (context, value, child) {
+                      return Transform.translate(
+                        offset: Offset(0, 30 * (1 - value)),
+                        child: Opacity(
+                          opacity: value,
+                          child: SearchResultCard(
+                            hotel: hotel,
+                            checkInDate: _checkInDate,
+                            checkOutDate: _checkOutDate,
+                            guestCount: _guestCount,
+                            roomCount: _roomCount,
+                            onTap: () => _navigateToHotelDetail(hotel),
+                          ),
+                        ),
+                      );
+                    },
                   );
                 },
                 childCount: _hotels.length,

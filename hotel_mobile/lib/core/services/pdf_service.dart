@@ -7,11 +7,31 @@ import 'package:path_provider/path_provider.dart';
 import 'package:intl/intl.dart';
 import '../../data/models/booking.dart';
 
+/// Service tạo và xuất PDF voucher cho booking
+/// 
+/// Chức năng:
+/// - Tạo PDF voucher từ thông tin booking
+/// - Bao gồm: Header, Booking Info, QR Code, Booking Details, Policy Info, Footer
+/// - Lưu PDF vào temporary directory
+/// - Share PDF để in hoặc gửi
+/// 
+/// Singleton pattern - chỉ có 1 instance duy nhất
 class PDFService {
   static final PDFService _instance = PDFService._internal();
   factory PDFService() => _instance;
   PDFService._internal();
 
+  /// Tạo và xuất PDF voucher cho booking
+  /// 
+  /// [booking] - Thông tin booking cần tạo voucher
+  /// 
+  /// Quy trình:
+  /// 1. Load font (Roboto-Regular.ttf) để hiển thị tiếng Việt
+  /// 2. Tạo PDF với các section: Header, Booking Info, QR Code, Details, Policy, Footer
+  /// 3. Lưu PDF vào temporary directory
+  /// 4. Share PDF để user có thể in hoặc gửi
+  /// 
+  /// Throws Exception nếu không thể tạo PDF
   Future<void> generateVoucherPDF(Booking booking) async {
     try {
       final pdf = pw.Document();

@@ -3,6 +3,7 @@ import 'package:hotel_mobile/data/models/hotel_review.dart';
 import 'package:hotel_mobile/data/services/api_service.dart';
 import 'package:intl/intl.dart';
 import '../../core/widgets/empty_state_widget.dart';
+import '../screens/reviews/create_review_screen.dart';
 
 class ReviewsSection extends StatefulWidget {
   final int hotelId;
@@ -340,13 +341,43 @@ class _ReviewsSectionState extends State<ReviewsSection> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Text(
-                        'Đánh giá từ khách hàng',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.black87,
-                        ),
+                      Row(
+                        children: [
+                          const Expanded(
+                            child: Text(
+                              'Đánh giá từ khách hàng',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.black87,
+                              ),
+                            ),
+                          ),
+                          // Nút viết đánh giá
+                          TextButton.icon(
+                            onPressed: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => CreateReviewScreen(
+                                    hotelId: widget.hotelId,
+                                    hotelName: 'Khách sạn', // Có thể lấy từ context nếu cần
+                                  ),
+                                ),
+                              ).then((shouldRefresh) {
+                                if (shouldRefresh == true) {
+                                  refreshReviews();
+                                }
+                              });
+                            },
+                            icon: const Icon(Icons.edit, size: 16),
+                            label: const Text('Viết đánh giá'),
+                            style: TextButton.styleFrom(
+                              foregroundColor: Colors.blue[700],
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            ),
+                          ),
+                        ],
                       ),
                       const SizedBox(height: 6),
                       Row(

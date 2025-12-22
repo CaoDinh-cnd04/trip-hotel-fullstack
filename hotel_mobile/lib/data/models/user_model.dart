@@ -1,3 +1,10 @@
+/// Model đại diện cho user (phiên bản dùng trong admin/hotel manager)
+/// 
+/// Chứa thông tin:
+/// - Thông tin đăng nhập: id, tenDangNhap, email
+/// - Thông tin cá nhân: hoTen, soDienThoai, avatar, diaChi
+/// - Thông tin hệ thống: chucVu, trangThai, ghiChu
+/// - Thời gian: ngayTao, ngayCapNhat, ngayDangKy
 class UserModel {
   final String id;
   final String tenDangNhap;
@@ -29,6 +36,14 @@ class UserModel {
     this.ghiChu,
   });
 
+  /// Tạo đối tượng UserModel từ JSON
+  /// 
+  /// [json] - Map chứa dữ liệu JSON từ API
+  /// 
+  /// Xử lý:
+  /// - Parse trangThai từ bool/int/string sang string
+  /// - Sử dụng email làm tenDangNhap
+  /// - Parse DateTime từ ISO8601 string
   factory UserModel.fromJson(Map<String, dynamic> json) {
     // Convert trang_thai from backend format
     String trangThai = 'inactive';
@@ -66,6 +81,9 @@ class UserModel {
     );
   }
 
+  /// Chuyển đổi đối tượng UserModel sang JSON
+  /// 
+  /// Trả về Map chứa tất cả các trường dưới dạng JSON (snake_case)
   Map<String, dynamic> toJson() => {
     'id': id,
     'email': email,
@@ -81,6 +99,11 @@ class UserModel {
     'ghi_chu': ghiChu,
   };
 
+  /// Tạo bản sao của UserModel với các trường được cập nhật
+  /// 
+  /// Cho phép cập nhật từng trường riêng lẻ mà không cần tạo mới toàn bộ object
+  /// 
+  /// Tất cả các tham số đều tùy chọn, nếu không cung cấp sẽ giữ nguyên giá trị cũ
   UserModel copyWith({
     String? id,
     String? tenDangNhap,
@@ -111,11 +134,24 @@ class UserModel {
     );
   }
 
-  // Helper methods
+  /// Kiểm tra xem user có đang hoạt động không
+  /// 
+  /// Trả về true nếu trangThai == 'active'
   bool get isActive => trangThai == 'active';
+  
+  /// Kiểm tra xem user có đang không hoạt động không
+  /// 
+  /// Trả về true nếu trangThai == 'inactive'
   bool get isInactive => trangThai == 'inactive';
+  
+  /// Kiểm tra xem user có bị khóa không
+  /// 
+  /// Trả về true nếu trangThai == 'blocked'
   bool get isBlocked => trangThai == 'blocked';
 
+  /// Lấy tên hiển thị của trạng thái bằng tiếng Việt
+  /// 
+  /// Trả về: "Hoạt động", "Không hoạt động", "Bị khóa", hoặc "Không xác định"
   String get statusDisplayName {
     switch (trangThai) {
       case 'active':
@@ -129,6 +165,9 @@ class UserModel {
     }
   }
 
+  /// Lấy tên hiển thị của vai trò bằng tiếng Việt
+  /// 
+  /// Trả về: "Quản trị viên", "Quản lý khách sạn", "Nhân viên", hoặc "Người dùng"
   String get roleDisplayName {
     switch (chucVu.toLowerCase()) {
       case 'admin':

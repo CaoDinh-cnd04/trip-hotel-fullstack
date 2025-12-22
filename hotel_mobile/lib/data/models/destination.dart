@@ -1,5 +1,10 @@
 import '../../core/utils/image_url_helper.dart';
 
+/// Model đại diện cho điểm đến/địa điểm du lịch
+/// 
+/// Chứa thông tin:
+/// - Thông tin cơ bản: id, tên, quốc gia, mô tả, hình ảnh
+/// - Thống kê: số khách sạn, giá trung bình
 class Destination {
   final String id;
   final String ten;
@@ -19,6 +24,13 @@ class Destination {
     required this.giaTb,
   });
 
+  /// Tạo đối tượng Destination từ JSON
+  /// 
+  /// [json] - Map chứa dữ liệu JSON từ API
+  /// 
+  /// Xử lý:
+  /// - Chuẩn hóa đường dẫn hình ảnh cho Android emulator (thay IP thành 10.0.2.2)
+  /// - Chuyển đổi an toàn các kiểu dữ liệu số
   factory Destination.fromJson(Map<String, dynamic> json) {
     // Get image path and normalize for Android emulator
     String imagePath = json['hinh_anh']?.toString() ?? '';
@@ -43,6 +55,9 @@ class Destination {
     );
   }
 
+  /// Chuyển đổi đối tượng Destination sang JSON
+  /// 
+  /// Trả về Map chứa tất cả các trường dưới dạng JSON
   Map<String, dynamic> toJson() {
     return {
       'id': id,
@@ -60,7 +75,10 @@ class Destination {
     return 'Destination(id: $id, ten: $ten, quocGia: $quocGia)';
   }
 
-  /// Get full image URL
+  /// Lấy URL đầy đủ của hình ảnh địa điểm
+  /// 
+  /// Sử dụng ImageUrlHelper để tạo URL từ đường dẫn hình ảnh
+  /// Trả về URL mặc định nếu không có hình ảnh
   String get fullImageUrl {
     return ImageUrlHelper.getLocationImageUrl(hinhAnh);
   }

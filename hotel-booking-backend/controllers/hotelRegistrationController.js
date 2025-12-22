@@ -2,6 +2,7 @@ const HotelRegistration = require('../models/hotelRegistration');
 const NguoiDung = require('../models/nguoidung');
 const EmailService = require('../services/emailService');
 const path = require('path');
+const fs = require('fs');
 
 /**
  * Tạo đơn đăng ký khách sạn mới
@@ -299,7 +300,8 @@ exports.updateRegistrationStatus = async (req, res) => {
     if (status === 'approved') {
       try {
         // Check if user already exists
-        let user = await NguoiDung.findByEmail(registration.owner_email);
+        const nguoiDung = new NguoiDung();
+        let user = await nguoiDung.findByEmail(registration.owner_email);
         
         if (!user) {
           // Create new hotel manager account
@@ -313,11 +315,12 @@ exports.updateRegistrationStatus = async (req, res) => {
             ngay_dang_ky: new Date()
           };
           
-          user = await NguoiDung.create(userData);
+          const userId = await nguoiDung.create(userData);
+          user = await nguoiDung.findById(userId);
           console.log('✅ Created hotel manager account:', user.id);
         } else {
           // Update existing user to HotelManager role
-          await NguoiDung.updateRole(user.id, 'HotelManager'); // ✅ FIX: Dùng 'HotelManager'
+          await nguoiDung.updateRole(user.id, 'HotelManager'); // ✅ FIX: Dùng 'HotelManager'
           console.log('✅ Updated user role to HotelManager:', user.id);
         }
 
@@ -354,6 +357,79 @@ exports.updateRegistrationStatus = async (req, res) => {
             console.log('✅ Created new vi_tri:', viTriId);
           }
 
+          // Xử lý hình ảnh khách sạn (nếu có)
+          let hinhAnh = null;
+          let hotelImages = []; // Lưu danh sách hình ảnh đã xử lý
+          
+          if (registration.hotel_images) {
+            try {
+              const hotelImages = JSON.parse(registration.hotel_images);
+              if (hotelImages && hotelImages.length > 0) {
+                console.log(`📸 Processing ${hotelImages.length} hotel images...`);
+                
+                // Di chuyển và xử lý tất cả hình ảnh
+                const processedImages = [];
+                const imagesDir = path.join(__dirname, '..', 'images', 'hotels');
+                const uploadsDir = path.join(__dirname, '..', 'uploads');
+                
+                // Đảm bảo thư mục images/hotels tồn tại
+                if (!fs.existsSync(imagesDir)) {
+                  fs.mkdirSync(imagesDir, { recursive: true });
+                }
+                
+                for (let i = 0; i < hotelImages.length; i++) {
+                  const imagePath = hotelImages[i];
+                  let finalImagePath = imagePath;
+                  
+                  // Nếu ảnh ở trong uploads/hotel_registration, di chuyển sang images/hotels
+                  if (imagePath.includes('/uploads/hotel_registration/')) {
+                    const fileName = imagePath.split('/').pop();
+                    const sourcePath = path.join(uploadsDir, 'hotel_registration', fileName);
+                    const destPath = path.join(imagesDir, fileName);
+                    
+                    try {
+                      if (fs.existsSync(sourcePath)) {
+                        fs.copyFileSync(sourcePath, destPath);
+                        console.log(`✅ Moved image: ${fileName}`);
+                        finalImagePath = `/images/hotels/${fileName}`;
+                      } else {
+                        console.log(`⚠️ Source image not found: ${sourcePath}`);
+                        // Giữ nguyên đường dẫn nếu file không tồn tại
+                        finalImagePath = imagePath;
+                      }
+                    } catch (copyError) {
+                      console.error(`❌ Error copying image ${fileName}:`, copyError);
+                      finalImagePath = imagePath; // Giữ nguyên nếu lỗi
+                    }
+                  } else if (!imagePath.startsWith('/images/') && !imagePath.startsWith('http')) {
+                    // Nếu chỉ là tên file, thêm prefix
+                    finalImagePath = `/images/hotels/${imagePath}`;
+                  }
+                  
+                  processedImages.push(finalImagePath);
+                }
+                
+                // Lưu danh sách hình ảnh đã xử lý
+                hotelImages = processedImages;
+                
+                // Lưu danh sách hình ảnh đã xử lý
+                hotelImages = processedImages;
+                
+                // Lấy ảnh đầu tiên làm ảnh đại diện
+                hinhAnh = processedImages[0];
+                // Nếu là đường dẫn đầy đủ, chỉ lấy tên file cho cột hinh_anh
+                if (hinhAnh.includes('/')) {
+                  const fileName = hinhAnh.split('/').pop();
+                  hinhAnh = fileName;
+                }
+                
+                console.log(`✅ Processed ${processedImages.length} images, main image: ${hinhAnh}`);
+              }
+            } catch (e) {
+              console.log('⚠️ Could not parse hotel_images:', e.message);
+            }
+          }
+
           // Tạo khách sạn trong bảng khach_san với dữ liệu từ registration
           const hotelResult = await pool.request()
             .input('ten', sql.NVarChar, registration.hotel_name)
@@ -365,24 +441,25 @@ exports.updateRegistrationStatus = async (req, res) => {
             .input('emailLienHe', sql.NVarChar, registration.contact_email || registration.owner_email)
             .input('sdtLienHe', sql.NVarChar, registration.contact_phone || registration.owner_phone)
             .input('website', sql.NVarChar, registration.website || null)
+            .input('hinhAnh', sql.NVarChar, hinhAnh || null)
             .input('gioNhanPhong', sql.Time, registration.check_in_time || '14:00:00')
             .input('gioTraPhong', sql.Time, registration.check_out_time || '12:00:00')
             .input('yeuCauCoc', sql.Bit, registration.require_deposit !== undefined ? registration.require_deposit : 1)
             .input('tiLeCoc', sql.Decimal(5, 2), registration.deposit_rate || 30)
             .input('chinhSachHuy', sql.NVarChar, registration.cancellation_policy || 'Hủy miễn phí trước 24h. Sau đó mất phí 50% giá trị đặt phòng.')
             .input('tongSoPhong', sql.Int, registration.total_rooms || 10)
-            .input('trangThai', sql.Int, 1)
+            .input('trangThai', sql.NVarChar, 'Hoạt động') // Đảm bảo khách sạn hiển thị trên giao diện chính
             .query(`
               INSERT INTO dbo.khach_san (
                 ten, mo_ta, dia_chi, vi_tri_id, so_sao, 
-                chu_khach_san_id, email_lien_he, sdt_lien_he, website,
+                chu_khach_san_id, email_lien_he, sdt_lien_he, website, hinh_anh,
                 gio_nhan_phong, gio_tra_phong, yeu_cau_coc, ti_le_coc,
                 chinh_sach_huy, tong_so_phong, trang_thai
               )
               OUTPUT INSERTED.id
               VALUES (
                 @ten, @moTa, @diaChi, @viTriId, @soSao,
-                @chuKhachSanId, @emailLienHe, @sdtLienHe, @website,
+                @chuKhachSanId, @emailLienHe, @sdtLienHe, @website, @hinhAnh,
                 @gioNhanPhong, @gioTraPhong, @yeuCauCoc, @tiLeCoc,
                 @chinhSachHuy, @tongSoPhong, @trangThai
               )
@@ -390,6 +467,66 @@ exports.updateRegistrationStatus = async (req, res) => {
 
           const hotelId = hotelResult.recordset[0].id;
           console.log('✅ Created hotel in database:', hotelId);
+
+          // === LƯU TẤT CẢ HÌNH ẢNH KHÁCH SẠN ===
+          if (hotelImages && hotelImages.length > 0) {
+            try {
+              // Tạo bảng anh_khach_san nếu chưa có
+              try {
+                const checkTableQuery = `
+                  SELECT TABLE_NAME 
+                  FROM INFORMATION_SCHEMA.TABLES 
+                  WHERE TABLE_SCHEMA = 'dbo' AND TABLE_NAME = 'anh_khach_san'
+                `;
+                const tableExists = await pool.request().query(checkTableQuery);
+                
+                if (tableExists.recordset.length === 0) {
+                  // Tạo bảng mới để lưu nhiều hình ảnh
+                  await pool.request().query(`
+                    CREATE TABLE dbo.anh_khach_san (
+                      id INT IDENTITY(1,1) PRIMARY KEY,
+                      khach_san_id INT NOT NULL,
+                      duong_dan_anh NVARCHAR(500) NOT NULL,
+                      thu_tu INT DEFAULT 0,
+                      la_anh_dai_dien BIT DEFAULT 0,
+                      created_at DATETIME DEFAULT GETDATE(),
+                      FOREIGN KEY (khach_san_id) REFERENCES dbo.khach_san(id) ON DELETE CASCADE
+                    )
+                  `);
+                  console.log('✅ Created table anh_khach_san');
+                }
+              } catch (tableError) {
+                // Bảng có thể đã tồn tại hoặc có lỗi, tiếp tục
+                console.log('⚠️ Table check/create error (may already exist):', tableError.message);
+              }
+              
+              // Lưu tất cả hình ảnh vào bảng anh_khach_san
+              for (let i = 0; i < hotelImages.length; i++) {
+                const imagePath = hotelImages[i];
+                const isMain = i === 0; // Ảnh đầu tiên là ảnh đại diện
+                
+                try {
+                  await pool.request()
+                    .input('khachSanId', sql.Int, hotelId)
+                    .input('duongDanAnh', sql.NVarChar, imagePath)
+                    .input('thuTu', sql.Int, i + 1)
+                    .input('laAnhDaiDien', sql.Bit, isMain ? 1 : 0)
+                    .query(`
+                      INSERT INTO dbo.anh_khach_san (khach_san_id, duong_dan_anh, thu_tu, la_anh_dai_dien)
+                      VALUES (@khachSanId, @duongDanAnh, @thuTu, @laAnhDaiDien)
+                    `);
+                } catch (insertError) {
+                  console.error(`❌ Error inserting image ${i + 1}:`, insertError.message);
+                  // Continue with next image
+                }
+              }
+              
+              console.log(`✅ Saved ${hotelImages.length} images to database for hotel ${hotelId}`);
+            } catch (imageSaveError) {
+              console.error('❌ Error saving hotel images to database:', imageSaveError);
+              // Continue even if image saving fails
+            }
+          }
 
           // === TỰ ĐỘNG TẠO CÁC LOẠI PHÒNG TỪ ROOMS_DATA ===
           if (registration.rooms_data) {
@@ -447,36 +584,64 @@ exports.updateRegistrationStatus = async (req, res) => {
         }
 
         // Send approval email with setup instructions
+        const tempPassword = user.mat_khau && user.mat_khau.startsWith('temp_password_') 
+          ? 'Vui lòng đặt lại mật khẩu khi đăng nhập lần đầu' 
+          : 'Sử dụng mật khẩu hiện tại của bạn';
+        
         await EmailService.sendEmail({
           to: registration.owner_email,
           subject: '🎉 Đơn đăng ký khách sạn của bạn đã được duyệt!',
           html: `
             <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
               <h2 style="color: #28a745;">Chúc mừng ${registration.owner_name}!</h2>
-              <p>Đơn đăng ký khách sạn <strong>${registration.hotel_name}</strong> của bạn đã được duyệt.</p>
+              <p>Đơn đăng ký khách sạn <strong>${registration.hotel_name}</strong> của bạn đã được duyệt thành công.</p>
               
               <div style="background-color: #d4edda; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #28a745;">
-                <h3 style="margin-top: 0; color: #155724;">Bước tiếp theo:</h3>
-                <ol style="margin: 10px 0; padding-left: 20px;">
+                <h3 style="margin-top: 0; color: #155724;">✅ Tài khoản của bạn đã được tạo:</h3>
+                <ul style="margin: 10px 0; padding-left: 20px; color: #155724;">
+                  <li><strong>Email đăng nhập:</strong> ${registration.owner_email}</li>
+                  <li><strong>Quyền truy cập:</strong> Quản lý khách sạn (HotelManager)</li>
+                  <li><strong>Mật khẩu:</strong> ${tempPassword}</li>
+                </ul>
+              </div>
+
+              <div style="background-color: #fff3cd; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #ffc107;">
+                <h3 style="margin-top: 0; color: #856404;">📋 Khách sạn của bạn đã được thêm vào hệ thống:</h3>
+                <ul style="margin: 10px 0; padding-left: 20px; color: #856404;">
+                  <li>Khách sạn <strong>${registration.hotel_name}</strong> đã được tạo trong hệ thống</li>
+                  <li>Khách sạn đã hiển thị trên giao diện chính của website</li>
+                  <li>Bạn có thể quản lý khách sạn ngay bây giờ</li>
+                </ul>
+              </div>
+
+              <div style="background-color: #d1ecf1; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #0c5460;">
+                <h3 style="margin-top: 0; color: #0c5460;">🚀 Bước tiếp theo:</h3>
+                <ol style="margin: 10px 0; padding-left: 20px; color: #0c5460;">
                   <li>Đăng nhập vào Triphotel bằng email: <strong>${registration.owner_email}</strong></li>
-                  <li>Thiết lập mật khẩu mới (nếu chưa có tài khoản)</li>
-                  <li>Hoàn thiện hồ sơ khách sạn: thêm ảnh, mô tả chi tiết, tiện nghi</li>
-                  <li>Đăng các loại phòng và giá</li>
+                  <li>${user.mat_khau && user.mat_khau.startsWith('temp_password_') ? 'Thiết lập mật khẩu mới (bắt buộc)' : 'Sử dụng mật khẩu hiện tại'}</li>
+                  <li>Truy cập phần quản lý khách sạn để hoàn thiện thông tin</li>
+                  <li>Thêm ảnh, mô tả chi tiết, tiện nghi cho khách sạn</li>
+                  <li>Quản lý phòng và giá cả</li>
                   <li>Bắt đầu nhận đặt phòng từ khách hàng!</li>
                 </ol>
               </div>
 
               <div style="text-align: center; margin: 30px 0;">
                 <a href="${process.env.APP_URL || 'http://localhost:3000'}/login" 
-                   style="background-color: #2c5aa0; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; display: inline-block;">
-                  Đăng nhập ngay
+                   style="background-color: #2c5aa0; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; display: inline-block; font-weight: bold;">
+                  🔐 Đăng nhập ngay
                 </a>
               </div>
 
-              ${admin_note ? `<p><strong>Ghi chú từ admin:</strong> ${admin_note}</p>` : ''}
+              ${admin_note ? `
+                <div style="background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin: 20px 0;">
+                  <p style="margin: 0;"><strong>💬 Ghi chú từ admin:</strong></p>
+                  <p style="margin: 5px 0 0 0;">${admin_note}</p>
+                </div>
+              ` : ''}
 
-              <p>Chúc bạn thành công với khách sạn của mình!</p>
-              <p style="margin-top: 30px;">Trân trọng,<br><strong>Đội ngũ Triphotel</strong></p>
+              <p style="margin-top: 30px;">Chúc bạn thành công với khách sạn của mình!</p>
+              <p>Trân trọng,<br><strong>Đội ngũ Triphotel</strong></p>
             </div>
           `
         });
@@ -492,25 +657,54 @@ exports.updateRegistrationStatus = async (req, res) => {
       try {
         await EmailService.sendEmail({
           to: registration.owner_email,
-          subject: 'Thông báo về đơn đăng ký khách sạn',
+          subject: '❌ Thông báo về đơn đăng ký khách sạn',
           html: `
             <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
               <h2 style="color: #dc3545;">Thông báo về đơn đăng ký</h2>
-              <p>Xin chào ${registration.owner_name},</p>
-              <p>Chúng tôi rất tiếc phải thông báo rằng đơn đăng ký khách sạn <strong>${registration.hotel_name}</strong> của bạn chưa được chấp nhận.</p>
+              <p>Xin chào <strong>${registration.owner_name}</strong>,</p>
+              
+              <div style="background-color: #f8d7da; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #dc3545;">
+                <p style="margin: 0; color: #721c24;">
+                  Chúng tôi rất tiếc phải thông báo rằng đơn đăng ký khách sạn <strong>${registration.hotel_name}</strong> của bạn chưa được chấp nhận tại thời điểm này.
+                </p>
+              </div>
               
               ${admin_note ? `
-                <div style="background-color: #f8d7da; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #dc3545;">
-                  <p style="margin: 0;"><strong>Lý do:</strong> ${admin_note}</p>
+                <div style="background-color: #fff3cd; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #ffc107;">
+                  <p style="margin: 0; color: #856404;"><strong>📝 Lý do từ chối:</strong></p>
+                  <p style="margin: 5px 0 0 0; color: #856404;">${admin_note}</p>
                 </div>
-              ` : ''}
+              ` : `
+                <div style="background-color: #fff3cd; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #ffc107;">
+                  <p style="margin: 0; color: #856404;">
+                    Vui lòng kiểm tra lại thông tin đăng ký và đảm bảo đã điền đầy đủ, chính xác các thông tin bắt buộc.
+                  </p>
+                </div>
+              `}
 
-              <p>Bạn có thể chỉnh sửa thông tin và gửi lại đơn đăng ký. Nếu cần hỗ trợ, vui lòng liên hệ với chúng tôi.</p>
+              <div style="background-color: #d1ecf1; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #0c5460;">
+                <h3 style="margin-top: 0; color: #0c5460;">🔄 Bạn có thể:</h3>
+                <ul style="margin: 10px 0; padding-left: 20px; color: #0c5460;">
+                  <li>Chỉnh sửa thông tin đăng ký dựa trên phản hồi (nếu có)</li>
+                  <li>Gửi lại đơn đăng ký mới với thông tin đã được cập nhật</li>
+                  <li>Liên hệ với chúng tôi nếu cần hỗ trợ hoặc có thắc mắc</li>
+                </ul>
+              </div>
+
+              <div style="text-align: center; margin: 30px 0;">
+                <a href="${process.env.APP_URL || 'http://localhost:3000'}/hotel-registration" 
+                   style="background-color: #2c5aa0; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; display: inline-block; font-weight: bold;">
+                  📝 Đăng ký lại
+                </a>
+              </div>
+
+              <p>Nếu bạn có bất kỳ câu hỏi nào, vui lòng liên hệ với chúng tôi qua email này hoặc hotline hỗ trợ.</p>
               
               <p style="margin-top: 30px;">Trân trọng,<br><strong>Đội ngũ Triphotel</strong></p>
             </div>
           `
         });
+        console.log('✅ Rejection email sent to:', registration.owner_email);
       } catch (error) {
         console.error('❌ Error sending rejection email:', error);
       }

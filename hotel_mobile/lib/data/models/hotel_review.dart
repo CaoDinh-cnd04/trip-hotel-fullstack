@@ -1,3 +1,9 @@
+/// Model đại diện cho đánh giá khách sạn từ khách hàng
+/// 
+/// Chứa thông tin:
+/// - Đánh giá: rating (1-5 sao), content, reviewDate
+/// - Phản hồi khách sạn: hotelResponse, responseDate
+/// - Thông tin khách hàng: customerName, customerAvatar, roomNumber
 class HotelReview {
   final int id;
   final int rating;
@@ -21,6 +27,14 @@ class HotelReview {
     required this.roomNumber,
   });
 
+  /// Tạo đối tượng HotelReview từ JSON
+  /// 
+  /// [json] - Map chứa dữ liệu JSON từ API
+  /// 
+  /// Xử lý:
+  /// - Hỗ trợ cả tiếng Anh và tiếng Việt cho field names
+  /// - Parse DateTime an toàn với null safety
+  /// - Xử lý các giá trị mặc định
   factory HotelReview.fromJson(Map<String, dynamic> json) {
     // Parse date with null safety
     DateTime parseDate(dynamic dateValue) {

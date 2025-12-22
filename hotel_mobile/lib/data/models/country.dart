@@ -1,5 +1,10 @@
 import '../../core/utils/image_url_helper.dart';
 
+/// Model đại diện cho quốc gia
+/// 
+/// Chứa thông tin:
+/// - Thông tin cơ bản: id, tên, mô tả, hình ảnh
+/// - Thống kê: số khách sạn, số tỉnh/thành phố
 class Country {
   final String id;
   final String ten;
@@ -17,6 +22,13 @@ class Country {
     required this.soTinhThanh,
   });
 
+  /// Tạo đối tượng Country từ JSON
+  /// 
+  /// [json] - Map chứa dữ liệu JSON từ API
+  /// 
+  /// Xử lý:
+  /// - Chuẩn hóa đường dẫn hình ảnh cho Android emulator (thay IP thành 10.0.2.2)
+  /// - Chuyển đổi an toàn các kiểu dữ liệu
   factory Country.fromJson(Map<String, dynamic> json) {
     // Get image path and normalize for Android emulator
     String imagePath = json['hinh_anh']?.toString() ?? '';
@@ -40,6 +52,9 @@ class Country {
     );
   }
 
+  /// Chuyển đổi đối tượng Country sang JSON
+  /// 
+  /// Trả về Map chứa tất cả các trường dưới dạng JSON
   Map<String, dynamic> toJson() {
     return {
       'id': id,
@@ -56,7 +71,10 @@ class Country {
     return 'Country(id: $id, ten: $ten)';
   }
 
-  /// Get full image URL
+  /// Lấy URL đầy đủ của hình ảnh quốc gia
+  /// 
+  /// Sử dụng ImageUrlHelper để tạo URL từ đường dẫn hình ảnh
+  /// Trả về URL mặc định nếu không có hình ảnh
   String get fullImageUrl {
     return ImageUrlHelper.getCountryImageUrl(hinhAnh);
   }

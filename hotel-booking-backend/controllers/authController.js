@@ -88,6 +88,7 @@ exports.register = [
     .withMessage('Mật khẩu phải chứa ít nhất 1 chữ hoa, 1 chữ thường và 1 số'),
   
   check('sdt')
+    .optional()
     .matches(/^[0-9]{10,11}$/)
     .withMessage('Số điện thoại phải có 10-11 chữ số'),
   
@@ -111,7 +112,8 @@ exports.register = [
       const { ho_ten, email, mat_khau, sdt, ngay_sinh, gioi_tinh, anh_dai_dien } = req.body;
 
       // Create user
-      const newUser = await NguoiDung.createUser({
+      const nguoiDung = new NguoiDung();
+      const newUser = await nguoiDung.createUser({
         ho_ten,
         email: email.toLowerCase(),
         mat_khau,
@@ -135,12 +137,27 @@ exports.register = [
         hotel_id: newUser.khach_san_id || null
       };
 
+      // Tạo Firebase custom token cho user mới đăng ký
+      let firebaseCustomToken = null;
+      try {
+        const { createCustomToken } = require('../services/firebaseAdmin');
+        firebaseCustomToken = await createCustomToken(newUser.id, newUser.email, {
+          role: roleData.role,
+          hotel_id: roleData.hotel_id
+        });
+        console.log('✅ Firebase custom token created for new registered user');
+      } catch (firebaseError) {
+        console.warn('⚠️ Failed to create Firebase custom token (non-critical):', firebaseError.message);
+        // Continue without custom token - frontend can use email/password auth
+      }
+
       res.status(201).json({
         success: true,
         message: 'Đăng ký thành công',
         user: userResponse,
         token: token,
-        role: roleData
+        role: roleData,
+        firebase_custom_token: firebaseCustomToken // Firebase custom token for Firestore access
       });
 
     } catch (error) {
@@ -191,7 +208,8 @@ exports.login = [
       console.log('Login attempt for:', email);
 
       // Verify credentials
-      const result = await NguoiDung.verifyPassword(email.toLowerCase(), mat_khau);
+      const nguoiDung = new NguoiDung();
+      const result = await nguoiDung.verifyPassword(email.toLowerCase(), mat_khau);
       console.log('Verify password result:', result);
       
       if (!result.success) {
@@ -221,12 +239,27 @@ exports.login = [
       console.log('🔐 Permissions:', roleData.permissions);
       console.log('🔍 ================================');
 
+      // Tạo Firebase custom token cho email/password users (optional, for Firestore access)
+      let firebaseCustomToken = null;
+      try {
+        const { createCustomToken } = require('../services/firebaseAdmin');
+        firebaseCustomToken = await createCustomToken(result.user.id, result.user.email, {
+          role: roleData.role,
+          hotel_id: roleData.hotel_id
+        });
+        console.log('✅ Firebase custom token created for email/password user');
+      } catch (firebaseError) {
+        console.warn('⚠️ Failed to create Firebase custom token (non-critical):', firebaseError.message);
+        // Continue without custom token - frontend can use email/password auth
+      }
+
       res.json({
         success: true,
         message: 'Đăng nhập thành công',
         user: result.user,
         token: token,
-        role: roleData
+        role: roleData,
+        firebase_custom_token: firebaseCustomToken // Firebase custom token for Firestore access
       });
 
     } catch (error) {
@@ -244,7 +277,8 @@ exports.login = [
 exports.verify = async (req, res) => {
   try {
     // Token already verified by middleware
-    const user = await NguoiDung.findById(req.user.id);
+    const nguoiDung = new NguoiDung();
+    const user = await nguoiDung.findById(req.user.id);
     
     if (!user) {
       return res.status(404).json({
@@ -283,7 +317,8 @@ exports.verify = async (req, res) => {
 // Refresh token
 exports.refreshToken = async (req, res) => {
   try {
-    const user = await NguoiDung.findById(req.user.id);
+    const nguoiDung = new NguoiDung();
+    const user = await nguoiDung.findById(req.user.id);
     
     if (!user || !user.trang_thai) {
       return res.status(401).json({
@@ -338,7 +373,8 @@ exports.changePassword = [
       const { mat_khau_cu, mat_khau_moi } = req.body;
       const userId = req.user.id;
 
-      await NguoiDung.changePassword(userId, mat_khau_cu, mat_khau_moi);
+      const nguoiDung = new NguoiDung();
+      await nguoiDung.changePassword(userId, mat_khau_cu, mat_khau_moi);
 
       res.json({
         success: true,
@@ -402,11 +438,13 @@ exports.firebaseSocialLogin = async (req, res) => {
       google_id: provider === 'google.com' ? google_id : null,
       facebook_id: provider === 'facebook.com' ? facebook_id : null,
       chuc_vu: 'User', // Default role is User
-      trang_thai: 1
+      trang_thai: 1,
+      nhan_thong_bao_email: 1 // Default to enabled for email notifications
     };
 
     // Sync user data to database
-    const user = await NguoiDung.syncFirebaseUser(userData);
+    const nguoiDung = new NguoiDung();
+    const user = await nguoiDung.syncFirebaseUser(userData);
     console.log('✅ User synced to database:', user.id);
 
     // Generate JWT token
@@ -478,7 +516,8 @@ exports.socialLogin = async (req, res) => {
     }
 
     // Kiểm tra xem user đã tồn tại chưa
-    let user = await NguoiDung.findByEmail(email);
+    const nguoiDung = new NguoiDung();
+    let user = await nguoiDung.findByEmail(email);
 
     if (user) {
       // User đã tồn tại, cập nhật thông tin social
@@ -487,8 +526,8 @@ exports.socialLogin = async (req, res) => {
         provider: provider
       };
 
-      await NguoiDung.update(user.id, updateData);
-      user = await NguoiDung.findById(user.id);
+      await nguoiDung.update(user.id, updateData);
+      user = await nguoiDung.findById(user.id);
     } else {
       // Tạo user mới
       // Auto-assign Admin role for specific emails
@@ -509,11 +548,12 @@ exports.socialLogin = async (req, res) => {
         anh_dai_dien: anh_dai_dien || '/images/users/default.jpg',
         chuc_vu: chucVu,
         trang_thai: 1,
+        nhan_thong_bao_email: 1, // Default to enabled for email notifications
         provider: provider
       };
 
-      const userId = await NguoiDung.create(newUserData);
-      user = await NguoiDung.findById(userId);
+      const userId = await nguoiDung.create(newUserData);
+      user = await nguoiDung.findById(userId);
       
       if (chucVu === 'Admin') {
         console.log(`✅ Auto-assigned Admin role to: ${email}`);
@@ -582,15 +622,16 @@ exports.facebookLogin = async (req, res) => {
     }
 
     // Kiểm tra xem user đã tồn tại chưa (theo email hoặc facebook_id)
+    const nguoiDung = new NguoiDung();
     let existingUser = null;
     
     if (facebookUser.email) {
-      existingUser = await NguoiDung.findByEmail(facebookUser.email.toLowerCase());
+      existingUser = await nguoiDung.findByEmail(facebookUser.email.toLowerCase());
     }
     
     // Nếu chưa có user với email này, tìm theo facebook_id
     if (!existingUser) {
-      existingUser = await NguoiDung.findByFacebookId(facebookUser.id);
+      existingUser = await nguoiDung.findByFacebookId(facebookUser.id);
     }
 
     let user;
@@ -598,7 +639,7 @@ exports.facebookLogin = async (req, res) => {
     if (existingUser) {
       // Cập nhật facebook_id nếu chưa có
       if (!existingUser.facebook_id) {
-        await NguoiDung.updateFacebookId(existingUser.id, facebookUser.id);
+        await nguoiDung.updateFacebookId(existingUser.id, facebookUser.id);
         existingUser.facebook_id = facebookUser.id;
       }
       user = existingUser;
@@ -614,7 +655,7 @@ exports.facebookLogin = async (req, res) => {
       };
 
       // Tạo user mới với Facebook
-      const newUser = await NguoiDung.createWithFacebook(userData);
+      const newUser = await nguoiDung.createWithFacebook(userData);
       user = newUser;
     }
 

@@ -2,23 +2,53 @@ import 'package:dio/dio.dart';
 import '../models/api_response.dart';
 import '../models/user.dart';
 import '../../core/constants/app_constants.dart';
-import 'backend_auth_service.dart';
+import '../../core/services/backend_auth_service.dart';
 
+/// Service quản lý profile người dùng
+/// 
+/// Chức năng:
+/// - Lấy thông tin profile
+/// - Lấy thông tin VIP status
+/// - Cập nhật profile
 class UserProfileService {
-  final Dio _dio = Dio(BaseOptions(baseUrl: AppConstants.baseUrl));
+  final Dio _dio;
+  final BackendAuthService _authService = BackendAuthService();
 
-  /// Lấy thông tin profile của user
+  UserProfileService() : _dio = Dio(BaseOptions(
+    baseUrl: AppConstants.baseUrl,
+    connectTimeout: const Duration(seconds: 30),
+    receiveTimeout: const Duration(seconds: 30),
+    headers: {
+      'Content-Type': 'application/json',
+    },
+  )) {
+    // Thêm interceptor để tự động thêm token vào header
+    _dio.interceptors.add(InterceptorsWrapper(
+      onRequest: (options, handler) async {
+        // Lấy token từ BackendAuthService
+        final token = await _authService.getToken();
+        if (token != null && token.isNotEmpty) {
+          options.headers['Authorization'] = 'Bearer $token';
+          print('🔑 UserProfileService: Added token to header');
+        } else {
+          print('⚠️ UserProfileService: No token available - request may fail');
+        }
+        return handler.next(options);
+      },
+    ));
+  }
+
+  /// Lấy thông tin profile của người dùng hiện tại
+  /// 
+  /// Yêu cầu đăng nhập (JWT token)
+  /// 
+  /// Trả về ApiResponse chứa đối tượng User
   Future<ApiResponse<User>> getUserProfile() async {
     try {
       print('🚀 Lấy thông tin user profile...');
       
       final response = await _dio.get(
         '/api/user/profile',
-        options: Options(
-          headers: {
-            'Content-Type': 'application/json',
-          },
-        ),
       );
 
       if (response.statusCode == 200) {
@@ -51,16 +81,8 @@ class UserProfileService {
     try {
       print('🚀 Lấy thông tin VIP status...');
       
-      // Lấy token từ BackendAuthService - đảm bảo load từ storage
-      final authService = BackendAuthService();
-      
-      // Nếu token null, thử load từ storage
-      var token = authService.authToken;
-      if (token == null) {
-        print('⚠️ Token null, thử restore từ storage...');
-        await authService.restoreUserData();
-        token = authService.authToken;
-      }
+      // Lấy token từ BackendAuthService
+      final token = await _authService.getToken();
       
       if (token == null || token.isEmpty) {
         print('❌ Không có token, cần đăng nhập');
@@ -176,18 +198,25 @@ class UserProfileService {
     try {
       print('🚀 Cập nhật thông tin user...');
       
+      // Kiểm tra token trước khi gửi request
+      final token = await _authService.getToken();
+      if (token == null || token.isEmpty) {
+        print('❌ Không có token để cập nhật profile');
+        return ApiResponse<Map<String, dynamic>>(
+          success: false,
+          message: 'Vui lòng đăng nhập để cập nhật thông tin',
+        );
+      }
+      
+      print('🔑 Token available: ${token.substring(0, 20)}...');
+      
       final response = await _dio.put(
         '/api/user/profile',
         data: {
           'name': name,
-          if (phone != null) 'phone': phone,
-          if (address != null) 'address': address,
+          if (phone != null && phone.isNotEmpty) 'phone': phone,
+          if (address != null && address.isNotEmpty) 'address': address,
         },
-        options: Options(
-          headers: {
-            'Content-Type': 'application/json',
-          },
-        ),
       );
 
       if (response.statusCode == 200) {
@@ -259,11 +288,23 @@ class UserProfileService {
     try {
       print('🚀 Lấy cài đặt user...');
       
+      // Lấy token từ BackendAuthService
+      final token = await _authService.getToken();
+      
+      if (token == null || token.isEmpty) {
+        print('❌ Không có token để lấy cài đặt');
+        return ApiResponse<Map<String, dynamic>>(
+          success: false,
+          message: 'Chưa đăng nhập',
+        );
+      }
+      
       final response = await _dio.get(
         '/api/user/settings',
         options: Options(
           headers: {
             'Content-Type': 'application/json',
+            'Authorization': 'Bearer $token',
           },
         ),
       );
@@ -304,6 +345,17 @@ class UserProfileService {
     try {
       print('🚀 Cập nhật cài đặt user...');
       
+      // Lấy token từ BackendAuthService
+      final token = await _authService.getToken();
+      
+      if (token == null || token.isEmpty) {
+        print('❌ Không có token để cập nhật cài đặt');
+        return ApiResponse<Map<String, dynamic>>(
+          success: false,
+          message: 'Chưa đăng nhập',
+        );
+      }
+      
       final response = await _dio.put(
         '/api/user/settings',
         data: {
@@ -316,6 +368,7 @@ class UserProfileService {
         options: Options(
           headers: {
             'Content-Type': 'application/json',
+            'Authorization': 'Bearer $token',
           },
         ),
       );
@@ -345,15 +398,67 @@ class UserProfileService {
     }
   }
 
+  /// Tích điểm thủ công cho các booking đã thanh toán
+  Future<ApiResponse<Map<String, dynamic>>> addPointsForPaidBookings() async {
+    try {
+      print('🚀 Tích điểm thủ công cho các booking đã thanh toán...');
+      
+      final token = await _authService.getToken();
+      if (token == null || token.isEmpty) {
+        return ApiResponse<Map<String, dynamic>>(
+          success: false,
+          message: 'Vui lòng đăng nhập',
+        );
+      }
+      
+      final response = await _dio.post(
+        '/api/user/vip-status/add-points-for-bookings',
+        options: Options(
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $token',
+          },
+        ),
+      );
+
+      if (response.statusCode == 200) {
+        final data = response.data;
+        if (data['success'] == true) {
+          print('✅ Tích điểm thành công: ${data['data']}');
+          return ApiResponse<Map<String, dynamic>>(
+            success: true,
+            message: data['message'] ?? 'Tích điểm thành công',
+            data: data['data'],
+          );
+        } else {
+          return ApiResponse<Map<String, dynamic>>(
+            success: false,
+            message: data['message'] ?? 'Tích điểm thất bại',
+          );
+        }
+      } else {
+        return ApiResponse<Map<String, dynamic>>(
+          success: false,
+          message: 'Lỗi: ${response.statusCode}',
+        );
+      }
+    } catch (e) {
+      print('❌ Exception tích điểm thủ công: $e');
+      return ApiResponse<Map<String, dynamic>>(
+        success: false,
+        message: 'Lỗi: $e',
+      );
+    }
+  }
+
   /// Cập nhật cài đặt nhận email thông báo
   Future<bool> updateEmailNotificationPreference(bool enabled) async {
     try {
       print('📧 Cập nhật cài đặt email thông báo: $enabled');
       
-      final authService = BackendAuthService();
-      final token = authService.authToken;
+      final token = await _authService.getToken();
       
-      if (token == null) {
+      if (token == null || token.isEmpty) {
         print('❌ Không có token, cần đăng nhập');
         return false;
       }

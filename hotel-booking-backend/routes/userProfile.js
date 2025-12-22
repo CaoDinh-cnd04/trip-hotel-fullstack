@@ -9,6 +9,9 @@ router.use(verifyToken);
 // Lấy thông tin VIP status
 router.get('/vip-status', userProfileController.getVipStatus);
 
+// Tích điểm thủ công cho các booking đã thanh toán
+router.post('/vip-status/add-points-for-bookings', userProfileController.addPointsForPaidBookings);
+
 // Cập nhật thông tin user
 router.put('/profile', userProfileController.updateProfile);
 

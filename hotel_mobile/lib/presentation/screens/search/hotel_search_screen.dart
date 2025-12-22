@@ -194,7 +194,7 @@ class _HotelSearchScreenState extends State<HotelSearchScreen> {
             children: [
               Expanded(
                 child: _buildDateField(
-                  'Th 7, 18 thg 10',
+                  _formatDate(_checkInDate),
                   Icons.calendar_today,
                   () => _selectDate(true),
                 ),
@@ -202,7 +202,7 @@ class _HotelSearchScreenState extends State<HotelSearchScreen> {
               const SizedBox(width: 12),
               Expanded(
                 child: _buildDateField(
-                  'CN, 19 thg 10',
+                  _formatDate(_checkOutDate),
                   Icons.calendar_today,
                   () => _selectDate(false),
                 ),
@@ -344,21 +344,27 @@ class _HotelSearchScreenState extends State<HotelSearchScreen> {
   }
 
   Widget _buildGuestField() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        color: Colors.grey[100],
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        children: [
-          const Icon(Icons.person, color: Colors.grey, size: 20),
-          const SizedBox(width: 12),
-          Text(
-            '$_rooms phòng $_adults người lớn $_children trẻ em',
-            style: const TextStyle(fontSize: 14),
-          ),
-        ],
+    return GestureDetector(
+      onTap: _selectGuests,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          color: Colors.grey[100],
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.person, color: Colors.grey, size: 20),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                '$_rooms phòng $_adults người lớn $_children trẻ em',
+                style: const TextStyle(fontSize: 14),
+              ),
+            ),
+            const Icon(Icons.arrow_drop_down, color: Colors.grey),
+          ],
+        ),
       ),
     );
   }
@@ -589,23 +595,197 @@ class _HotelSearchScreenState extends State<HotelSearchScreen> {
     );
   }
 
+  String _formatDate(DateTime? date) {
+    if (date == null) return 'Chọn ngày';
+    
+    final weekdays = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
+    final months = [
+      'thg 1', 'thg 2', 'thg 3', 'thg 4', 'thg 5', 'thg 6',
+      'thg 7', 'thg 8', 'thg 9', 'thg 10', 'thg 11', 'thg 12'
+    ];
+    
+    final weekday = weekdays[date.weekday % 7];
+    final day = date.day;
+    final month = months[date.month - 1];
+    
+    return '$weekday, $day $month';
+  }
+
   void _selectDate(bool isCheckIn) async {
     final DateTime? picked = await showDatePicker(
       context: context,
       initialDate: isCheckIn ? _checkInDate! : _checkOutDate!,
       firstDate: DateTime.now(),
       lastDate: DateTime.now().add(const Duration(days: 365)),
+      locale: const Locale('vi', 'VN'),
     );
     
     if (picked != null) {
       setState(() {
         if (isCheckIn) {
           _checkInDate = picked;
+          // Đảm bảo check-out date luôn sau check-in date ít nhất 1 ngày
+          if (_checkOutDate != null && _checkOutDate!.isBefore(picked.add(const Duration(days: 1)))) {
+            _checkOutDate = picked.add(const Duration(days: 1));
+          }
         } else {
+          // Đảm bảo check-out date luôn sau check-in date ít nhất 1 ngày
+          if (picked.isBefore(_checkInDate!.add(const Duration(days: 1)))) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Ngày trả phòng phải sau ngày nhận phòng ít nhất 1 ngày'),
+              ),
+            );
+            return;
+          }
           _checkOutDate = picked;
         }
       });
     }
+  }
+
+  void _selectGuests() async {
+    int tempRooms = _rooms;
+    int tempAdults = _adults;
+    int tempChildren = _children;
+
+    await showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Chọn số phòng và khách'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Rooms
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('Số phòng'),
+                  Row(
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.remove_circle_outline),
+                        onPressed: tempRooms > 1
+                            ? () {
+                                setDialogState(() {
+                                  tempRooms--;
+                                });
+                              }
+                            : null,
+                      ),
+                      Text(
+                        '$tempRooms',
+                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.add_circle_outline),
+                        onPressed: tempRooms < 10
+                            ? () {
+                                setDialogState(() {
+                                  tempRooms++;
+                                });
+                              }
+                            : null,
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              const Divider(),
+              // Adults
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('Người lớn'),
+                  Row(
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.remove_circle_outline),
+                        onPressed: tempAdults > 1
+                            ? () {
+                                setDialogState(() {
+                                  tempAdults--;
+                                });
+                              }
+                            : null,
+                      ),
+                      Text(
+                        '$tempAdults',
+                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.add_circle_outline),
+                        onPressed: tempAdults < 20
+                            ? () {
+                                setDialogState(() {
+                                  tempAdults++;
+                                });
+                              }
+                            : null,
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              const Divider(),
+              // Children
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('Trẻ em'),
+                  Row(
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.remove_circle_outline),
+                        onPressed: tempChildren > 0
+                            ? () {
+                                setDialogState(() {
+                                  tempChildren--;
+                                });
+                              }
+                            : null,
+                      ),
+                      Text(
+                        '$tempChildren',
+                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.add_circle_outline),
+                        onPressed: tempChildren < 10
+                            ? () {
+                                setDialogState(() {
+                                  tempChildren++;
+                                });
+                              }
+                            : null,
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Hủy'),
+            ),
+            TextButton(
+              onPressed: () {
+                setState(() {
+                  _rooms = tempRooms;
+                  _adults = tempAdults;
+                  _children = tempChildren;
+                });
+                Navigator.pop(context);
+              },
+              child: const Text('Xác nhận'),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   void _performSearch() async {

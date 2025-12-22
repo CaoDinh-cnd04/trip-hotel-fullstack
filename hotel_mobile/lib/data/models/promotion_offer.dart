@@ -1,5 +1,13 @@
 import 'package:intl/intl.dart';
 
+/// Model đại diện cho ưu đãi khuyến mãi phòng
+/// 
+/// Chứa thông tin:
+/// - Thông tin ưu đãi: title, description, originalPrice, discountedPrice
+/// - Thông tin phòng: hotelId, roomTypeId, totalRooms, availableRooms
+/// - Thời gian: startTime, endTime
+/// - Điều kiện: conditions, isActive
+/// - Thời gian tạo/cập nhật: createdAt, updatedAt
 class PromotionOffer {
   final String id;
   final int hotelId;
@@ -35,7 +43,9 @@ class PromotionOffer {
     required this.updatedAt,
   });
 
-  // Tính phần trăm giảm giá
+  /// Tính phần trăm giảm giá
+  /// 
+  /// Trả về phần trăm giảm giá (0-100), hoặc 0 nếu không có giảm giá
   double get discountPercentage {
     if (originalPrice <= 0 || discountedPrice >= originalPrice) {
       return 0.0; // Không có giảm giá nếu giá ưu đãi >= giá gốc
@@ -44,7 +54,9 @@ class PromotionOffer {
     return percentage.isFinite && !percentage.isNaN ? percentage.roundToDouble() : 0.0;
   }
 
-  // Tính số tiền tiết kiệm
+  /// Tính số tiền tiết kiệm được (chênh lệch giữa giá gốc và giá ưu đãi)
+  /// 
+  /// Trả về số tiền tiết kiệm, hoặc 0 nếu không có tiết kiệm
   double get savingsAmount {
     if (originalPrice <= 0 || discountedPrice >= originalPrice) {
       return 0.0; // Không tiết kiệm nếu giá ưu đãi >= giá gốc
@@ -52,12 +64,19 @@ class PromotionOffer {
     return originalPrice - discountedPrice;
   }
 
-  // Kiểm tra xem ưu đãi có còn hiệu lực không
+  /// Kiểm tra xem ưu đãi đã hết hạn chưa
+  /// 
+  /// Trả về true nếu thời gian hiện tại đã qua endTime
   bool get isExpired {
     return DateTime.now().isAfter(endTime);
   }
 
-  // Kiểm tra xem ưu đãi có đang diễn ra không
+  /// Kiểm tra xem ưu đãi có đang diễn ra không
+  /// 
+  /// Trả về true nếu:
+  /// - isActive = true
+  /// - Thời gian hiện tại nằm trong khoảng startTime và endTime
+  /// - availableRooms > 0
   bool get isCurrentlyActive {
     final now = DateTime.now();
     return isActive && 
@@ -66,18 +85,24 @@ class PromotionOffer {
            availableRooms > 0;
   }
 
-  // Kiểm tra xem có thể đặt phòng không
+  /// Kiểm tra xem có thể đặt phòng với ưu đãi này không
+  /// 
+  /// Trả về true nếu isCurrentlyActive và availableRooms > 0
   bool get canBook {
     return isCurrentlyActive && availableRooms > 0;
   }
 
-  // Thời gian còn lại (phút)
+  /// Tính thời gian còn lại của ưu đãi (tính bằng phút)
+  /// 
+  /// Trả về số phút còn lại, hoặc 0 nếu đã hết hạn
   int get remainingMinutes {
     if (isExpired) return 0;
     return endTime.difference(DateTime.now()).inMinutes;
   }
 
-  // Thời gian còn lại (giờ:phút)
+  /// Lấy thời gian còn lại đã được format (giờ:phút)
+  /// 
+  /// Ví dụ: "2h 30m", "45m", hoặc "Hết hạn"
   String get remainingTimeFormatted {
     final minutes = remainingMinutes;
     if (minutes <= 0) return 'Hết hạn';
@@ -92,19 +117,32 @@ class PromotionOffer {
     }
   }
 
-  // Format giá tiền
+  /// Lấy giá gốc đã được format theo định dạng VNĐ
+  /// 
+  /// Ví dụ: "1.000.000 ₫"
   String get formattedOriginalPrice {
     return NumberFormat.currency(locale: 'vi_VN', symbol: '₫').format(originalPrice);
   }
 
+  /// Lấy giá ưu đãi đã được format theo định dạng VNĐ
+  /// 
+  /// Ví dụ: "800.000 ₫"
   String get formattedDiscountedPrice {
     return NumberFormat.currency(locale: 'vi_VN', symbol: '₫').format(discountedPrice);
   }
 
+  /// Lấy số tiền tiết kiệm đã được format theo định dạng VNĐ
+  /// 
+  /// Ví dụ: "200.000 ₫"
   String get formattedSavings {
     return NumberFormat.currency(locale: 'vi_VN', symbol: '₫').format(savingsAmount);
   }
 
+  /// Tạo đối tượng PromotionOffer từ JSON
+  /// 
+  /// [json] - Map chứa dữ liệu JSON từ API
+  /// 
+  /// Parse các trường từ snake_case sang camelCase
   factory PromotionOffer.fromJson(Map<String, dynamic> json) {
     return PromotionOffer(
       id: json['id']?.toString() ?? '',
@@ -125,6 +163,9 @@ class PromotionOffer {
     );
   }
 
+  /// Chuyển đổi đối tượng PromotionOffer sang JSON
+  /// 
+  /// Trả về Map chứa tất cả các trường dưới dạng JSON (snake_case)
   Map<String, dynamic> toJson() {
     return {
       'id': id,
@@ -145,6 +186,11 @@ class PromotionOffer {
     };
   }
 
+  /// Tạo bản sao của PromotionOffer với các trường được cập nhật
+  /// 
+  /// Cho phép cập nhật từng trường riêng lẻ mà không cần tạo mới toàn bộ object
+  /// 
+  /// Tất cả các tham số đều tùy chọn, nếu không cung cấp sẽ giữ nguyên giá trị cũ
   PromotionOffer copyWith({
     String? id,
     int? hotelId,

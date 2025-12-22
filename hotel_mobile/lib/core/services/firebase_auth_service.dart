@@ -2,6 +2,22 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
 
+/// Service xử lý xác thực Firebase (Google, Facebook, Email/Password)
+/// 
+/// Chức năng:
+/// - Đăng nhập bằng Google với Firebase
+/// - Đăng nhập bằng Facebook với Firebase
+/// - Đăng nhập bằng Email/Password với Firebase
+/// - Đăng xuất
+/// - Gửi và xác thực OTP
+/// - Refresh token
+/// - Stream theo dõi thay đổi trạng thái đăng nhập
+/// 
+/// Singleton pattern - chỉ có 1 instance duy nhất
+/// 
+/// Lưu ý: Service này làm việc với Firebase Auth
+/// - Khác với BackendAuthService (làm việc với Backend API trực tiếp)
+/// - Dùng cho Social Login (Google, Facebook) và Email/Password với Firebase
 class FirebaseAuthService {
   static final FirebaseAuthService _instance = FirebaseAuthService._internal();
   factory FirebaseAuthService() => _instance;
@@ -10,13 +26,34 @@ class FirebaseAuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final GoogleSignIn _googleSignIn = GoogleSignIn();
 
-  /// Lấy user hiện tại
+  /// Lấy Firebase User hiện tại
+  /// 
+  /// Trả về User nếu đã đăng nhập, null nếu chưa đăng nhập
   User? get currentUser => _auth.currentUser;
 
-  /// Stream theo dõi trạng thái auth
+  /// Stream theo dõi thay đổi trạng thái đăng nhập Firebase
+  /// 
+  /// Emit event khi:
+  /// - User đăng nhập thành công
+  /// - User đăng xuất
+  /// - Token hết hạn
+  /// 
+  /// Sử dụng để tự động cập nhật UI khi trạng thái đăng nhập thay đổi
   Stream<User?> get authStateChanges => _auth.authStateChanges();
 
   /// Đăng nhập bằng Google với Firebase
+  /// 
+  /// Quy trình:
+  /// 1. Sign out Google cũ để hiện account picker
+  /// 2. User chọn tài khoản Google
+  /// 3. Lấy Google auth tokens (accessToken, idToken)
+  /// 4. Tạo Firebase credential và đăng nhập Firebase
+  /// 5. Xử lý lỗi nếu có (account-exists-with-different-credential, PigeonUserDetails)
+  /// 
+  /// Returns: FirebaseAuthResult với:
+  /// - success: User object nếu thành công
+  /// - error: Error message nếu thất bại
+  /// - cancelled: true nếu user hủy đăng nhập
   Future<FirebaseAuthResult> signInWithGoogle() async {
     try {
       print('🚀 Bắt đầu đăng nhập Google với Firebase...');
@@ -136,6 +173,22 @@ class FirebaseAuthService {
   }
 
   /// Đăng nhập bằng Facebook với Firebase
+  /// 
+  /// Quy trình:
+  /// 1. Trigger Facebook authentication flow với permissions (email, public_profile)
+  /// 2. Lấy access token từ Facebook
+  /// 3. Tạo Firebase credential từ Facebook token
+  /// 4. Đăng nhập Firebase với credential
+  /// 5. Xử lý lỗi nếu có (account-exists-with-different-credential)
+  /// 
+  /// Xử lý lỗi đặc biệt:
+  /// - account-exists-with-different-credential: Thử link credential hoặc hướng dẫn user
+  /// - PigeonUserDetails: Xử lý lỗi kết nối
+  /// 
+  /// Returns: FirebaseAuthResult với:
+  /// - success: User object nếu thành công
+  /// - error: Error message nếu thất bại
+  /// - cancelled: true nếu user hủy đăng nhập
   Future<FirebaseAuthResult> signInWithFacebook() async {
     try {
       print('🚀 Bắt đầu đăng nhập Facebook với Firebase...');
@@ -251,7 +304,18 @@ class FirebaseAuthService {
     }
   }
 
-  /// Đăng nhập bằng email và password
+  /// Đăng nhập bằng email và password với Firebase
+  /// 
+  /// [email] - Email của user
+  /// [password] - Mật khẩu của user
+  /// 
+  /// Xử lý lỗi:
+  /// - user-not-found: Không tìm thấy tài khoản
+  /// - wrong-password: Mật khẩu không chính xác
+  /// - invalid-email: Email không hợp lệ
+  /// - user-disabled: Tài khoản bị vô hiệu hóa
+  /// 
+  /// Returns: FirebaseAuthResult với user nếu thành công, error message nếu thất bại
   Future<FirebaseAuthResult> signInWithEmailPassword(
     String email,
     String password,
@@ -296,7 +360,23 @@ class FirebaseAuthService {
     }
   }
 
-  /// Đăng ký tài khoản mới
+  /// Đăng ký tài khoản mới với email và password
+  /// 
+  /// [email] - Email của user
+  /// [password] - Mật khẩu của user
+  /// [displayName] - Tên hiển thị của user
+  /// 
+  /// Quy trình:
+  /// 1. Tạo user mới với email/password
+  /// 2. Cập nhật display name
+  /// 3. Reload user để lấy thông tin mới nhất
+  /// 
+  /// Xử lý lỗi:
+  /// - weak-password: Mật khẩu quá yếu
+  /// - email-already-in-use: Email đã được sử dụng
+  /// - invalid-email: Email không hợp lệ
+  /// 
+  /// Returns: FirebaseAuthResult với user nếu thành công, error message nếu thất bại
   Future<FirebaseAuthResult> signUpWithEmailPassword(
     String email,
     String password,
@@ -343,7 +423,16 @@ class FirebaseAuthService {
     }
   }
 
-  /// Đăng xuất - Tối ưu hóa để nhanh hơn
+  /// Đăng xuất khỏi Firebase và tất cả các provider (Google, Facebook)
+  /// 
+  /// Quy trình tối ưu:
+  /// 1. Đăng xuất Firebase trước (quan trọng nhất)
+  /// 2. Đăng xuất các provider khác song song với timeout (3 giây)
+  ///    - Google Sign-In logout
+  ///    - Facebook logout
+  /// 3. Tiếp tục ngay cả khi một số provider logout timeout (không chặn)
+  /// 
+  /// Lưu ý: Các provider logout có timeout để tránh chặn UI quá lâu
   Future<void> signOut() async {
     try {
       print('🚪 Đăng xuất...');
@@ -424,9 +513,14 @@ class FirebaseAuthService {
   }
 
   /// Kiểm tra xem user đã đăng nhập chưa
+  /// 
+  /// Trả về true nếu có currentUser, false nếu không
   bool get isSignedIn => _auth.currentUser != null;
 
-  /// Lấy thông tin provider hiện tại của user
+  /// Lấy danh sách các provider hiện tại mà user đang sử dụng
+  /// 
+  /// Trả về danh sách tên provider: ["Google", "Facebook", "Email/Password"]
+  /// Trả về [] nếu chưa đăng nhập
   List<String> getCurrentProviders() {
     final User? currentUser = _auth.currentUser;
     if (currentUser == null) return [];
@@ -450,13 +544,20 @@ class FirebaseAuthService {
     return providers;
   }
 
-  /// Lấy tên provider chính (provider đầu tiên)
+  /// Lấy tên provider chính (provider đầu tiên mà user sử dụng để đăng nhập)
+  /// 
+  /// Trả về tên provider: "Google", "Facebook", hoặc "Email/Password"
+  /// Trả về null nếu chưa đăng nhập
   String? getPrimaryProvider() {
     final providers = getCurrentProviders();
     return providers.isNotEmpty ? providers.first : null;
   }
 
-  /// Lấy Firebase ID Token (để gửi lên backend)
+  /// Lấy Firebase ID Token (dùng để gửi lên backend xác thực)
+  /// 
+  /// Token này có thể được gửi lên backend để verify user identity
+  /// 
+  /// Returns: ID token nếu có user, null nếu chưa đăng nhập hoặc có lỗi
   Future<String?> getIdToken() async {
     try {
       final User? user = _auth.currentUser;
@@ -470,7 +571,12 @@ class FirebaseAuthService {
     }
   }
 
-  /// Refresh ID Token
+  /// Làm mới (refresh) Firebase ID Token
+  /// 
+  /// Force refresh token ngay cả khi token chưa hết hạn
+  /// Dùng khi token bị reject bởi backend hoặc cần token mới nhất
+  /// 
+  /// Returns: ID token mới nếu thành công, null nếu có lỗi
   Future<String?> refreshIdToken() async {
     try {
       final User? user = _auth.currentUser;
@@ -485,7 +591,18 @@ class FirebaseAuthService {
   }
 }
 
-/// Kết quả của Firebase Authentication
+/// Model đại diện cho kết quả của Firebase Authentication
+/// 
+/// Chứa thông tin:
+/// - isSuccess: Trạng thái thành công/thất bại
+/// - user: Firebase User object (nếu thành công)
+/// - error: Error message (nếu thất bại)
+/// - isCancelled: true nếu user hủy đăng nhập
+/// 
+/// Các factory methods:
+/// - success(): Tạo result thành công với User
+/// - error(): Tạo result lỗi với message
+/// - cancelled(): Tạo result khi user hủy
 class FirebaseAuthResult {
   final bool isSuccess;
   final User? user;
@@ -499,21 +616,34 @@ class FirebaseAuthResult {
     this.isCancelled = false,
   });
 
+  /// Tạo FirebaseAuthResult thành công với User
+  /// 
+  /// [user] - Firebase User object
   factory FirebaseAuthResult.success(User user) {
     return FirebaseAuthResult._(isSuccess: true, user: user);
   }
 
+  /// Tạo FirebaseAuthResult lỗi với error message
+  /// 
+  /// [error] - Thông báo lỗi
   factory FirebaseAuthResult.error(String error) {
     return FirebaseAuthResult._(isSuccess: false, error: error);
   }
 
+  /// Tạo FirebaseAuthResult khi user hủy đăng nhập
   factory FirebaseAuthResult.cancelled() {
     return FirebaseAuthResult._(isSuccess: false, isCancelled: true);
   }
 
-  /// Các getter tiện ích
+  /// Lấy email của user (tiện ích)
   String? get email => user?.email;
+  
+  /// Lấy tên hiển thị của user (tiện ích)
   String? get displayName => user?.displayName;
+  
+  /// Lấy URL avatar của user (tiện ích)
   String? get photoURL => user?.photoURL;
+  
+  /// Lấy UID của user (tiện ích)
   String? get uid => user?.uid;
 }

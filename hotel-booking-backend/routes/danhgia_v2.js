@@ -62,6 +62,17 @@ router.put('/:id',
     danhgiaController.updateDanhGia
 );
 
+// PUT /api/danhgia/:id/status - Cập nhật trạng thái đánh giá (Admin only - for moderation)
+router.put('/:id/status', 
+    authenticateUser,
+    requireRole('Admin'),
+    validateId,
+    [
+        body('trang_thai').isIn(['Đã duyệt', 'Chờ duyệt', 'Từ chối']).withMessage('Trạng thái không hợp lệ')
+    ],
+    danhgiaController.updateReviewStatus
+);
+
 // DELETE /api/danhgia/:id - Xóa đánh giá (Admin only)
 router.delete('/:id', 
     authenticateUser,

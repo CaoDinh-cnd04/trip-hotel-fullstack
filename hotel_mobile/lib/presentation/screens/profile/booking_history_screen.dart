@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:hotel_mobile/data/models/booking.dart';
 import 'package:hotel_mobile/presentation/widgets/booking_card.dart';
+import 'package:hotel_mobile/presentation/screens/reviews/create_review_screen.dart';
 
 class BookingHistoryScreen extends StatefulWidget {
   const BookingHistoryScreen({super.key});
@@ -505,6 +506,25 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen>
     return '${amount.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},')} VNĐ';
   }
 
+  String _formatPrice(double amount) {
+    return _formatCurrency(amount).replaceAll(' VNĐ', '');
+  }
+
+  String _getStatusText(BookingStatus status) {
+    switch (status) {
+      case BookingStatus.pending:
+        return 'Chờ xác nhận';
+      case BookingStatus.confirmed:
+        return 'Đã xác nhận';
+      case BookingStatus.checkedIn:
+        return 'Đã check-in';
+      case BookingStatus.checkedOut:
+        return 'Đã check-out';
+      case BookingStatus.cancelled:
+        return 'Đã hủy';
+    }
+  }
+
   Color _getStatusColor(BookingStatus status) {
     switch (status) {
       case BookingStatus.pending:
@@ -554,11 +574,21 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen>
   }
 
   void _handleWriteReview(Booking booking) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      builder: (context) => _buildReviewForm(booking),
-    );
+    // Navigate to new review screen with 2 tabs
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => CreateReviewScreen(
+          bookingId: booking.maDatPhong ?? booking.id.toString(),
+          hotelId: booking.khachSanId ?? 0,
+          hotelName: booking.tenKhachSan ?? 'Khách sạn',
+        ),
+      ),
+    ).then((shouldRefresh) {
+      if (shouldRefresh == true) {
+        _loadBookings(); // Refresh bookings after review
+      }
+    });
   }
 
   Widget _buildReviewForm(Booking booking) {

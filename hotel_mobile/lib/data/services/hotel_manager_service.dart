@@ -56,6 +56,80 @@ class HotelManagerService {
     }
   }
 
+  // Get all amenities
+  Future<List<Map<String, dynamic>>> getAllAmenities() async {
+    try {
+      final response = await _dio.get('/api/v2/hotel-manager/amenities');
+      return List<Map<String, dynamic>>.from(response.data['data'] ?? []);
+    } on DioException catch (e) {
+      throw _handleDioError(e);
+    }
+  }
+
+  // Create new amenity for hotel
+  Future<Map<String, dynamic>> createAmenity({
+    required String ten,
+    String? moTa,
+    String? nhom,
+  }) async {
+    try {
+      final response = await _dio.post(
+        '/api/v2/hotel-manager/amenities',
+        data: {
+          'ten': ten,
+          'mo_ta': moTa,
+          'nhom': nhom ?? 'Khác',
+          // ✅ Removed loai_tien_nghi - column doesn't exist in database
+        },
+      );
+      return response.data['data'];
+    } on DioException catch (e) {
+      throw _handleDioError(e);
+    }
+  }
+
+  // Get hotel amenities with pricing
+  Future<List<Map<String, dynamic>>> getHotelAmenitiesWithPricing() async {
+    try {
+      final response = await _dio.get('/api/v2/hotel-manager/hotel/amenities');
+      return List<Map<String, dynamic>>.from(response.data['data'] ?? []);
+    } on DioException catch (e) {
+      throw _handleDioError(e);
+    }
+  }
+
+  // Update amenity pricing
+  Future<Map<String, dynamic>> updateAmenityPricing({
+    required int amenityId,
+    required bool mienPhi,
+    double? giaPhi,
+    String? ghiChu,
+  }) async {
+    try {
+      final response = await _dio.put(
+        '/api/v2/hotel-manager/amenities/$amenityId/pricing',
+        data: {
+          'amenityId': amenityId,
+          'mienPhi': mienPhi,
+          'giaPhi': giaPhi,
+          'ghiChu': ghiChu,
+        },
+      );
+      return response.data['data'];
+    } on DioException catch (e) {
+      throw _handleDioError(e);
+    }
+  }
+
+  // Update hotel amenities
+  Future<void> updateHotelAmenities(List<int> amenityIds) async {
+    try {
+      await _dio.put('/api/v2/hotel-manager/hotel/amenities', data: {'amenities': amenityIds});
+    } on DioException catch (e) {
+      throw _handleDioError(e);
+    }
+  }
+
   // Get hotel rooms
   Future<List<Map<String, dynamic>>> getHotelRooms() async {
     try {

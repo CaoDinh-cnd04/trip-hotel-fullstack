@@ -98,6 +98,13 @@ class _HotelRegistrationScreenState extends State<HotelRegistrationScreen> {
   // ===== STEP 2: Room Types =====
   List<RoomTypeData> _roomTypes = [];
 
+  // ===== AMENITY IMAGES =====
+  // Map lưu hình ảnh cho từng dịch vụ: key = tên dịch vụ, value = danh sách File
+  Map<String, List<File>> _amenityImages = {};
+  
+  // Danh sách dịch vụ bắt buộc phải có hình ảnh
+  final List<String> _requiredImageAmenities = ['Spa', 'Hồ bơi', 'Nhà hàng'];
+
   @override
   void initState() {
     super.initState();
@@ -166,6 +173,25 @@ class _HotelRegistrationScreenState extends State<HotelRegistrationScreen> {
     setState(() {
       _hotelImages.removeAt(index);
     });
+  }
+
+  // ===== IMAGE PICKER: Amenity Images =====
+  /// Chọn nhiều ảnh cho một dịch vụ
+  Future<void> _pickAmenityImages(String amenityName) async {
+    try {
+      final List<XFile> images = await _imagePicker.pickMultiImage();
+      if (images.isNotEmpty) {
+        setState(() {
+          if (_amenityImages.containsKey(amenityName)) {
+            _amenityImages[amenityName]!.addAll(images.map((xFile) => File(xFile.path)));
+          } else {
+            _amenityImages[amenityName] = images.map((xFile) => File(xFile.path)).toList();
+          }
+        });
+      }
+    } catch (e) {
+      _showSnackBar('Lỗi chọn ảnh: ${e.toString()}', isError: true);
+    }
   }
 
   // ===== ROOM TYPE MANAGEMENT =====
@@ -544,6 +570,29 @@ class _HotelRegistrationScreenState extends State<HotelRegistrationScreen> {
       print('📸 Hotel images: ${_hotelImages.length}');
       print('🏨 Hotel amenities: ${selectedHotelAmenities.length}');
       
+      // ✅ Validate: Kiểm tra các dịch vụ bắt buộc phải có hình ảnh
+      final missingImageAmenities = <String>[];
+      for (var amenity in _hotelAmenities) {
+        if (amenity['selected'] == true) {
+          final amenityName = amenity['name'] as String;
+          if (_requiredImageAmenities.contains(amenityName)) {
+            if (!_amenityImages.containsKey(amenityName) || 
+                _amenityImages[amenityName]!.isEmpty) {
+              missingImageAmenities.add(amenityName);
+            }
+          }
+        }
+      }
+      
+      if (missingImageAmenities.isNotEmpty) {
+        _showSnackBar(
+          'Vui lòng thêm hình ảnh cho các dịch vụ bắt buộc: ${missingImageAmenities.join(', ')}',
+          isError: true,
+        );
+        setState(() => _isLoading = false);
+        return;
+      }
+      
       // ✅ Upload images to server using multipart/form-data
       final registrationData = {
         'owner_name': _ownerNameController.text.trim(),
@@ -561,10 +610,22 @@ class _HotelRegistrationScreenState extends State<HotelRegistrationScreen> {
         'hotel_amenities': selectedHotelAmenities,
       };
 
+      // Chuẩn bị danh sách hình ảnh dịch vụ
+      final amenityImagesList = <File>[];
+      final amenityNamesList = <String>[];
+      _amenityImages.forEach((amenityName, images) {
+        for (var image in images) {
+          amenityImagesList.add(image);
+          amenityNamesList.add(amenityName);
+        }
+      });
+
       final result = await _hotelRegistrationService.createRegistrationWithImages(
         registrationData: registrationData,
         hotelImages: _hotelImages,
         roomImages: _roomTypes.expand((room) => room.images).toList(),
+        amenityImages: amenityImagesList,
+        amenityNames: amenityNamesList,
       );
 
       if (mounted) {
@@ -629,14 +690,8 @@ class _HotelRegistrationScreenState extends State<HotelRegistrationScreen> {
   List<Step> _buildSteps() {
     return [
       Step(
-        title: Text(
-          'Thông tin cơ bản',
-          style: TextStyle(
-            fontWeight: FontWeight.w600,
-            color: _currentStep >= 0 ? Colors.blue[700] : Colors.grey[600],
-          ),
-        ),
-        subtitle: const Text('Nhập thông tin chủ sở hữu và khách sạn'),
+        title: _buildStepTitle('Thông tin cơ bản', _currentStep >= 0),
+        subtitle: _buildStepSubtitle('Nhập thông tin chủ sở hữu và khách sạn'),
         content: _buildStep1Content(),
         isActive: _currentStep >= 0,
         state: _currentStep > 0 ? StepState.complete : StepState.indexed,
@@ -683,11 +738,11 @@ class _HotelRegistrationScreenState extends State<HotelRegistrationScreen> {
           margin: const EdgeInsets.only(bottom: 16),
           decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(12),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.05),
-                blurRadius: 10,
+                color: Colors.black.withOpacity(0.04),
+                blurRadius: 8,
                 offset: const Offset(0, 2),
               ),
             ],
@@ -695,37 +750,39 @@ class _HotelRegistrationScreenState extends State<HotelRegistrationScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildSectionHeader('Thông tin chủ sở hữu'),
+              _buildSectionHeaderNew('Thông tin chủ sở hữu'),
               const SizedBox(height: 20),
-              _buildTextField(
+              _buildTextFieldNew(
                 controller: _ownerNameController,
-                label: 'Họ tên chủ sở hữu (*)',
-                icon: Icons.person,
+                label: 'Họ tên chủ sở hữu',
+                hint: 'Nhập họ tên chủ sở hữu',
+                icon: Icons.person_outline,
                 validator: (value) => value!.isEmpty ? 'Vui lòng nhập họ tên' : null,
               ),
               const SizedBox(height: 16),
-              _buildTextField(
+              _buildTextFieldNew(
                 controller: _ownerEmailController,
-                label: 'Email (*)',
-                icon: Icons.email,
+                label: 'Email',
+                hint: 'Nhập email',
+                icon: Icons.email_outlined,
                 keyboardType: TextInputType.emailAddress,
                 validator: (value) {
                   if (value == null || value.isEmpty) return 'Vui lòng nhập email';
-                  // Regex đầy đủ cho email validation
                   final emailRegex = RegExp(
                     r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
                   );
                   if (!emailRegex.hasMatch(value)) {
-                    return 'Email không đúng định dạng (VD: name@gmail.com)';
+                    return 'Email không đúng định dạng';
                   }
                   return null;
                 },
               ),
               const SizedBox(height: 16),
-              _buildTextField(
+              _buildTextFieldNew(
                 controller: _ownerPhoneController,
-                label: 'Số điện thoại (*)',
-                icon: Icons.phone,
+                label: 'Số điện thoại',
+                hint: 'Nhập số điện thoại',
+                icon: Icons.phone_outlined,
                 keyboardType: TextInputType.phone,
                 validator: (value) {
                   if (value!.isEmpty) return 'Vui lòng nhập số điện thoại';
@@ -742,11 +799,11 @@ class _HotelRegistrationScreenState extends State<HotelRegistrationScreen> {
           margin: const EdgeInsets.only(bottom: 16),
           decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(12),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.05),
-                blurRadius: 10,
+                color: Colors.black.withOpacity(0.04),
+                blurRadius: 8,
                 offset: const Offset(0, 2),
               ),
             ],
@@ -754,19 +811,20 @@ class _HotelRegistrationScreenState extends State<HotelRegistrationScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildSectionHeader('Thông tin cơ sở lưu trú'),
+              _buildSectionHeaderNew('Thông tin cơ sở lưu trú'),
               const SizedBox(height: 20),
-              _buildTextField(
+              _buildTextFieldNew(
                 controller: _hotelNameController,
-                label: 'Tên cơ sở (*)',
-                icon: Icons.hotel,
+                label: 'Tên cơ sở',
+                hint: 'Nhập tên cơ sở lưu trú',
+                icon: Icons.bed_outlined,
                 validator: (value) => value!.isEmpty ? 'Vui lòng nhập tên cơ sở' : null,
               ),
               const SizedBox(height: 16),
-              _buildDropdown(
-                label: 'Loại hình (*)',
+              _buildDropdownNew(
+                label: 'Loại hình',
                 value: _selectedHotelType,
-                icon: Icons.category,
+                icon: Icons.category_outlined,
                 items: const [
                   {'value': 'hotel', 'label': 'Khách sạn'},
                   {'value': 'resort', 'label': 'Resort'},
@@ -777,27 +835,30 @@ class _HotelRegistrationScreenState extends State<HotelRegistrationScreen> {
                 onChanged: (value) => setState(() => _selectedHotelType = value!),
               ),
               const SizedBox(height: 16),
-              _buildStarRating(),
+              _buildStarRatingNew(),
               const SizedBox(height: 16),
-              _buildTextField(
+              _buildTextFieldNew(
                 controller: _addressController,
-                label: 'Địa chỉ đầy đủ (*)',
-                icon: Icons.location_on,
+                label: 'Địa chỉ đầy đủ',
+                hint: 'Nhập địa chỉ đầy đủ',
+                icon: Icons.location_on_outlined,
                 validator: (value) => value!.isEmpty ? 'Vui lòng nhập địa chỉ' : null,
               ),
               const SizedBox(height: 16),
-              _buildProvinceDropdown(),
+              _buildProvinceDropdownNew(),
               const SizedBox(height: 16),
-              _buildTextField(
+              _buildTextFieldNew(
                 controller: _districtController,
                 label: 'Quận/Huyện',
-                icon: Icons.map,
+                hint: 'Nhập quận/huyện',
+                icon: Icons.map_outlined,
               ),
               const SizedBox(height: 16),
-              _buildTextField(
+              _buildTextFieldNew(
                 controller: _descriptionController,
-                label: 'Mô tả chi tiết (*)',
-                icon: Icons.description,
+                label: 'Mô tả chi tiết',
+                hint: 'Nhập mô tả về cơ sở lưu trú',
+                icon: Icons.description_outlined,
                 maxLines: 5,
                 validator: (value) => value!.isEmpty ? 'Vui lòng nhập mô tả' : null,
               ),
@@ -1157,167 +1218,197 @@ class _HotelRegistrationScreenState extends State<HotelRegistrationScreen> {
   Widget build(BuildContext context) {
     try {
       return Scaffold(
-        backgroundColor: Colors.grey[50],
+        backgroundColor: const Color(0xFFF5F5F5),
         appBar: AppBar(
           title: const Text(
             'Đăng ký cơ sở lưu trú',
-            style: TextStyle(fontWeight: FontWeight.bold),
-          ),
-          elevation: 0,
-          flexibleSpace: Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  Colors.blue[700]!,
-                  Colors.blue[500]!,
-                ],
-              ),
+            style: TextStyle(
+              fontWeight: FontWeight.w600,
+              fontSize: 18,
             ),
           ),
+          elevation: 0,
+          backgroundColor: const Color(0xFF003580),
           foregroundColor: Colors.white,
+          leading: IconButton(
+            icon: Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(Icons.arrow_back_ios_new, size: 18),
+            ),
+            onPressed: () => Navigator.pop(context),
+          ),
         ),
         resizeToAvoidBottomInset: true,
-        body: SafeArea(
-          child: _isLoading
-              ? const Center(child: CircularProgressIndicator())
-              : Form(
+        body: _isLoading
+            ? const Center(child: CircularProgressIndicator())
+            : SafeArea(
+                child: Form(
                   key: _formKey,
                   child: Column(
                     children: [
                       Expanded(
-                        child: SingleChildScrollView(
+                        child: CustomScrollView(
                           controller: _scrollController,
                           physics: const AlwaysScrollableScrollPhysics(),
                           keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-                          child: Padding(
-                            padding: const EdgeInsets.all(16.0),
-                            child: Stepper(
-                              type: StepperType.vertical,
-                              currentStep: _currentStep,
-                              onStepContinue: () {
-                                if (_currentStep < _buildSteps().length - 1) {
-                                  // Validate current step
-                                  if (_currentStep == 0 && !_formKey.currentState!.validate()) {
-                                    return;
-                                  }
-                                  if (_currentStep == 0 && _selectedProvince == null) {
-                                    _showSnackBar('Vui lòng chọn tỉnh/thành phố', isError: true);
-                                    return;
-                                  }
-                                  if (_currentStep == 1 && _hotelImages.length < 3) {
-                                    _showSnackBar('Vui lòng thêm ít nhất 3 ảnh khách sạn', isError: true);
-                                    return;
-                                  }
-                                  if (_currentStep == 1 && _roomTypes.isEmpty) {
-                                    _showSnackBar('Vui lòng thêm ít nhất 1 loại phòng', isError: true);
-                                    return;
-                                  }
-                                  setState(() => _currentStep += 1);
-                                } else {
-                                  _submitRegistration();
-                                }
-                              },
-                              onStepCancel: () {
-                                if (_currentStep > 0) {
-                                  setState(() => _currentStep -= 1);
-                                } else {
-                                  Navigator.of(context).pop();
-                                }
-                              },
-                              controlsBuilder: (context, details) {
-                              return Container(
-                                padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 4),
-                                decoration: BoxDecoration(
-                                  color: Colors.white,
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.black.withOpacity(0.05),
-                                      blurRadius: 10,
-                                      offset: const Offset(0, -2),
-                                    ),
-                                  ],
-                                ),
-                                child: Row(
+                          slivers: [
+                            SliverPadding(
+                              padding: const EdgeInsets.all(16.0),
+                              sliver: SliverToBoxAdapter(
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    if (_currentStep > 0) ...[
-                                      Expanded(
-                                        child: OutlinedButton.icon(
-                                          onPressed: details.onStepCancel,
-                                          icon: const Icon(Icons.arrow_back, size: 18),
-                                          label: const Text('Quay lại'),
-                                          style: OutlinedButton.styleFrom(
-                                            foregroundColor: Colors.blue[700],
-                                            side: BorderSide(color: Colors.blue[300]!, width: 1.5),
-                                            shape: RoundedRectangleBorder(
-                                              borderRadius: BorderRadius.circular(12),
-                                            ),
-                                            padding: const EdgeInsets.symmetric(vertical: 16),
-                                          ),
-                                        ),
-                                      ),
-                                      const SizedBox(width: 12),
-                                    ],
-                                    Expanded(
-                                      flex: _currentStep > 0 ? 1 : 1,
-                                      child: Container(
-                                        decoration: BoxDecoration(
-                                          gradient: LinearGradient(
-                                            colors: [Colors.blue[600]!, Colors.blue[700]!],
-                                          ),
-                                          borderRadius: BorderRadius.circular(12),
-                                          boxShadow: [
-                                            BoxShadow(
-                                              color: Colors.blue.withOpacity(0.3),
-                                              blurRadius: 8,
-                                              offset: const Offset(0, 4),
-                                            ),
-                                          ],
-                                        ),
-                                        child: ElevatedButton.icon(
-                                          onPressed: details.onStepContinue,
-                                          icon: Icon(
-                                            _currentStep == _buildSteps().length - 1
-                                                ? Icons.check_circle
-                                                : Icons.arrow_forward,
-                                            size: 20,
-                                          ),
-                                          label: Text(
-                                            _currentStep == _buildSteps().length - 1
-                                                ? 'Hoàn tất đăng ký'
-                                                : 'Tiếp tục',
-                                            style: const TextStyle(
-                                              fontSize: 16,
-                                              fontWeight: FontWeight.bold,
-                                              letterSpacing: 0.5,
-                                            ),
-                                          ),
-                                          style: ElevatedButton.styleFrom(
-                                            backgroundColor: Colors.transparent,
-                                            shadowColor: Colors.transparent,
-                                            foregroundColor: Colors.white,
-                                            shape: RoundedRectangleBorder(
-                                              borderRadius: BorderRadius.circular(12),
-                                            ),
-                                            padding: const EdgeInsets.symmetric(vertical: 16),
-                                          ),
-                                        ),
-                                      ),
-                                    ),
+                                    // Progress indicator
+                                    _buildProgressIndicator(),
+                                    const SizedBox(height: 20),
+                                    // Step content
+                                    _buildCurrentStepContent(),
                                   ],
                                 ),
-                              );
-                              },
-                              steps: _buildSteps(),
+                              ),
                             ),
+                          ],
+                        ),
+                      ),
+                      // Custom controls at bottom - Fixed position
+                      Container(
+                        padding: const EdgeInsets.all(16.0),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.1),
+                              blurRadius: 10,
+                              offset: const Offset(0, -2),
+                            ),
+                          ],
+                        ),
+                        child: SafeArea(
+                          top: false,
+                          child: Row(
+                            children: [
+                              if (_currentStep > 0) ...[
+                                Expanded(
+                                  child: OutlinedButton.icon(
+                                    onPressed: () {
+                                      if (_currentStep > 0) {
+                                        setState(() => _currentStep -= 1);
+                                        Future.delayed(const Duration(milliseconds: 100), () {
+                                          if (_scrollController.hasClients) {
+                                            _scrollController.animateTo(
+                                              0,
+                                              duration: const Duration(milliseconds: 300),
+                                              curve: Curves.easeInOut,
+                                            );
+                                          }
+                                        });
+                                      } else {
+                                        Navigator.of(context).pop();
+                                      }
+                                    },
+                                    icon: const Icon(Icons.arrow_back, size: 18),
+                                    label: const Text('Quay lại'),
+                                    style: OutlinedButton.styleFrom(
+                                      foregroundColor: Colors.blue[700],
+                                      side: BorderSide(color: Colors.blue[300]!, width: 1.5),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      padding: const EdgeInsets.symmetric(vertical: 16),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                              ],
+                              Expanded(
+                                flex: _currentStep > 0 ? 1 : 1,
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    gradient: LinearGradient(
+                                      colors: [Colors.blue[600]!, Colors.blue[700]!],
+                                    ),
+                                    borderRadius: BorderRadius.circular(12),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.blue.withOpacity(0.3),
+                                        blurRadius: 8,
+                                        offset: const Offset(0, 4),
+                                      ),
+                                    ],
+                                  ),
+                                  child: ElevatedButton.icon(
+                                    onPressed: () {
+                                      if (_currentStep < _buildSteps().length - 1) {
+                                        if (_currentStep == 0 && !_formKey.currentState!.validate()) {
+                                          return;
+                                        }
+                                        if (_currentStep == 0 && _selectedProvince == null) {
+                                          _showSnackBar('Vui lòng chọn tỉnh/thành phố', isError: true);
+                                          return;
+                                        }
+                                        if (_currentStep == 1 && _hotelImages.length < 3) {
+                                          _showSnackBar('Vui lòng thêm ít nhất 3 ảnh khách sạn', isError: true);
+                                          return;
+                                        }
+                                        if (_currentStep == 1 && _roomTypes.isEmpty) {
+                                          _showSnackBar('Vui lòng thêm ít nhất 1 loại phòng', isError: true);
+                                          return;
+                                        }
+                                        setState(() => _currentStep += 1);
+                                        Future.delayed(const Duration(milliseconds: 100), () {
+                                          if (_scrollController.hasClients) {
+                                            _scrollController.animateTo(
+                                              0,
+                                              duration: const Duration(milliseconds: 300),
+                                              curve: Curves.easeInOut,
+                                            );
+                                          }
+                                        });
+                                      } else {
+                                        _submitRegistration();
+                                      }
+                                    },
+                                    icon: Icon(
+                                      _currentStep == _buildSteps().length - 1
+                                          ? Icons.check_circle
+                                          : Icons.arrow_forward,
+                                      size: 20,
+                                    ),
+                                    label: Text(
+                                      _currentStep == _buildSteps().length - 1
+                                          ? 'Hoàn tất đăng ký'
+                                          : 'Tiếp tục',
+                                      style: const TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.bold,
+                                        letterSpacing: 0.5,
+                                      ),
+                                    ),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.transparent,
+                                      shadowColor: Colors.transparent,
+                                      foregroundColor: Colors.white,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      padding: const EdgeInsets.symmetric(vertical: 16),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ),
                     ],
                   ),
                 ),
-        ),
+              ),
       );
     } catch (e, stackTrace) {
       print('❌ Lỗi build HotelRegistrationScreen: $e');
@@ -1386,6 +1477,10 @@ class _HotelRegistrationScreenState extends State<HotelRegistrationScreen> {
                 onTap: () {
                   setState(() {
                     amenity['selected'] = !isSelected;
+                    // Xóa hình ảnh nếu bỏ chọn dịch vụ
+                    if (!amenity['selected']) {
+                      _amenityImages.remove(amenity['name']);
+                    }
                   });
                 },
                 borderRadius: BorderRadius.circular(12),
@@ -1428,6 +1523,157 @@ class _HotelRegistrationScreenState extends State<HotelRegistrationScreen> {
             );
           }).toList(),
         ),
+        // Hiển thị phần chọn hình ảnh cho các dịch vụ đã chọn
+        if (_hotelAmenities.any((a) => a['selected'] == true)) ...[
+          const SizedBox(height: 24),
+          const Divider(),
+          const SizedBox(height: 16),
+          Text(
+            'Thêm hình ảnh cho dịch vụ (khuyến nghị):',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: Colors.grey[700],
+            ),
+          ),
+          const SizedBox(height: 12),
+          ..._hotelAmenities.where((a) => a['selected'] == true).map((amenity) {
+            final amenityName = amenity['name'] as String;
+            final isRequired = _requiredImageAmenities.contains(amenityName);
+            final images = _amenityImages[amenityName] ?? [];
+            
+            return Container(
+              margin: const EdgeInsets.only(bottom: 16),
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.grey[50],
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: isRequired && images.isEmpty
+                      ? Colors.red[300]!
+                      : Colors.grey[300]!,
+                  width: isRequired && images.isEmpty ? 2 : 1,
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        amenity['icon'],
+                        size: 20,
+                        color: Colors.grey[700],
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          amenityName,
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.grey[800],
+                          ),
+                        ),
+                      ),
+                      if (isRequired)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: Colors.orange[100],
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            'Bắt buộc',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.orange[800],
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  // Hiển thị hình ảnh đã chọn
+                  if (images.isNotEmpty)
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: images.asMap().entries.map((entry) {
+                        final index = entry.key;
+                        final image = entry.value;
+                        return Stack(
+                          children: [
+                            Container(
+                              width: 80,
+                              height: 80,
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: Colors.grey[300]!),
+                              ),
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(8),
+                                child: Image.file(
+                                  image,
+                                  fit: BoxFit.cover,
+                                ),
+                              ),
+                            ),
+                            Positioned(
+                              top: -4,
+                              right: -4,
+                              child: GestureDetector(
+                                onTap: () {
+                                  setState(() {
+                                    images.removeAt(index);
+                                    if (images.isEmpty) {
+                                      _amenityImages.remove(amenityName);
+                                    } else {
+                                      _amenityImages[amenityName] = images;
+                                    }
+                                  });
+                                },
+                                child: Container(
+                                  padding: const EdgeInsets.all(4),
+                                  decoration: const BoxDecoration(
+                                    color: Colors.red,
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Icon(
+                                    Icons.close,
+                                    size: 16,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        );
+                      }).toList(),
+                    ),
+                  const SizedBox(height: 8),
+                  // Nút chọn hình ảnh
+                  ElevatedButton.icon(
+                    onPressed: () => _pickAmenityImages(amenityName),
+                    icon: const Icon(Icons.add_photo_alternate, size: 18),
+                    label: Text(images.isEmpty ? 'Chọn hình ảnh' : 'Thêm hình ảnh'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blue[50],
+                      foregroundColor: Colors.blue[700],
+                      elevation: 0,
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        side: BorderSide(color: Colors.blue[300]!),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }).toList(),
+        ],
         const SizedBox(height: 20),
         Container(
           padding: const EdgeInsets.all(16),
@@ -1672,6 +1918,210 @@ class _HotelRegistrationScreenState extends State<HotelRegistrationScreen> {
     );
   }
 
+  Widget _buildSectionHeaderNew(String title) {
+    return Row(
+      children: [
+        Container(
+          width: 3,
+          height: 18,
+          decoration: BoxDecoration(
+            color: const Color(0xFF003580),
+            borderRadius: BorderRadius.circular(2),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Text(
+          title,
+          style: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+            color: Color(0xFF1A1A1A),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStepTitle(String title, bool isActive, {int? stepNumber}) {
+    return Row(
+      children: [
+        Container(
+          width: 32,
+          height: 32,
+          decoration: BoxDecoration(
+            color: isActive ? const Color(0xFF003580) : Colors.grey[300],
+            shape: BoxShape.circle,
+          ),
+          child: Center(
+            child: Text(
+              stepNumber != null ? '$stepNumber' : '',
+              style: TextStyle(
+                color: isActive ? Colors.white : Colors.grey[600],
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Text(
+          title,
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w600,
+            color: isActive ? const Color(0xFF003580) : Colors.grey[600],
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Xây dựng progress indicator
+  Widget _buildProgressIndicator() {
+    return Row(
+      children: [
+        // Step 1
+        _buildProgressStep(0, 'Thông tin cơ bản', _currentStep >= 0, _currentStep > 0),
+        const SizedBox(width: 8),
+        _buildProgressLine(_currentStep > 0),
+        const SizedBox(width: 8),
+        // Step 2
+        _buildProgressStep(1, 'Hình ảnh & Phòng', _currentStep >= 1, _currentStep > 1),
+        const SizedBox(width: 8),
+        _buildProgressLine(_currentStep > 1),
+        const SizedBox(width: 8),
+        // Step 3
+        _buildProgressStep(2, 'Xác minh & Duyệt', _currentStep >= 2, _currentStep > 2),
+      ],
+    );
+  }
+
+  Widget _buildProgressStep(int stepIndex, String title, bool isActive, bool isCompleted) {
+    return Expanded(
+      child: Column(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: isCompleted
+                  ? Colors.green
+                  : isActive
+                      ? const Color(0xFF003580)
+                      : Colors.grey[300],
+              shape: BoxShape.circle,
+            ),
+            child: Center(
+              child: isCompleted
+                  ? const Icon(Icons.check, color: Colors.white, size: 20)
+                  : Text(
+                      '${stepIndex + 1}',
+                      style: TextStyle(
+                        color: isActive ? Colors.white : Colors.grey[600],
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            title,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
+              color: isActive ? const Color(0xFF003580) : Colors.grey[600],
+            ),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildProgressLine(bool isCompleted) {
+    return Expanded(
+      child: Container(
+        height: 2,
+        decoration: BoxDecoration(
+          color: isCompleted ? Colors.green : Colors.grey[300],
+          borderRadius: BorderRadius.circular(1),
+        ),
+      ),
+    );
+  }
+
+  /// Xây dựng nội dung step hiện tại
+  Widget _buildCurrentStepContent() {
+    switch (_currentStep) {
+      case 0:
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _buildStepTitle('Thông tin cơ bản', true, stepNumber: 1),
+            const SizedBox(height: 8),
+            _buildStepSubtitle('Nhập thông tin chủ sở hữu và khách sạn'),
+            const SizedBox(height: 20),
+            _buildStep1Content(),
+          ],
+        );
+      case 1:
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _buildStepTitle('Hình ảnh & Phòng', true, stepNumber: 2),
+            const SizedBox(height: 8),
+            const Text(
+              'Upload ảnh và thêm các loại phòng',
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.grey,
+              ),
+            ),
+            const SizedBox(height: 20),
+            _buildStep2Content(),
+          ],
+        );
+      case 2:
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _buildStepTitle('Xác minh & Duyệt', true, stepNumber: 3),
+            const SizedBox(height: 8),
+            const Text(
+              'Thông tin về quy trình duyệt',
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.grey,
+              ),
+            ),
+            const SizedBox(height: 20),
+            _buildStep3Content(),
+          ],
+        );
+      default:
+        return const SizedBox.shrink();
+    }
+  }
+
+  Widget _buildStepSubtitle(String subtitle) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 44),
+      child: Text(
+        subtitle,
+        style: const TextStyle(
+          fontSize: 13,
+          color: Color(0xFF666666),
+        ),
+      ),
+    );
+  }
+
   Widget _buildTextField({
     required TextEditingController controller,
     required String label,
@@ -1728,6 +2178,63 @@ class _HotelRegistrationScreenState extends State<HotelRegistrationScreen> {
     );
   }
 
+  Widget _buildTextFieldNew({
+    required TextEditingController controller,
+    required String label,
+    required String hint,
+    required IconData icon,
+    TextInputType? keyboardType,
+    int maxLines = 1,
+    String? Function(String?)? validator,
+  }) {
+    return TextFormField(
+      controller: controller,
+      keyboardType: keyboardType,
+      maxLines: maxLines,
+      style: const TextStyle(
+        color: Color(0xFF1A1A1A),
+        fontSize: 15,
+      ),
+      decoration: InputDecoration(
+        labelText: label,
+        hintText: hint,
+        labelStyle: const TextStyle(
+          color: Color(0xFF666666),
+          fontSize: 14,
+        ),
+        hintStyle: const TextStyle(
+          color: Color(0xFF999999),
+          fontSize: 14,
+        ),
+        prefixIcon: Icon(icon, color: const Color(0xFF003580), size: 20),
+        filled: true,
+        fillColor: Colors.white,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: const BorderSide(color: Color(0xFFE8E8E8)),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: const BorderSide(color: Color(0xFFE8E8E8)),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: const BorderSide(color: Color(0xFF003580), width: 2),
+        ),
+        errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: const BorderSide(color: Colors.red, width: 1.5),
+        ),
+        focusedErrorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: const BorderSide(color: Colors.red, width: 2),
+        ),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      ),
+      validator: validator,
+    );
+  }
+
   Widget _buildDropdown({
     required String label,
     required String value,
@@ -1776,6 +2283,53 @@ class _HotelRegistrationScreenState extends State<HotelRegistrationScreen> {
         }).toList(),
         onChanged: onChanged,
       ),
+    );
+  }
+
+  Widget _buildDropdownNew({
+    required String label,
+    required String value,
+    required IconData icon,
+    required List<Map<String, String>> items,
+    required void Function(String?) onChanged,
+  }) {
+    return DropdownButtonFormField<String>(
+      value: value,
+      style: const TextStyle(
+        color: Color(0xFF1A1A1A),
+        fontSize: 15,
+      ),
+      decoration: InputDecoration(
+        labelText: label,
+        labelStyle: const TextStyle(
+          color: Color(0xFF666666),
+          fontSize: 14,
+        ),
+        prefixIcon: Icon(icon, color: const Color(0xFF003580), size: 20),
+        suffixIcon: const Icon(Icons.arrow_drop_down, color: Color(0xFF666666)),
+        filled: true,
+        fillColor: Colors.white,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: const BorderSide(color: Color(0xFFE8E8E8)),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: const BorderSide(color: Color(0xFFE8E8E8)),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: const BorderSide(color: Color(0xFF003580), width: 2),
+        ),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      ),
+      items: items.map((item) {
+        return DropdownMenuItem<String>(
+          value: item['value'],
+          child: Text(item['label']!),
+        );
+      }).toList(),
+      onChanged: onChanged,
     );
   }
 
@@ -1839,81 +2393,115 @@ class _HotelRegistrationScreenState extends State<HotelRegistrationScreen> {
     );
   }
 
-  Widget _buildStarRating() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey[200]!),
+  Widget _buildProvinceDropdownNew() {
+    return DropdownButtonFormField<Map<String, dynamic>>(
+      value: _selectedProvince,
+      style: const TextStyle(
+        color: Color(0xFF1A1A1A),
+        fontSize: 15,
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(6),
-                decoration: BoxDecoration(
-                  color: Colors.amber[50],
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: const Icon(Icons.star, color: Colors.amber, size: 20),
-              ),
-              const SizedBox(width: 10),
-              const Text(
-                'Hạng sao (*)',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-              ),
-            ],
+      decoration: InputDecoration(
+        labelText: 'Tỉnh/Thành phố',
+        labelStyle: const TextStyle(
+          color: Color(0xFF666666),
+          fontSize: 14,
+        ),
+        prefixIcon: const Icon(Icons.location_city_outlined, color: Color(0xFF003580), size: 20),
+        suffixIcon: const Icon(Icons.arrow_drop_down, color: Color(0xFF666666)),
+        filled: true,
+        fillColor: Colors.white,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: const BorderSide(color: Color(0xFFE8E8E8)),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: const BorderSide(color: Color(0xFFE8E8E8)),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: const BorderSide(color: Color(0xFF003580), width: 2),
+        ),
+        errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: const BorderSide(color: Colors.red, width: 1.5),
+        ),
+        focusedErrorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: const BorderSide(color: Colors.red, width: 2),
+        ),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      ),
+      isExpanded: true,
+      items: _provinces.map((province) {
+        return DropdownMenuItem<Map<String, dynamic>>(
+          value: province,
+          child: Text(
+            province['ten'] ?? '',
+            style: const TextStyle(fontSize: 15),
+            overflow: TextOverflow.ellipsis,
+            maxLines: 1,
           ),
-          const SizedBox(height: 12),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: List.generate(5, (index) {
-              final star = index + 1;
-              final isSelected = _selectedStarRating == star;
-              return Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 3),
-                  child: Material(
-                    color: Colors.transparent,
-                    child: InkWell(
-                      onTap: () => setState(() => _selectedStarRating = star),
-                      borderRadius: BorderRadius.circular(10),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        decoration: BoxDecoration(
-                          gradient: isSelected
-                              ? LinearGradient(
-                                  colors: [Colors.amber[400]!, Colors.amber[600]!],
-                                )
-                              : null,
-                          color: isSelected ? null : Colors.grey[100],
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(
-                            color: isSelected ? Colors.amber[700]! : Colors.grey[300]!,
-                            width: isSelected ? 2 : 1,
-                          ),
+        );
+      }).toList(),
+      onChanged: (value) => setState(() => _selectedProvince = value),
+      validator: (value) => value == null ? 'Vui lòng chọn tỉnh/thành phố' : null,
+    );
+  }
+
+  Widget _buildStarRatingNew() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Hạng sao',
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: Color(0xFF1A1A1A),
+          ),
+        ),
+        const SizedBox(height: 12),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: List.generate(5, (index) {
+            final star = index + 1;
+            final isSelected = _selectedStarRating == star;
+            return Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 2),
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: () => setState(() => _selectedStarRating = star),
+                    borderRadius: BorderRadius.circular(8),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      decoration: BoxDecoration(
+                        color: isSelected ? const Color(0xFFFFB800) : Colors.grey[100],
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: isSelected ? const Color(0xFFFFB800) : Colors.grey[300]!,
+                          width: isSelected ? 2 : 1,
                         ),
-                        child: Text(
-                          '$star★',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 14,
-                            color: isSelected ? Colors.white : Colors.grey[700],
-                          ),
+                      ),
+                      child: Text(
+                        '$star★',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 14,
+                          color: isSelected ? Colors.white : const Color(0xFF666666),
                         ),
                       ),
                     ),
                   ),
                 ),
-              );
-            }),
-          ),
-        ],
-      ),
+              ),
+            );
+          }),
+        ),
+      ],
     );
   }
 

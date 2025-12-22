@@ -2,481 +2,347 @@ import 'package:flutter/material.dart';
 import 'package:hotel_mobile/data/models/hotel.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+/// Widget hiển thị thông tin chi tiết của khách sạn
+/// Thiết kế theo phong cách Agoda: đơn giản, màu sắc tối giản, không gradient
+/// 
+/// Tham số:
+/// - hotel: Đối tượng Hotel chứa thông tin khách sạn cần hiển thị
 class PropertyInfoSection extends StatelessWidget {
   final Hotel hotel;
 
   const PropertyInfoSection({super.key, required this.hotel});
 
+  /// Hàm build chính - xây dựng giao diện hiển thị thông tin khách sạn
+  /// 
+  /// Trả về: Container chứa Column với các thông tin:
+  /// - Tên khách sạn
+  /// - Rating và số sao
+  /// - Địa chỉ
+  /// - Nút xem trên bản đồ
+  /// - Giờ check-in/check-out
   @override
   Widget build(BuildContext context) {
     return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [
-            Colors.white,
-            Colors.grey[50]!,
-          ],
-        ),
-      ),
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(20, 24, 20, 28),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Hotel name với gradient text effect - Sửa overflow hoàn toàn
-            LayoutBuilder(
-              builder: (context, constraints) {
-                return ShaderMask(
-                  shaderCallback: (bounds) => LinearGradient(
-                    colors: [
-                      Colors.purple[800]!,
-                      Colors.pink[700]!,
-                      Colors.orange[600]!,
-                    ],
-                  ).createShader(bounds),
-                  child: SizedBox(
-                    width: constraints.maxWidth,
-                    child: Text(
-                      hotel.ten,
-                      style: const TextStyle(
-                        fontSize: 26,
-                        fontWeight: FontWeight.w800,
-                        color: Colors.white,
-                        height: 1.3,
-                        letterSpacing: -0.3,
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      softWrap: true,
-                    ),
-                  ),
-                );
-              },
+      color: Colors.white,
+      padding: const EdgeInsets.fromLTRB(20, 24, 20, 28),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          /// ============================================
+          /// PHẦN 1: TÊN KHÁCH SẠN
+          /// ============================================
+          /// Hiển thị tên khách sạn với typography lớn, đơn giản
+          /// - Font size: 28px
+          /// - Font weight: 700 (bold)
+          /// - Màu: #1A1A1A (đen nhẹ)
+          /// - Tối đa 2 dòng, nếu dài sẽ cắt bằng dấu ...
+          Text(
+            hotel.ten,
+            style: const TextStyle(
+              fontSize: 28,
+              fontWeight: FontWeight.w700,
+              color: Color(0xFF1A1A1A),
+              height: 1.3, // Khoảng cách giữa các dòng
+              letterSpacing: -0.5, // Khoảng cách giữa các ký tự (âm để chữ gần nhau hơn)
             ),
-            
-            const SizedBox(height: 16),
-            
-            // Rating section với design hiện đại
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    Colors.orange[50]!,
-                    Colors.amber[50]!,
-                  ],
+            maxLines: 2, // Giới hạn tối đa 2 dòng
+            overflow: TextOverflow.ellipsis, // Nếu quá dài sẽ hiển thị ...
+          ),
+          
+          const SizedBox(height: 16),
+          
+          /// ============================================
+          /// PHẦN 2: RATING VÀ ĐÁNH GIÁ
+          /// ============================================
+          /// Hiển thị rating theo phong cách Agoda: đơn giản, không gradient
+          /// Bao gồm: sao vàng, điểm số, số lượng đánh giá
+          Row(
+            children: [
+              /// Hiển thị 5 sao: sao vàng (#FFB800) cho sao đã đánh giá, xám nhẹ cho sao chưa đánh giá
+              /// Logic: So sánh index với số sao (soSao) để quyết định màu sắc
+              if (hotel.soSao != null && hotel.soSao! > 0)
+                Row(
+                  mainAxisSize: MainAxisSize.min, // Chỉ chiếm không gian cần thiết
+                  children: List.generate(5, (index) {
+                    // Tạo 5 icon sao
+                    return Icon(
+                      // Nếu index < số sao thì hiển thị sao đầy, ngược lại hiển thị sao rỗng
+                      index < hotel.soSao! ? Icons.star : Icons.star_border,
+                      color: index < hotel.soSao! 
+                          ? const Color(0xFFFFB800) // Vàng cho sao đã đánh giá
+                          : const Color(0xFFE0E0E0), // Xám nhẹ cho sao chưa đánh giá
+                      size: 18,
+                    );
+                  }),
                 ),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(
-                  color: Colors.orange[200]!,
-                  width: 1.5,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.orange.withOpacity(0.1),
-                    blurRadius: 8,
-                    offset: const Offset(0, 4),
+              
+              const SizedBox(width: 8),
+              
+              /// Hiển thị điểm đánh giá trung bình trong badge vàng
+              /// Ví dụ: 8.5, 9.0, etc.
+              if (hotel.diemDanhGiaTrungBinh != null) ...[
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFB800), // Màu vàng giống Agoda
+                    borderRadius: BorderRadius.circular(4), // Bo góc nhẹ
                   ),
-                ],
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // Star rating với animation effect
-                  Flexible(
-                    flex: 0,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 5),
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [
-                            Colors.orange[400]!,
-                            Colors.orange[600]!,
-                          ],
-                        ),
-                        borderRadius: BorderRadius.circular(8),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.orange.withOpacity(0.3),
-                            blurRadius: 4,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: List.generate(5, (index) {
-                          return Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 1),
-                            child: Icon(
-                              index < (hotel.soSao ?? 0) ? Icons.star : Icons.star_border,
-                              color: Colors.white,
-                              size: 16,
-                            ),
-                          );
-                        }),
-                      ),
+                  child: Text(
+                    // Format điểm số với 1 chữ số thập phân
+                    hotel.diemDanhGiaTrungBinh!.toStringAsFixed(1),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
-                  
-                  const SizedBox(width: 8),
-                  
-                  // Rating score với gradient background
-                  if (hotel.diemDanhGiaTrungBinh != null)
-                    Flexible(
-                      flex: 0,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [
-                              Colors.red[500]!,
-                              Colors.orange[600]!,
-                            ],
-                          ),
-                          borderRadius: BorderRadius.circular(8),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.red.withOpacity(0.3),
-                              blurRadius: 6,
-                              offset: const Offset(0, 3),
-                            ),
-                          ],
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(
-                              Icons.emoji_events,
-                              color: Colors.white,
-                              size: 14,
-                            ),
-                            const SizedBox(width: 3),
-                            Text(
-                              hotel.diemDanhGiaTrungBinh!.toStringAsFixed(1),
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 13,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  
-                  const SizedBox(width: 8),
-                  
-                  // Review count
-                  if (hotel.soLuotDanhGia != null && hotel.soLuotDanhGia! > 0)
-                    Expanded(
-                      child: Text(
-                        '${hotel.soLuotDanhGia} đánh giá',
+                ),
+                const SizedBox(width: 8),
+              ],
+              
+              /// Hiển thị số lượng đánh giá (ví dụ: "150 đánh giá")
+              if (hotel.soLuotDanhGia != null && hotel.soLuotDanhGia! > 0)
+                Text(
+                  '${hotel.soLuotDanhGia} đánh giá',
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: Color(0xFF666666), // Màu xám
+                    fontWeight: FontWeight.w400,
+                  ),
+                ),
+            ],
+          ),
+          
+          const SizedBox(height: 20),
+          
+          /// ============================================
+          /// PHẦN 3: ĐỊA CHỈ KHÁCH SẠN
+          /// ============================================
+          /// Hiển thị địa chỉ trong card xám nhẹ với icon location
+          /// Layout: Icon bên trái, địa chỉ bên phải
+          Container(
+            padding: const EdgeInsets.all(18), // Padding bên trong card
+            decoration: BoxDecoration(
+              color: const Color(0xFFF5F5F5), // Nền xám nhẹ
+              borderRadius: BorderRadius.circular(12), // Bo góc 12px
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start, // Căn trên cùng
+              children: [
+                /// Icon container: Container trắng 40x40 với icon location
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: Colors.white, // Nền trắng cho icon
+                    borderRadius: BorderRadius.circular(10), // Bo góc
+                  ),
+                  child: const Icon(
+                    Icons.location_on_outlined, // Icon vị trí
+                    color: Color(0xFF1A1A1A),
+                    size: 20,
+                  ),
+                ),
+                const SizedBox(width: 16), // Khoảng cách giữa icon và text
+                
+                /// Phần text địa chỉ: Expanded để chiếm hết không gian còn lại
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Label "Địa chỉ"
+                      const Text(
+                        'Địa chỉ',
                         style: TextStyle(
                           fontSize: 12,
-                          color: Colors.grey[700],
-                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF999999), // Màu xám nhẹ cho label
+                          fontWeight: FontWeight.w400,
                         ),
-                        overflow: TextOverflow.ellipsis,
-                        maxLines: 1,
                       ),
+                      const SizedBox(height: 6),
+                      // Nội dung địa chỉ
+                      Text(
+                        hotel.diaChi ?? 'Địa chỉ không có sẵn', // Nếu null thì hiển thị text mặc định
+                        style: const TextStyle(
+                          fontSize: 15,
+                          color: Color(0xFF1A1A1A), // Màu đen nhẹ
+                          fontWeight: FontWeight.w500,
+                          height: 1.4, // Khoảng cách giữa các dòng
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          
+          const SizedBox(height: 16),
+          
+          /// ============================================
+          /// PHẦN 4: NÚT XEM TRÊN BẢN ĐỒ
+          /// ============================================
+          /// Nút màu đen (#1A1A1A) để mở Google Maps với địa chỉ khách sạn
+          /// Khi click sẽ gọi hàm _showOnMap() để mở ứng dụng bản đồ
+          SizedBox(
+            width: double.infinity, // Chiếm toàn bộ chiều rộng
+            height: 50, // Chiều cao cố định
+            child: ElevatedButton(
+              onPressed: () {
+                // Gọi hàm mở bản đồ khi click
+                _showOnMap(context);
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF1A1A1A), // Màu đen nhẹ
+                foregroundColor: Colors.white, // Màu chữ trắng
+                elevation: 0, // Không có đổ bóng
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12), // Bo góc 12px
+                ),
+              ),
+              child: const Row(
+                mainAxisAlignment: MainAxisAlignment.center, // Căn giữa icon và text
+                children: [
+                  Icon(
+                    Icons.map_outlined, // Icon bản đồ
+                    color: Colors.white,
+                    size: 20,
+                  ),
+                  SizedBox(width: 8), // Khoảng cách giữa icon và text
+                  Text(
+                    'Xem trên bản đồ',
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white,
                     ),
+                  ),
                 ],
               ),
             ),
-            
+          ),
+
+          /// ============================================
+          /// PHẦN 5: GIỜ CHECK-IN/CHECK-OUT
+          /// ============================================
+          /// Hiển thị giờ nhận phòng và trả phòng (nếu có)
+          /// Sử dụng spread operator (...) để chỉ hiển thị khi có dữ liệu
+          /// Layout: 2 cột bằng nhau (Expanded) với divider ở giữa
+          if (hotel.gioNhanPhong != null || hotel.gioTraPhong != null) ...[
             const SizedBox(height: 20),
-            
-            // Address section với design mới
             Container(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(18),
               decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.grey[200]!),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
+                color: const Color(0xFFF5F5F5), // Nền xám nhẹ
+                borderRadius: BorderRadius.circular(12),
               ),
               child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          Colors.purple[400]!,
-                          Colors.purple[600]!,
-                        ],
+                  /// Cột 1: Giờ nhận phòng (nếu có)
+                  if (hotel.gioNhanPhong != null)
+                    Expanded(
+                      // Expanded để chia đều không gian với cột 2
+                      child: _buildSimpleTimeInfo(
+                        'Nhận phòng', // Label
+                        'Từ ${hotel.gioNhanPhong}', // Giá trị (ví dụ: "Từ 14:00")
+                        Icons.login_outlined, // Icon
                       ),
-                      borderRadius: BorderRadius.circular(12),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.purple.withOpacity(0.3),
-                          blurRadius: 6,
-                          offset: const Offset(0, 3),
-                        ),
-                      ],
                     ),
-                    child: const Icon(
-                      Icons.location_on,
-                      color: Colors.white,
-                      size: 24,
+                  /// Divider: Đường phân cách giữa 2 cột (chỉ hiển thị khi có cả 2 thông tin)
+                  if (hotel.gioNhanPhong != null && hotel.gioTraPhong != null)
+                    Container(
+                      width: 1, // Độ dày 1px
+                      height: 50,
+                      margin: const EdgeInsets.symmetric(horizontal: 12), // Margin trái phải
+                      color: const Color(0xFFE8E8E8), // Màu xám nhẹ
                     ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Địa chỉ',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey[600],
-                            fontWeight: FontWeight.w600,
-                            letterSpacing: 0.5,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          hotel.diaChi ?? 'Địa chỉ không có sẵn',
-                          style: TextStyle(
-                            fontSize: 15,
-                            color: Colors.grey[900],
-                            fontWeight: FontWeight.w600,
-                            height: 1.4,
-                          ),
-                        ),
-                      ],
+                  /// Cột 2: Giờ trả phòng (nếu có)
+                  if (hotel.gioTraPhong != null)
+                    Expanded(
+                      child: _buildSimpleTimeInfo(
+                        'Trả phòng',
+                        'Trước ${hotel.gioTraPhong}', // Ví dụ: "Trước 12:00"
+                        Icons.logout_outlined,
+                      ),
                     ),
-                  ),
                 ],
               ),
             ),
-            
-            const SizedBox(height: 16),
-            
-            // View on map button với gradient
-            Container(
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.blue.withOpacity(0.3),
-                    blurRadius: 12,
-                    offset: const Offset(0, 6),
-                  ),
-                ],
-              ),
-              child: ElevatedButton(
-                onPressed: () {
-                  _showOnMap(context);
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.transparent,
-                  shadowColor: Colors.transparent,
-                  padding: const EdgeInsets.symmetric(vertical: 18),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                ).copyWith(
-                  backgroundColor: MaterialStateProperty.all(Colors.transparent),
-                ),
-                child: Container(
-                  width: double.infinity,
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
-                        Colors.blue[600]!,
-                        Colors.blue[800]!,
-                      ],
-                      begin: Alignment.centerLeft,
-                      end: Alignment.centerRight,
-                    ),
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: const [
-                      Icon(
-                        Icons.map,
-                        color: Colors.white,
-                        size: 22,
-                      ),
-                      SizedBox(width: 12),
-                      Text(
-                        'Xem trên bản đồ',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                          letterSpacing: 0.5,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-
-            // Check-in/Check-out times với design mới
-            if (hotel.gioNhanPhong != null || hotel.gioTraPhong != null) ...[
-              const SizedBox(height: 20),
-              Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      Colors.green[50]!,
-                      Colors.teal[50]!,
-                    ],
-                  ),
-                  borderRadius: BorderRadius.circular(18),
-                  border: Border.all(
-                    color: Colors.green[200]!,
-                    width: 1.5,
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.green.withOpacity(0.1),
-                      blurRadius: 10,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: Row(
-                  children: [
-                    if (hotel.gioNhanPhong != null)
-                      Expanded(
-                        child: _buildModernTimeInfo(
-                          'Nhận phòng',
-                          'Từ ${hotel.gioNhanPhong}',
-                          Icons.login_rounded,
-                          Colors.green,
-                        ),
-                      ),
-                    if (hotel.gioNhanPhong != null && hotel.gioTraPhong != null)
-                      Container(
-                        width: 1,
-                        height: 50,
-                        margin: const EdgeInsets.symmetric(horizontal: 10),
-                        color: Colors.grey[300]!,
-                      ),
-                    if (hotel.gioTraPhong != null)
-                      Expanded(
-                        child: _buildModernTimeInfo(
-                          'Trả phòng',
-                          'Trước ${hotel.gioTraPhong}',
-                          Icons.logout_rounded,
-                          Colors.teal,
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-            ],
           ],
+        ],
+      ),
+    );
+  }
+
+  /// ============================================
+  /// HÀM HELPER: _buildSimpleTimeInfo
+  /// ============================================
+  /// Xây dựng widget hiển thị thông tin giờ (check-in/check-out)
+  /// 
+  /// Tham số:
+  /// - title: Tiêu đề (ví dụ: "Nhận phòng", "Trả phòng")
+  /// - value: Giá trị hiển thị (ví dụ: "Từ 14:00")
+  /// - icon: Icon hiển thị phía trên (Icons.login_outlined hoặc logout_outlined)
+  /// 
+  /// Trả về: Column chứa icon, title và value theo chiều dọc
+  /// Layout: Icon ở trên, title ở giữa, value ở dưới
+  Widget _buildSimpleTimeInfo(String title, String value, IconData icon) {
+    return Column(
+      mainAxisSize: MainAxisSize.min, // Chỉ chiếm không gian cần thiết
+      children: [
+        // Icon ở trên cùng
+        Icon(
+          icon,
+          color: const Color(0xFF1A1A1A), // Màu đen nhẹ
+          size: 20,
         ),
-      ),
+        const SizedBox(height: 8), // Khoảng cách giữa icon và title
+        // Title (label): Màu xám nhẹ, font nhỏ
+        Text(
+          title,
+          style: const TextStyle(
+            fontSize: 12,
+            color: Color(0xFF999999), // Màu xám nhẹ
+            fontWeight: FontWeight.w400, // Font thường
+          ),
+        ),
+        const SizedBox(height: 4), // Khoảng cách giữa title và value
+        // Value (nội dung): Màu đen, font đậm hơn
+        Text(
+          value,
+          style: const TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w600, // Font đậm
+            color: Color(0xFF1A1A1A), // Màu đen nhẹ
+          ),
+          textAlign: TextAlign.center, // Căn giữa
+          maxLines: 2, // Tối đa 2 dòng
+          overflow: TextOverflow.ellipsis, // Nếu quá dài sẽ hiển thị ...
+        ),
+      ],
     );
   }
 
-  Widget _buildModernTimeInfo(String title, String value, IconData icon, Color color) {
-    // Helper để lấy các shade của màu
-    Color getColorShade(Color baseColor, int shade) {
-      if (baseColor == Colors.green) {
-        return shade == 400 ? Colors.green[400]! : (shade == 600 ? Colors.green[600]! : Colors.green[800]!);
-      }
-      if (baseColor == Colors.teal) {
-        return shade == 400 ? Colors.teal[400]! : (shade == 600 ? Colors.teal[600]! : Colors.teal[800]!);
-      }
-      // Fallback: tạo màu tương tự
-      double factor = shade == 400 ? 0.7 : (shade == 600 ? 0.5 : 0.3);
-      return Color.fromRGBO(
-        (baseColor.red * (1 - factor) + 255 * factor).round(),
-        (baseColor.green * (1 - factor) + 255 * factor).round(),
-        (baseColor.blue * (1 - factor) + 255 * factor).round(),
-        1.0,
-      );
-    }
-    
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        boxShadow: [
-          BoxShadow(
-            color: color.withOpacity(0.2),
-            blurRadius: 8,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  getColorShade(color, 400),
-                  getColorShade(color, 600),
-                ],
-              ),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(
-              icon,
-              color: Colors.white,
-              size: 18,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            title,
-            style: TextStyle(
-              fontSize: 10,
-              color: Colors.grey[700],
-              fontWeight: FontWeight.w600,
-              letterSpacing: 0.5,
-            ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-          const SizedBox(height: 4),
-          Flexible(
-            child: Text(
-              value,
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.bold,
-                color: getColorShade(color, 800),
-              ),
-              textAlign: TextAlign.center,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
+  /// ============================================
+  /// HÀM: _showOnMap
+  /// ============================================
+  /// Mở Google Maps với địa chỉ khách sạn
+  /// 
+  /// Logic hoạt động:
+  /// 1. Thu thập thông tin địa chỉ từ hotel object
+  /// 2. Tạo query string từ tên khách sạn + địa chỉ
+  /// 3. Thử mở ứng dụng Google Maps (geo URI)
+  /// 4. Nếu không được, thử mở trình duyệt với Google Maps web
+  /// 5. Hiển thị thông báo lỗi nếu không mở được
+  /// 
+  /// Tham số:
+  /// - context: BuildContext để hiển thị SnackBar
   void _showOnMap(BuildContext context) async {
     try {
+      // Bước 1: Bắt đầu với tên khách sạn
       String searchQuery = hotel.ten;
       
+      // Bước 2: Thu thập các phần địa chỉ (nếu có)
       List<String> addressParts = [];
       if (hotel.diaChi != null && hotel.diaChi!.isNotEmpty) {
         addressParts.add(hotel.diaChi!);
@@ -491,10 +357,13 @@ class PropertyInfoSection extends StatelessWidget {
         addressParts.add(hotel.tenQuocGia!);
       }
       
+      // Bước 3: Ghép các phần địa chỉ vào query
+      // Ví dụ: "Khách sạn ABC, 123 Đường XYZ, Quận 1, TP.HCM"
       if (addressParts.isNotEmpty) {
         searchQuery += ', ${addressParts.join(', ')}';
       }
       
+      // Bước 4: Kiểm tra nếu không có địa chỉ
       if (searchQuery.isEmpty || searchQuery == hotel.ten) {
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -504,15 +373,21 @@ class PropertyInfoSection extends StatelessWidget {
             ),
           );
         }
-        return;
+        return; // Dừng hàm nếu không có địa chỉ
       }
 
+      // Bước 5: Encode query để dùng trong URL
       final encodedQuery = Uri.encodeComponent(searchQuery);
+      
+      // Tạo 2 loại URI:
+      // - geoUri: Dành cho ứng dụng Google Maps trên điện thoại
+      // - webUri: Dành cho trình duyệt web
       final geoUri = Uri.parse('geo:0,0?q=$encodedQuery');
       final webUri = Uri.parse('https://www.google.com/maps/search/?api=1&query=$encodedQuery');
       
-      bool launched = false;
+      bool launched = false; // Flag để kiểm tra đã mở được chưa
       
+      // Bước 6: Thử mở ứng dụng Google Maps (nếu có)
       try {
         if (await canLaunchUrl(geoUri)) {
           launched = await launchUrl(geoUri, mode: LaunchMode.externalApplication);
@@ -521,6 +396,7 @@ class PropertyInfoSection extends StatelessWidget {
         print('❌ Cannot launch geo: URI: $e');
       }
       
+      // Bước 7: Nếu không mở được app, thử mở trình duyệt web
       if (!launched) {
         try {
           if (await canLaunchUrl(webUri)) {
@@ -531,6 +407,7 @@ class PropertyInfoSection extends StatelessWidget {
         }
       }
       
+      // Bước 8: Hiển thị thông báo lỗi nếu không mở được
       if (!launched && context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -539,12 +416,13 @@ class PropertyInfoSection extends StatelessWidget {
             action: SnackBarAction(
               label: 'Thử lại',
               textColor: Colors.white,
-              onPressed: () => _showOnMap(context),
+              onPressed: () => _showOnMap(context), // Cho phép thử lại
             ),
           ),
         );
       }
     } catch (e) {
+      // Xử lý lỗi chung
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(

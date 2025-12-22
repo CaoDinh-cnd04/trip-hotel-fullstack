@@ -2,6 +2,12 @@ import 'package:json_annotation/json_annotation.dart';
 
 part 'user_role_model.g.dart';
 
+/// Enum đại diện cho các vai trò người dùng trong hệ thống
+/// 
+/// Bao gồm:
+/// - user: Người dùng thường
+/// - hotelManager: Quản lý khách sạn
+/// - admin: Quản trị viên
 enum UserRole {
   @JsonValue('user')
   user,
@@ -11,7 +17,11 @@ enum UserRole {
   admin,
 }
 
+/// Extension cho UserRole để thêm các phương thức tiện ích
 extension UserRoleExtension on UserRole {
+  /// Lấy tên hiển thị của vai trò bằng tiếng Việt
+  /// 
+  /// Trả về: "Người dùng", "Quản lý khách sạn", hoặc "Quản trị viên"
   String get displayName {
     switch (this) {
       case UserRole.user:
@@ -23,6 +33,9 @@ extension UserRoleExtension on UserRole {
     }
   }
 
+  /// Lấy giá trị string của enum
+  /// 
+  /// Trả về: "user", "hotel_manager", hoặc "admin"
   String get value {
     switch (this) {
       case UserRole.user:
@@ -66,6 +79,14 @@ extension UserRoleExtension on UserRole {
   }
 }
 
+/// Model đại diện cho vai trò và quyền của người dùng
+/// 
+/// Chứa thông tin:
+/// - Thông tin user: uid, email, displayName, photoURL
+/// - Vai trò: role (UserRole enum), isActive
+/// - Quyền: permissions (danh sách các quyền)
+/// - Thông tin khách sạn: hotelId (nếu là hotel manager)
+/// - Thời gian: createdAt, updatedAt
 @JsonSerializable()
 class UserRoleModel {
   final String uid;
@@ -92,9 +113,18 @@ class UserRoleModel {
     required this.permissions,
   });
 
+  /// Tạo đối tượng UserRoleModel từ JSON
+  /// 
+  /// [json] - Map chứa dữ liệu JSON từ API
+  /// 
+  /// Sử dụng code generation từ json_annotation
   factory UserRoleModel.fromJson(Map<String, dynamic> json) =>
       _$UserRoleModelFromJson(json);
 
+  /// Chuyển đổi đối tượng UserRoleModel sang JSON
+  /// 
+  /// Trả về Map chứa tất cả các trường dưới dạng JSON
+  /// Sử dụng code generation từ json_annotation
   Map<String, dynamic> toJson() => _$UserRoleModelToJson(this);
 
   UserRoleModel copyWith({

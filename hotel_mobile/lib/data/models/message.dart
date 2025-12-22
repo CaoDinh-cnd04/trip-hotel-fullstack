@@ -1,3 +1,11 @@
+/// Model đại diện cho tin nhắn/thông báo từ hệ thống
+/// 
+/// Chứa thông tin:
+/// - Thông tin cơ bản: id, tiêu đề, loại, nội dung
+/// - Thông tin khách sạn: hotelId, hotelName, hotelImage
+/// - Trạng thái: isRead
+/// - Thông tin booking: bookingDateRange (nếu liên quan đến booking)
+/// - Action: hasAction, actionType, actionText (nếu tin nhắn có hành động)
 class Message {
   final String id;
   final String title;
@@ -29,6 +37,11 @@ class Message {
     this.actionText,
   });
 
+  /// Tạo đối tượng Message từ JSON
+  /// 
+  /// [json] - Map chứa dữ liệu JSON từ API
+  /// 
+  /// Parse các trường từ snake_case sang camelCase
   factory Message.fromJson(Map<String, dynamic> json) {
     return Message(
       id: json['id']?.toString() ?? '',
@@ -47,6 +60,9 @@ class Message {
     );
   }
 
+  /// Chuyển đổi đối tượng Message sang JSON
+  /// 
+  /// Trả về Map chứa tất cả các trường dưới dạng JSON (snake_case)
   Map<String, dynamic> toJson() {
     return {
       'id': id,

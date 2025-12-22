@@ -12,7 +12,7 @@ import 'core/services/language_service.dart';
 import 'presentation/main_wrapper.dart';
 import 'presentation/screens/login_screen.dart';
 import 'presentation/screens/register_screen.dart';
-import 'presentation/screens/auth/agoda_style_login_screen.dart';
+import 'presentation/screens/auth/triphotel_style_login_screen.dart';
 import 'presentation/screens/home_screen.dart';
 import 'presentation/screens/main_navigation_screen.dart';
 import 'presentation/screens/search/search_results_screen.dart';
@@ -36,7 +36,7 @@ import 'data/services/feedback_service.dart';
 import 'data/services/backend_message_service.dart';
 import 'data/services/room_availability_service.dart';
 
-// Initialize all services
+/// Khởi tạo tất cả các service cần thiết cho ứng dụng
 void _initializeAllServices() {
   try {
     AdminService().initialize();
@@ -50,6 +50,7 @@ void _initializeAllServices() {
   }
 }
 
+/// Hàm main khởi tạo ứng dụng, Firebase và các service
 void main() async {
   runZonedGuarded(
     () async {
@@ -97,9 +98,11 @@ void main() async {
   );
 }
 
+/// Widget gốc của ứng dụng, thiết lập MaterialApp với các cấu hình theme, localization và routing
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
+  /// Xây dựng giao diện chính của ứng dụng với Provider cho LanguageService
   @override
   Widget build(BuildContext context) {
     return ChangeNotifierProvider(
@@ -125,8 +128,8 @@ class MyApp extends StatelessWidget {
               home:
                   const MainWrapper(), // Sử dụng MainWrapper để hiển thị giao diện chính
               routes: {
-                '/login': (context) => const AgodaStyleLoginScreen(),
-                '/login-new': (context) => const AgodaStyleLoginScreen(), // Test route
+                '/login': (context) => const TriphotelStyleLoginScreen(),
+                '/login-new': (context) => const TriphotelStyleLoginScreen(), // New login screen
                 '/login-old': (context) => const LoginScreen(), // Old login for comparison
                 '/register': (context) => const RegisterScreen(),
                 '/home': (context) => const HomeScreen(),

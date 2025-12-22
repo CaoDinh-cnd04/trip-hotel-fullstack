@@ -1,3 +1,9 @@
+/// Model đại diện cho mục đã lưu của người dùng
+/// 
+/// Chứa thông tin:
+/// - Thông tin item: itemId, type (hotel/activity/destination), name
+/// - Thông tin hiển thị: location, price, imageUrl
+/// - Thông tin hệ thống: id, savedAt (thời gian lưu), metadata
 class SavedItem {
   final String id;
   final String itemId; // ID of the saved item (e.g., hotel_id, activity_id)
@@ -21,6 +27,11 @@ class SavedItem {
     this.metadata,
   });
 
+  /// Tạo đối tượng SavedItem từ JSON
+  /// 
+  /// [json] - Map chứa dữ liệu JSON từ API
+  /// 
+  /// Parse các trường từ JSON, chuyển đổi an toàn các kiểu dữ liệu
   factory SavedItem.fromJson(Map<String, dynamic> json) {
     return SavedItem(
       id: json['id']?.toString() ?? '',
@@ -35,6 +46,9 @@ class SavedItem {
     );
   }
 
+  /// Chuyển đổi đối tượng SavedItem sang JSON
+  /// 
+  /// Trả về Map chứa tất cả các trường dưới dạng JSON
   Map<String, dynamic> toJson() {
     return {
       'id': id,

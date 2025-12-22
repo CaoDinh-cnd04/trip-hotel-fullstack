@@ -30,28 +30,50 @@ class _NotificationScreenState extends State<NotificationScreen> {
     });
 
     try {
+      print('🔄 Loading notifications...');
       final response = await _notificationService.getNotifications();
       
-      if (response.success && response.data != null) {
+      print('📥 Response received: success=${response.success}, data length=${response.data?.length ?? 0}');
+      
+      if (response.success) {
+        final notifications = response.data ?? [];
+        print('✅ Loaded ${notifications.length} notifications');
+        
+        if (notifications.isEmpty) {
+          print('⚠️ No notifications in response, but API call was successful');
+          print('⚠️ This might mean:');
+          print('   1. User has no notifications');
+          print('   2. All notifications are filtered out (visible=false, expired, etc.)');
+          print('   3. Parsing failed silently');
+        } else {
+          print('📋 Notification titles: ${notifications.map((n) => n.title).toList()}');
+        }
+        
         setState(() {
-          _notifications = response.data!;
+          _notifications = notifications;
           _isLoading = false;
+          _hasError = false;
         });
         
         // Update unread count
         _updateUnreadCount();
       } else {
+        print('❌ Response not successful: ${response.message}');
         setState(() {
           _hasError = true;
-          _errorMessage = response.message;
+          _errorMessage = response.message ?? 'Không thể tải thông báo';
           _isLoading = false;
+          _notifications = []; // Clear notifications on error
         });
       }
-    } catch (e) {
+    } catch (e, stackTrace) {
+      print('❌ Error loading notifications: $e');
+      print('❌ Stack trace: $stackTrace');
       setState(() {
         _hasError = true;
-        _errorMessage = e.toString();
+        _errorMessage = 'Lỗi: ${e.toString()}';
         _isLoading = false;
+        _notifications = []; // Clear notifications on error
       });
     }
   }

@@ -3,6 +3,16 @@ import '../data/services/auth_service.dart';
 import 'screens/login_screen.dart';
 import 'screens/main_navigation_screen.dart';
 
+/// Widget wrapper để quản lý trạng thái xác thực đơn giản
+/// 
+/// Chức năng:
+/// - Kiểm tra trạng thái đăng nhập khi khởi động
+/// - Hiển thị màn hình loading trong lúc kiểm tra
+/// - Điều hướng dựa trên trạng thái đăng nhập:
+///   - Đã đăng nhập → MainNavigationScreen
+///   - Chưa đăng nhập → LoginScreen
+/// 
+/// Khác với MainWrapper: AuthWrapper không phân biệt vai trò (admin/hotel manager/user)
 class AuthWrapper extends StatefulWidget {
   const AuthWrapper({Key? key}) : super(key: key);
 
@@ -11,16 +21,28 @@ class AuthWrapper extends StatefulWidget {
 }
 
 class _AuthWrapperState extends State<AuthWrapper> {
+  /// Service để kiểm tra trạng thái xác thực
   final AuthService _authService = AuthService();
+  
+  /// Trạng thái đang tải (đang kiểm tra xác thực)
   bool _isLoading = true;
+  
+  /// Trạng thái đã xác thực hay chưa
   bool _isAuthenticated = false;
 
   @override
   void initState() {
     super.initState();
+    // Kiểm tra trạng thái xác thực ngay khi widget được khởi tạo
     _checkAuthState();
   }
 
+  /// Kiểm tra trạng thái xác thực của người dùng
+  /// 
+  /// Quy trình:
+  /// 1. Kiểm tra xem người dùng có đang đăng nhập không
+  /// 2. Cập nhật trạng thái _isAuthenticated và _isLoading
+  /// 3. Xử lý lỗi nếu có
   Future<void> _checkAuthState() async {
     try {
       // Check if user is authenticated and session is valid
@@ -45,6 +67,12 @@ class _AuthWrapperState extends State<AuthWrapper> {
     }
   }
 
+  /// Xây dựng giao diện dựa trên trạng thái xác thực
+  /// 
+  /// Trả về:
+  /// - Loading screen nếu đang kiểm tra (_isLoading = true)
+  /// - MainNavigationScreen nếu đã đăng nhập (_isAuthenticated = true)
+  /// - LoginScreen nếu chưa đăng nhập (_isAuthenticated = false)
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {

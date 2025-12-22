@@ -1,6 +1,14 @@
 import 'dart:convert';
 import '../../core/utils/image_url_helper.dart';
 
+/// Model đại diện cho phòng khách sạn
+/// 
+/// Chứa thông tin:
+/// - Thông tin cơ bản: số phòng, loại phòng, khách sạn, mô tả
+/// - Tình trạng: tình trạng phòng, số phòng có sẵn, số phòng đang dùng
+/// - Thông tin từ bảng liên kết: tên loại phòng, giá, sức chứa, hình ảnh
+/// - Tiện nghi: danh sách tiện nghi, số giường
+/// - Real-time availability: isAvailable, availableCount, occupiedCount
 class Room {
   final int? id;
   final String soPhong;
@@ -58,6 +66,14 @@ class Room {
     this.occupiedCount,
   });
 
+  /// Tạo đối tượng Room từ JSON
+  /// 
+  /// [json] - Map chứa dữ liệu JSON từ API
+  /// 
+  /// Xử lý:
+  /// - Parse hình ảnh từ JSON array string hoặc List
+  /// - Parse giá từ nhiều tên field khác nhau (gia_phong, gia_tien, gia_co_ban)
+  /// - Xử lý availability status từ real-time API
   factory Room.fromJson(Map<String, dynamic> json) {
     List<String>? images;
     
@@ -173,6 +189,9 @@ class Room {
     );
   }
 
+  /// Chuyển đổi đối tượng Room sang JSON
+  /// 
+  /// Trả về Map chứa tất cả các trường của Room dưới dạng JSON
   Map<String, dynamic> toJson() {
     return {
       'id': id,
@@ -186,6 +205,10 @@ class Room {
     };
   }
 
+  /// Lấy giá phòng đã được format với dấu phẩy phân cách hàng nghìn
+  /// 
+  /// Ví dụ: 500000 -> "500,000"
+  /// Trả về "500,000" nếu giá không hợp lệ
   String get formattedPrice {
     if (giaPhong == null || !giaPhong!.isFinite || giaPhong!.isNaN) {
       return '500,000';
@@ -196,6 +219,11 @@ class Room {
     );
   }
 
+  /// Tạo bản sao của Room với các trường được cập nhật
+  /// 
+  /// Cho phép cập nhật từng trường riêng lẻ mà không cần tạo mới toàn bộ object
+  /// 
+  /// Tất cả các tham số đều tùy chọn, nếu không cung cấp sẽ giữ nguyên giá trị cũ
   Room copyWith({
     int? id,
     String? soPhong,
@@ -242,8 +270,29 @@ class Room {
     );
   }
 
-  String get statusText => trangThaiText ?? (tinhTrang ? 'Có sẵn' : 'Đã đặt');
+  /// Lấy text hiển thị trạng thái phòng bằng tiếng Việt
+  /// 
+  /// Trả về trangThaiText nếu có, nếu không dựa trên availableCount để hiển thị
+  String get statusText {
+    if (trangThaiText != null && trangThaiText!.isNotEmpty) {
+      return trangThaiText!;
+    }
+    
+    // Dựa trên availableCount để hiển thị
+    final count = availableCount ?? 0;
+    if (count <= 0) {
+      return 'Hết phòng';
+    } else if (count <= 2) {
+      return 'Gần hết phòng ($count)';
+    } else {
+      return 'Còn trống ($count)';
+    }
+  }
 
+  /// Lấy text hiển thị sức chứa phòng
+  /// 
+  /// Ví dụ: 2 -> "2 khách"
+  /// Trả về "N/A" nếu không có thông tin sức chứa
   String get capacityText => sucChua != null ? '$sucChua khách' : 'N/A';
 
   @override
@@ -251,6 +300,11 @@ class Room {
     return 'Room{id: $id, soPhong: $soPhong, tenLoaiPhong: $tenLoaiPhong, giaPhong: $giaPhong}';
   }
 
+  /// Chuyển đổi giá trị sang double một cách an toàn
+  /// 
+  /// [value] - Giá trị có thể là double, int, String, hoặc null
+  /// 
+  /// Trả về double nếu chuyển đổi thành công, null nếu không
   static double? _safeToDouble(dynamic value) {
     if (value == null) return null;
     if (value is double) return value;
@@ -262,6 +316,11 @@ class Room {
     return null;
   }
 
+  /// Chuyển đổi giá trị sang int một cách an toàn
+  /// 
+  /// [value] - Giá trị có thể là int, double, String, hoặc null
+  /// 
+  /// Trả về int nếu chuyển đổi thành công, null nếu không
   static int? _safeToInt(dynamic value) {
     if (value == null) return null;
     if (value is int) return value;
@@ -273,7 +332,9 @@ class Room {
     return null;
   }
 
-  /// Get full image URLs for room images
+  /// Lấy danh sách URL đầy đủ của tất cả hình ảnh phòng
+  /// 
+  /// Trả về danh sách URL hình ảnh, hoặc URL hình ảnh mặc định nếu không có
   List<String> get fullImageUrls {
     if (hinhAnhPhong == null || hinhAnhPhong!.isEmpty) {
       return [ImageUrlHelper.getDefaultRoomImageUrl()];
@@ -281,7 +342,9 @@ class Room {
     return ImageUrlHelper.getRoomImageUrls(hinhAnhPhong!);
   }
 
-  /// Get primary image URL
+  /// Lấy URL hình ảnh chính (hình đầu tiên) của phòng
+  /// 
+  /// Trả về URL hình ảnh đầu tiên, hoặc URL hình ảnh mặc định nếu không có
   String get primaryImageUrl {
     if (hinhAnhPhong == null || hinhAnhPhong!.isEmpty) {
       return ImageUrlHelper.getDefaultRoomImageUrl();

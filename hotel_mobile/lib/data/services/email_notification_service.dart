@@ -1,5 +1,7 @@
 import 'package:dio/dio.dart';
 import '../models/phieu_dat_phong_model.dart';
+import '../../core/constants/app_constants.dart';
+import 'backend_auth_service.dart';
 
 class EmailNotificationService {
   static final EmailNotificationService _instance = EmailNotificationService._internal();
@@ -7,13 +9,17 @@ class EmailNotificationService {
   EmailNotificationService._internal();
 
   late Dio _dio;
-  static const String baseUrl = 'https://your-backend-api.com/api/notifications'; // Thay đổi URL này
+  final BackendAuthService _backendAuthService = BackendAuthService();
+  bool _initialized = false;
 
   void initialize() {
+    if (_initialized) return;
+    
     _dio = Dio(BaseOptions(
-      baseUrl: baseUrl,
-      connectTimeout: const Duration(seconds: 30),
-      receiveTimeout: const Duration(seconds: 30),
+      baseUrl: AppConstants.baseUrl,
+      connectTimeout: AppConstants.connectTimeout,
+      receiveTimeout: AppConstants.receiveTimeout,
+      sendTimeout: AppConstants.sendTimeout,
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
@@ -25,20 +31,35 @@ class EmailNotificationService {
       requestBody: true,
       responseBody: true,
       error: true,
+      logPrint: (object) {
+        print('📧 Email Notification API: $object');
+      },
     ));
 
+    // Add auth interceptor - automatically get token from BackendAuthService
     _dio.interceptors.add(InterceptorsWrapper(
+      onRequest: (options, handler) {
+        // Get token from BackendAuthService automatically
+        final token = _backendAuthService.getToken();
+        if (token != null) {
+          options.headers['Authorization'] = 'Bearer $token';
+        }
+        handler.next(options);
+      },
       onError: (error, handler) {
-        print('Email Notification API Error: ${error.message}');
-        print('Response: ${error.response?.data}');
+        print('❌ Email Notification API Error: ${error.message}');
+        print('❌ Response: ${error.response?.data}');
         handler.next(error);
       },
     ));
+    
+    _initialized = true;
   }
 
-  // Set authorization token
+  // Set authorization token (deprecated - token is now automatically retrieved)
   void setAuthToken(String token) {
-    _dio.options.headers['Authorization'] = 'Bearer $token';
+    // Deprecated: Token is now automatically retrieved from BackendAuthService
+    initialize();
   }
 
   // Gửi email thông báo đặt phòng thành công
@@ -236,6 +257,100 @@ class EmailNotificationService {
     } on DioException catch (e) {
       throw _handleDioError(e);
     }
+  }
+
+  // Gửi email thông báo hàng loạt cho tất cả người dùng
+  /// 
+  /// Gửi email thông báo đến tất cả người dùng đã đăng ký
+  /// 
+  /// Parameters:
+  ///   - subject: Tiêu đề email
+  ///   - templateType: Loại template (new_hotel, new_promotion, general_notification)
+  ///   - data: Dữ liệu để điền vào template
+  /// 
+  /// Returns: Map với thông tin kết quả gửi email
+  Future<Map<String, dynamic>> sendBulkNotificationEmail({
+    required String subject,
+    required String templateType,
+    required Map<String, dynamic> data,
+  }) async {
+    try {
+      final emailData = {
+        'template_type': templateType,
+        'subject': subject,
+        'data': data,
+        'send_to_all': true, // Gửi đến tất cả người dùng
+      };
+
+      final response = await _dio.post('/email/bulk-notification', data: emailData);
+      
+      if (response.statusCode == 200) {
+        final result = response.data;
+        return {
+          'success': true,
+          'sent_count': result['sent_count'] ?? 0,
+          'failed_count': result['failed_count'] ?? 0,
+          'message': result['message'] ?? 'Gửi email thành công',
+        };
+      } else {
+        return {
+          'success': false,
+          'sent_count': 0,
+          'failed_count': 0,
+          'message': 'Lỗi gửi email: ${response.statusCode}',
+        };
+      }
+    } on DioException catch (e) {
+      print('Error sending bulk notification email: ${_handleDioError(e)}');
+      return {
+        'success': false,
+        'sent_count': 0,
+        'failed_count': 0,
+        'message': _handleDioError(e),
+      };
+    }
+  }
+
+  // Gửi email thông báo khách sạn mới
+  Future<Map<String, dynamic>> sendNewHotelNotificationEmail({
+    required String hotelName,
+    required String hotelAddress,
+    String? hotelImageUrl,
+    int? hotelId,
+  }) async {
+    return sendBulkNotificationEmail(
+      subject: '🏨 Khách sạn mới: $hotelName',
+      templateType: 'new_hotel',
+      data: {
+        'hotel_name': hotelName,
+        'hotel_address': hotelAddress,
+        'hotel_image_url': hotelImageUrl,
+        'hotel_id': hotelId,
+        'view_hotel_link': hotelId != null ? 'https://your-app.com/hotels/$hotelId' : null,
+      },
+    );
+  }
+
+  // Gửi email thông báo ưu đãi mới
+  Future<Map<String, dynamic>> sendNewPromotionNotificationEmail({
+    required String promotionTitle,
+    required String promotionDescription,
+    String? promotionImageUrl,
+    int? promotionId,
+    double? discountPercent,
+  }) async {
+    return sendBulkNotificationEmail(
+      subject: '🎉 Ưu đãi mới: $promotionTitle',
+      templateType: 'new_promotion',
+      data: {
+        'promotion_title': promotionTitle,
+        'promotion_description': promotionDescription,
+        'promotion_image_url': promotionImageUrl,
+        'promotion_id': promotionId,
+        'discount_percent': discountPercent,
+        'view_promotion_link': promotionId != null ? 'https://your-app.com/promotions/$promotionId' : null,
+      },
+    );
   }
 
   // Error handling

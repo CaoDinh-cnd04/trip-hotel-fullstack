@@ -29,15 +29,21 @@ class KhachSan extends BaseModel {
         qg.ten AS ten_quoc_gia,
         nd.ho_ten AS ten_nguoi_quan_ly,
         nd.email AS email_nguoi_quan_ly,
-        COUNT(p.id) AS tong_so_phong_thuc_te,
+        nd.id AS nguoi_quan_ly_id,
+        owner.ho_ten AS ten_chu_khach_san,
+        owner.email AS email_chu_khach_san,
+        COUNT(DISTINCT p.id) AS tong_so_phong_thuc_te,
         (SELECT AVG(CAST(p2.gia_tien AS DECIMAL(18,2))) 
          FROM phong p2 
-         WHERE p2.khach_san_id = ks.id) AS gia_tb
+         WHERE p2.khach_san_id = ks.id) AS gia_tb,
+        COALESCE(ks.diem_danh_gia_trung_binh, 0) AS diem_danh_gia_trung_binh,
+        COALESCE(ks.so_luot_danh_gia, 0) AS so_luot_danh_gia
       FROM khach_san ks
       LEFT JOIN vi_tri vt ON ks.vi_tri_id = vt.id
       LEFT JOIN tinh_thanh tt ON vt.tinh_thanh_id = tt.id
       LEFT JOIN quoc_gia qg ON tt.quoc_gia_id = qg.id
       LEFT JOIN nguoi_dung nd ON ks.nguoi_quan_ly_id = nd.id
+      LEFT JOIN nguoi_dung owner ON ks.chu_khach_san_id = owner.id
       LEFT JOIN phong p ON ks.id = p.khach_san_id
       ${where ? `WHERE ${where}` : ''}
       GROUP BY 
@@ -46,7 +52,8 @@ class KhachSan extends BaseModel {
         ks.nguoi_quan_ly_id, ks.chu_khach_san_id, ks.email_lien_he, ks.sdt_lien_he, ks.website,
         ks.gio_nhan_phong, ks.gio_tra_phong, ks.chinh_sach_huy, ks.tong_so_phong,
         ks.diem_danh_gia_trung_binh, ks.so_luot_danh_gia, ks.created_at, ks.updated_at,
-        vt.ten, tt.ten, qg.ten, nd.ho_ten, nd.email
+        vt.ten, tt.ten, qg.ten, nd.ho_ten, nd.email, nd.id,
+        owner.ho_ten, owner.email, owner.id
       ORDER BY ${orderBy}
       OFFSET @offset ROWS
       FETCH NEXT @limit ROWS ONLY
@@ -103,14 +110,21 @@ class KhachSan extends BaseModel {
       so_sao_max,
       gia_min,
       gia_max,
-      tien_nghi
+      tien_nghi,
+      trang_thai
     } = options;
 
     // Ensure page and limit are integers
     const pageInt = parseInt(page);
     const limitInt = parseInt(limit);
 
-    let whereConditions = ["ks.trang_thai = N'Hoạt động'"];
+    // Allow filtering by status, default to active for regular users
+    let whereConditions = [];
+    if (!trang_thai) {
+      whereConditions.push("ks.trang_thai = N'Hoạt động'");
+    } else if (trang_thai !== 'all') {
+      whereConditions.push(`ks.trang_thai = N'${trang_thai}'`);
+    }
     let params = { offset: (pageInt - 1) * limitInt, limit: limitInt };
 
     // Search term
@@ -352,6 +366,34 @@ class KhachSan extends BaseModel {
     }
   }
 
+  // Get all images for a hotel
+  async getHotelImages(hotelId) {
+    const query = `
+      SELECT 
+        id,
+        khach_san_id,
+        duong_dan_anh,
+        thu_tu,
+        la_anh_dai_dien,
+        created_at
+      FROM dbo.anh_khach_san
+      WHERE khach_san_id = @hotelId
+      ORDER BY thu_tu ASC, created_at ASC
+    `;
+
+    try {
+      const result = await this.executeQuery(query, { hotelId });
+      return result.recordset || [];
+    } catch (error) {
+      // Nếu bảng chưa tồn tại, trả về mảng rỗng
+      if (error.message && error.message.includes("Invalid object name")) {
+        console.log('⚠️ Table anh_khach_san does not exist yet');
+        return [];
+      }
+      throw error;
+    }
+  }
+
   // Get hotel statistics for admin dashboard
   async getStats() {
     try {
@@ -364,7 +406,14 @@ class KhachSan extends BaseModel {
       `;
       
       const result = await this.executeQuery(query);
-      return result.recordset[0];
+      const stats = result.recordset[0] || {};
+      
+      // Convert SQL Server types to JavaScript numbers
+      return {
+        totalHotels: parseInt(stats.totalHotels) || 0,
+        activeHotels: parseInt(stats.activeHotels) || 0,
+        newHotelsThisMonth: parseInt(stats.newHotelsThisMonth) || 0
+      };
     } catch (error) {
       console.error('Get hotel stats error:', error);
       throw error;

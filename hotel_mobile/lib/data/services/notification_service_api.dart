@@ -32,21 +32,38 @@ class NotificationServiceApi {
     ));
   }
 
-  /// Get user notifications
+  /// Lấy danh sách thông báo của người dùng với phân trang
+  /// 
+  /// [page] - Trang cần lấy (mặc định: 1)
+  /// [limit] - Số lượng thông báo mỗi trang (mặc định: 20)
+  /// [unreadOnly] - Chỉ lấy thông báo chưa đọc nếu true
+  /// 
+  /// Trả về Map chứa:
+  /// - 'notifications': Danh sách NotificationModel
+  /// - 'pagination': Thông tin phân trang
+  /// - 'requiresAuth': true nếu cần đăng nhập
   Future<Map<String, dynamic>> getNotifications({
     int page = 1,
     int limit = 20,
     bool unreadOnly = false,
   }) async {
     try {
-      print('📞 Calling GET /api/notifications with page=$page, limit=$limit, unreadOnly=$unreadOnly');
+      final token = _authService.authToken;
+      
+      // Nếu không có token, dùng endpoint public (chỉ lấy thông báo chung)
+      final endpoint = token != null 
+          ? '/api/notifications'           // Personal notifications (requires auth)
+          : '/api/notifications/public';   // Public notifications only
+      
+      print('📞 Calling GET $endpoint with page=$page, limit=$limit, unreadOnly=$unreadOnly');
+      print('🔑 Token: ${token != null ? 'Available' : 'Not available - using public endpoint'}');
       
       final response = await _dio.get(
-        '/api/notifications',
+        endpoint,
         queryParameters: {
           'page': page,
           'limit': limit,
-          'unreadOnly': unreadOnly,
+          if (token != null) 'unreadOnly': unreadOnly, // Only for authenticated users
         },
       );
 
@@ -68,9 +85,18 @@ class NotificationServiceApi {
       final notifications = dataList
           .map((json) {
             try {
-              return NotificationModel.fromJson(json as Map<String, dynamic>);
-            } catch (e) {
-              print('⚠️ Error parsing notification: $e\nJSON: $json');
+              if (json is Map<String, dynamic>) {
+                // Sử dụng fromJson với safe parsing
+                // Sử dụng fromJsonCustom để xử lý cả field tiếng Việt và tiếng Anh
+                return NotificationModel.fromJsonCustom(json);
+              } else {
+                print('⚠️ Notification item is not a Map: ${json.runtimeType}');
+                return null;
+              }
+            } catch (e, stackTrace) {
+              print('❌ Error parsing notification: $e');
+              print('❌ Stack trace: $stackTrace');
+              print('❌ JSON: $json');
               return null;
             }
           })
@@ -87,11 +113,28 @@ class NotificationServiceApi {
           'total': notifications.length,
           'totalPages': 1,
         },
+        'requiresAuth': token == null, // Flag to show login prompt if needed
       };
     } on DioException catch (e) {
       print('❌ Get notifications error: ${e.message}');
       print('❌ Response: ${e.response?.data}');
       print('❌ Status code: ${e.response?.statusCode}');
+      
+      // Nếu 401 (Unauthorized), return empty list với flag requiresAuth
+      if (e.response?.statusCode == 401) {
+        print('⚠️ Unauthorized - returning empty list for guest user');
+        return {
+          'notifications': <NotificationModel>[],
+          'pagination': {
+            'page': page,
+            'limit': limit,
+            'total': 0,
+            'totalPages': 0,
+          },
+          'requiresAuth': true,
+        };
+      }
+      
       throw Exception('Không thể tải thông báo: ${e.message}');
     } catch (e) {
       print('❌ Unexpected error: $e');
@@ -99,9 +142,19 @@ class NotificationServiceApi {
     }
   }
 
-  /// Get unread count
+  /// Lấy số lượng thông báo chưa đọc của người dùng
+  /// 
+  /// Trả về số lượng thông báo chưa đọc (0 nếu có lỗi hoặc chưa đăng nhập)
   Future<int> getUnreadCount() async {
     try {
+      final token = _authService.authToken;
+      
+      // Unread count chỉ có cho authenticated users
+      if (token == null) {
+        print('ℹ️ No token - returning 0 unread count for guest user');
+        return 0;
+      }
+      
       print('📞 Calling GET /api/notifications/unread-count');
       final response = await _dio.get('/api/notifications/unread-count');
       
@@ -123,6 +176,12 @@ class NotificationServiceApi {
       print('❌ Get unread count error: ${e.message}');
       print('❌ Response: ${e.response?.data}');
       print('❌ Status code: ${e.response?.statusCode}');
+      
+      // Return 0 for guest users (401 error)
+      if (e.response?.statusCode == 401) {
+        print('ℹ️ Unauthorized - returning 0 for guest user');
+      }
+      
       return 0;
     } catch (e) {
       print('❌ Unexpected error getting unread count: $e');
@@ -130,7 +189,9 @@ class NotificationServiceApi {
     }
   }
 
-  /// Mark notification as read
+  /// Đánh dấu một thông báo là đã đọc
+  /// 
+  /// [notificationId] - ID của thông báo cần đánh dấu
   Future<void> markAsRead(int notificationId) async {
     try {
       await _dio.post('/api/notifications/$notificationId/read');
@@ -139,7 +200,9 @@ class NotificationServiceApi {
     }
   }
 
-  /// Mark all as read
+  /// Đánh dấu tất cả thông báo trong danh sách là đã đọc
+  /// 
+  /// [notificationIds] - Danh sách ID của các thông báo cần đánh dấu
   Future<void> markAllAsRead(List<int> notificationIds) async {
     try {
       await Future.wait(

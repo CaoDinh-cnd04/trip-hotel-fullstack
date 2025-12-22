@@ -36,6 +36,10 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 // Smart room image fallback: try rooms/, then hotels/, then default
 app.get('/images/rooms/:file', (req, res, next) => {
   try {
+    // Set CORS headers
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+    
     const file = req.params.file;
     const rootImages = path.join(__dirname, '..', 'images');
     const roomsPath = path.join(rootImages, 'rooms', file);
@@ -58,8 +62,27 @@ app.get('/images/rooms/:file', (req, res, next) => {
   }
 });
 
-// Serve images from parent directory (root project)
-app.use('/images', express.static(path.join(__dirname, '..', 'images')));
+// Serve images from parent directory (root project) with CORS headers
+app.use('/images', (req, res, next) => {
+  // Set CORS headers for images - MUST be set before sending file
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+  
+  // Handle OPTIONS preflight
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(200);
+  }
+  
+  next();
+}, express.static(path.join(__dirname, '..', 'images'), {
+  setHeaders: (res, path) => {
+    // Also set CORS headers in static file handler
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+  }
+}));
 
 // Public API Routes - Không cần authentication
 app.use('/api/public', require('./routes/public'));
@@ -82,7 +105,7 @@ app.use('/api/v2/tiennghi', require('./routes/tiennghi'));
 // Admin API Routes
 app.use('/api/v2/admin', require('./routes/admin'));
 app.use('/api/admin/roles', require('./routes/adminRole')); // Admin role management
-app.use('/feedback', require('./routes/feedback')); // Feedback management (temporary)
+app.use('/api/v2/feedback', require('./routes/feedback')); // Feedback management
 app.use('/api/notifications', require('./routes/notifications')); // Notification system
 app.use('/api/chat-sync', require('./routes/chatSync')); // Chat history sync (Firestore → SQL Server)
 app.use('/api/room-status', require('./routes/roomStatus')); // Room status auto-update
@@ -102,8 +125,21 @@ app.use('/api/v2/discount', require('./routes/discount')); // Discount validatio
 app.use('/api/v2/danhgia', require('./routes/danhgia_v2'));
 app.use('/api/v2/tinnhan', require('./routes/tinnhan_v2'));
 app.use('/api/v2/hoso', require('./routes/hoso_v2'));
+
+// ==================== PAYMENT ROUTES ====================
+// VNPay routes
 app.use('/api/v2/vnpay', require('./routes/vnpay'));
 app.use('/api/v2/momo', require('./routes/momo'));
+
+// VNPay callback routes (public endpoints)
+// These routes need to be at root level to match VNPay's callback URLs
+const vnpayController = require('./controllers/vnpayController');
+
+// Return URL callback (sau khi thanh toán)
+app.get('/api/payment/vnpay-return', vnpayController.vnpayReturn);
+// IPN endpoint (server-to-server callback from VNPay)
+app.post('/api/payment/vnpay-ipn', vnpayController.vnpayIPN);
+app.get('/api/payment/vnpay-ipn', vnpayController.vnpayIPN);
 app.use('/api/bookings', require('./routes/bookings')); // Booking management
 app.use('/api/v2/hotel-registration', require('./routes/hotelRegistration'));
 
@@ -275,6 +311,10 @@ const startServer = async () => {
     // Initialize database connection
     await connect();
     console.log('✅ Database connected successfully!');
+    
+    // Initialize Firebase Admin SDK
+    const { initializeFirebaseAdmin } = require('./services/firebaseAdmin');
+    initializeFirebaseAdmin();
     
     // Start room status scheduler
     const { startRoomStatusScheduler } = require('./services/roomStatusScheduler');

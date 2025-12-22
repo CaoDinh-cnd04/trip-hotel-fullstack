@@ -28,6 +28,8 @@ exports.createNotification = async (req, res) => {
       action_text,
       hotel_id,
       expires_at,
+      target_audience, // Frontend sends this
+      send_email, // Frontend sends this instead of gui_email
       metadata
     } = req.body;
 
@@ -71,10 +73,22 @@ exports.createNotification = async (req, res) => {
     };
     const mappedType = typeMapping[finalType] || finalType;
 
-    // Create notification
-    // Always set doi_tuong_nhan to 'all' for public notifications unless specifically set
-    const targetAudience = doi_tuong_nhan || 'all';
+    // Map target_audience from frontend format to backend format
+    const targetAudienceMapping = {
+      'all': 'all',
+      'users': 'user',
+      'user': 'user',
+      'hotel_managers': 'hotel_manager',
+      'hotel_manager': 'hotel_manager',
+      'admins': 'admin',
+      'admin': 'admin'
+    };
+    const mappedTargetAudience = targetAudienceMapping[target_audience] || targetAudienceMapping[doi_tuong_nhan] || 'all';
     
+    // Map send_email to gui_email
+    const shouldSendEmail = send_email === true || send_email === 'true' || gui_email === true || gui_email === 'true';
+    
+    // Create notification
     const notificationData = {
       tieu_de: finalTitle,
       noi_dung: finalContent,
@@ -84,9 +98,9 @@ exports.createNotification = async (req, res) => {
       van_ban_nut: finalActionText || null,
       khach_san_id: finalHotelId || null,
       ngay_het_han: finalExpiresAt || null,
-      doi_tuong_nhan: targetAudience, // 'all', 'user', 'hotel_manager', 'specific_user'
+      doi_tuong_nhan: mappedTargetAudience, // 'all', 'user', 'hotel_manager', 'admin', 'specific_user'
       nguoi_dung_id: nguoi_dung_id || null,
-      gui_email: gui_email === true || gui_email === 'true', // Ensure boolean
+      gui_email: shouldSendEmail, // Ensure boolean
       nguoi_tao_id: req.user.id, // From auth middleware
       hien_thi: true
     };
@@ -94,13 +108,23 @@ exports.createNotification = async (req, res) => {
     console.log('📝 Creating notification with data:', {
       title: finalTitle,
       type: mappedType,
-      targetAudience: targetAudience,
-      sendEmail: notificationData.gui_email
+      targetAudience: mappedTargetAudience,
+      sendEmail: notificationData.gui_email,
+      originalTargetAudience: target_audience || doi_tuong_nhan
     });
 
+    console.log('📝 Creating notification with notificationData:', JSON.stringify(notificationData, null, 2));
+    
     const notification = await ThongBao.create(notificationData);
     const notificationId = notification?.id || notification?.ma_thong_bao;
     console.log('✅ Notification created with ID:', notificationId);
+    console.log('📋 Created notification data:', {
+      id: notificationId,
+      tieu_de: notification?.tieu_de,
+      doi_tuong_nhan: notification?.doi_tuong_nhan,
+      hien_thi: notification?.hien_thi,
+      gui_email: notification?.gui_email
+    });
 
     // Format response for frontend (map Vietnamese fields to English)
     const formattedNotification = {
@@ -122,29 +146,83 @@ exports.createNotification = async (req, res) => {
 
     // Send emails if requested
     let emailResults = null;
-    const shouldSendEmail = notificationData.gui_email === true;
+    // shouldSendEmail already declared above at line 89, reuse it
+    // Check if we should send email based on notificationData.gui_email
+    const shouldSendEmailNow = notificationData.gui_email === true;
     
-    if (shouldSendEmail && notification) {
+    console.log('📧 Email sending check:', {
+      shouldSendEmail: shouldSendEmailNow,
+      gui_email: notificationData.gui_email,
+      notificationId: notification?.id || notification?.ma_thong_bao,
+      hasNotification: !!notification
+    });
+    
+    if (shouldSendEmailNow && notification) {
       console.log('📧 Attempting to send email notifications...');
       const notificationId = notification.id || notification.ma_thong_bao;
       
       try {
+        console.log(`🔍 Getting users for notification ID: ${notificationId}`);
+        console.log(`📋 Notification target audience: ${notification.doi_tuong_nhan || notificationData.doi_tuong_nhan}`);
+        
         const users = await ThongBao.getUsersForEmailNotification(notificationId);
         console.log(`📬 Found ${users.length} users to send emails to`);
         
         if (users.length > 0) {
+          console.log(`📧 Sending emails to ${users.length} users...`);
+          console.log(`📧 First user sample:`, {
+            id: users[0]?.id,
+            email: users[0]?.email,
+            ho_ten: users[0]?.ho_ten,
+            nhan_thong_bao_email: users[0]?.nhan_thong_bao_email
+          });
+          
           emailResults = await emailService.sendBulkNotificationEmails(users, notification);
           console.log('✅ Email sending completed:', emailResults);
         } else {
-          console.log('⚠️  No users found to send emails to (check nhan_thong_bao_email setting)');
+          console.log('⚠️  No users found to send emails to');
+          console.log('💡 Possible reasons:');
+          console.log('   - Users have nhan_thong_bao_email = 0 (disabled)');
+          console.log('   - Users have trang_thai = 0 (inactive)');
+          console.log('   - Target audience filter does not match any users');
+          console.log(`   - Notification doi_tuong_nhan: ${notification.doi_tuong_nhan || notificationData.doi_tuong_nhan}`);
+          
+          // Debug: Check total users
+          try {
+            const { getPool } = require('../config/db');
+            const sql = require('mssql');
+            const pool = await getPool();
+            const totalUsersResult = await pool.request().query(`
+              SELECT COUNT(*) as total FROM nguoi_dung WHERE trang_thai = CAST(1 AS BIT)
+            `);
+            const totalActiveUsers = totalUsersResult.recordset[0]?.total || 0;
+            
+            const emailEnabledUsersResult = await pool.request().query(`
+              SELECT COUNT(*) as total FROM nguoi_dung 
+              WHERE trang_thai = CAST(1 AS BIT) AND nhan_thong_bao_email = CAST(1 AS BIT)
+            `);
+            const emailEnabledUsers = emailEnabledUsersResult.recordset[0]?.total || 0;
+            
+            console.log(`📊 Debug stats: ${totalActiveUsers} active users, ${emailEnabledUsers} with email notifications enabled`);
+          } catch (debugError) {
+            console.error('Error getting debug stats:', debugError);
+          }
         }
       } catch (emailError) {
         console.error('❌ Error sending emails:', emailError);
+        console.error('❌ Error stack:', emailError.stack);
         // Don't fail the notification creation if email fails
-        emailResults = { error: emailError.message };
+        emailResults = { 
+          error: emailError.message,
+          stack: process.env.NODE_ENV === 'development' ? emailError.stack : undefined
+        };
       }
     } else {
-      console.log('📭 Email sending skipped (gui_email = false)');
+      console.log('📭 Email sending skipped:', {
+        shouldSendEmail: shouldSendEmailNow,
+        gui_email: notificationData.gui_email,
+        hasNotification: !!notification
+      });
     }
 
     res.status(201).json({
@@ -163,9 +241,86 @@ exports.createNotification = async (req, res) => {
   }
 };
 
-// User: Get notifications
+// Public: Get public notifications (no auth required) - FOR GUEST USERS
+exports.getPublicNotifications = async (req, res) => {
+  try {
+    const { page = 1, limit = 20 } = req.query;
+
+    console.log(`📬 Getting public notifications, page=${page}, limit=${limit}`);
+
+    // Lấy thông báo public (doi_tuong_nhan = 'all')
+    const { getPool } = require('../config/db');
+    const pool = await getPool();
+    
+    const offset = (parseInt(page) - 1) * parseInt(limit);
+    
+    const result = await pool.request()
+      .input('limit', parseInt(limit))
+      .input('offset', offset)
+      .query(`
+        SELECT 
+          id,
+          tieu_de,
+          noi_dung,
+          loai_thong_bao,
+          url_hinh_anh,
+          url_hanh_dong,
+          van_ban_nut,
+          ngay_tao,
+          0 as is_read
+        FROM thong_bao
+        WHERE hien_thi = CAST(1 AS BIT)
+          AND doi_tuong_nhan = 'all'
+          AND (ngay_het_han IS NULL OR ngay_het_han > GETDATE())
+        ORDER BY ngay_tao DESC
+        OFFSET @offset ROWS
+        FETCH NEXT @limit ROWS ONLY
+      `);
+
+    const countResult = await pool.request()
+      .query(`
+        SELECT COUNT(*) as total
+        FROM thong_bao
+        WHERE hien_thi = CAST(1 AS BIT)
+          AND doi_tuong_nhan = 'all'
+          AND (ngay_het_han IS NULL OR ngay_het_han > GETDATE())
+      `);
+
+    const total = countResult.recordset[0]?.total || 0;
+    const totalPages = Math.ceil(total / parseInt(limit));
+
+    console.log(`✅ Found ${result.recordset.length} public notifications`);
+
+    res.json({
+      success: true,
+      data: result.recordset || [],
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        total: total,
+        totalPages: totalPages
+      }
+    });
+  } catch (error) {
+    console.error('❌ Get public notifications error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Lỗi server khi lấy thông báo',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+// User: Get notifications (with auto fallback to public for guests)
 exports.getNotifications = async (req, res) => {
   try {
+    // Check if user is authenticated
+    if (!req.user || !req.user.id) {
+      // User not authenticated -> return public notifications instead
+      console.log('⚠️ No authenticated user, returning public notifications');
+      return exports.getPublicNotifications(req, res);
+    }
+
     const userId = req.user.id;
     const { page = 1, limit = 20, unreadOnly = false } = req.query;
 
@@ -232,6 +387,15 @@ exports.markAsRead = async (req, res) => {
 // User: Get unread count
 exports.getUnreadCount = async (req, res) => {
   try {
+    // Guest users have 0 unread
+    if (!req.user || !req.user.id) {
+      console.log('ℹ️ Guest user requesting unread count, returning 0');
+      return res.json({
+        success: true,
+        data: { unread_count: 0 }
+      });
+    }
+
     const userId = req.user.id;
     console.log(`🔔 Getting unread count for user ${userId}`);
     

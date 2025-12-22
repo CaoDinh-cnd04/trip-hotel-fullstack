@@ -5,9 +5,8 @@ import '../../../data/models/promotion.dart';
 import '../../../data/models/destination.dart';
 import '../../../data/models/country.dart';
 import '../../../data/services/public_api_service.dart';
-import '../../../data/services/api_service.dart';
 import '../hotel/hotel_list_screen.dart';
-import '../auth/login_screen.dart';
+import '../login_screen.dart';
 import '../profile/profile_screen.dart';
 
 class OldHomeScreen extends StatefulWidget {
@@ -26,8 +25,7 @@ class OldHomeScreen extends StatefulWidget {
 
 class _OldHomeScreenState extends State<OldHomeScreen> {
   final PublicApiService _publicApiService = PublicApiService();
-  final ApiService _apiService = ApiService();
-  
+
   // Search form controllers
   final TextEditingController _locationController = TextEditingController();
   DateTime? _checkInDate;
@@ -39,22 +37,25 @@ class _OldHomeScreenState extends State<OldHomeScreen> {
   List<Promotion> _featuredPromotions = [];
   List<Destination> _hotDestinations = [];
   List<Country> _popularCountries = [];
-  
+
   bool _isLoading = true;
   String? _error;
 
+  /// Khởi tạo state widget và tải dữ liệu ban đầu cho trang chủ
   @override
   void initState() {
     super.initState();
     _loadHomePageData();
   }
 
+  /// Giải phóng bộ nhớ và hủy các controller khi widget bị destroy
   @override
   void dispose() {
     _locationController.dispose();
     super.dispose();
   }
 
+  /// Tải dữ liệu trang chủ từ API bao gồm khách sạn nổi bật, khuyến mãi, địa điểm hot và quốc gia phổ biến
   Future<void> _loadHomePageData() async {
     try {
       setState(() {
@@ -63,7 +64,7 @@ class _OldHomeScreenState extends State<OldHomeScreen> {
       });
 
       print('🚀 Bắt đầu tải dữ liệu trang chủ...');
-      
+
       // Load all data in parallel
       final results = await Future.wait([
         _publicApiService.getFeaturedHotels(limit: 6),
@@ -90,6 +91,8 @@ class _OldHomeScreenState extends State<OldHomeScreen> {
     }
   }
 
+  /// Xử lý sự kiện khi người dùng nhấn nút tìm kiếm
+  /// Điều hướng đến màn hình danh sách khách sạn với các tham số tìm kiếm
   void _onSearchPressed() {
     if (_locationController.text.trim().isNotEmpty) {
       Navigator.push(
@@ -107,17 +110,18 @@ class _OldHomeScreenState extends State<OldHomeScreen> {
     }
   }
 
+  /// Xử lý sự kiện tìm kiếm nhanh theo địa điểm được chọn
   void _onQuickSearchPressed(String location) {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => HotelListScreen(
-          location: location,
-        ),
+        builder: (context) => HotelListScreen(location: location),
       ),
     );
   }
 
+  /// Xây dựng giao diện chính của màn hình trang chủ
+  /// Hiển thị loading, error hoặc nội dung chính tùy theo trạng thái
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -134,90 +138,84 @@ class _OldHomeScreenState extends State<OldHomeScreen> {
               ),
             )
           : _error != null
-              ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.error_outline,
-                        size: 64,
-                        color: Colors.red[300],
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        'Có lỗi xảy ra',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.red[700],
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        _error!,
-                        textAlign: TextAlign.center,
-                        style: TextStyle(color: Colors.grey[600]),
-                      ),
-                      const SizedBox(height: 16),
-                      ElevatedButton(
-                        onPressed: _loadHomePageData,
-                        child: const Text('Thử lại'),
-                      ),
-                    ],
-                  ),
-                )
-              : RefreshIndicator(
-                  onRefresh: _loadHomePageData,
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Header với logo và thông báo
-                        _buildHeader(),
-                        
-                        const SizedBox(height: 24),
-                        
-                        // Search form
-                        _buildSearchForm(),
-                        
-                        const SizedBox(height: 24),
-                        
-                        // Quick search buttons
-                        _buildQuickSearchSection(),
-                        
-                        const SizedBox(height: 24),
-                        
-                        // Featured promotions
-                        if (_featuredPromotions.isNotEmpty)
-                          _buildFeaturedPromotions(),
-                        
-                        const SizedBox(height: 24),
-                        
-                        // Featured hotels
-                        if (_featuredHotels.isNotEmpty)
-                          _buildFeaturedHotels(),
-                        
-                        const SizedBox(height: 24),
-                        
-                        // Hot destinations
-                        if (_hotDestinations.isNotEmpty)
-                          _buildHotDestinations(),
-                        
-                        const SizedBox(height: 24),
-                        
-                        // Popular countries
-                        if (_popularCountries.isNotEmpty)
-                          _buildPopularCountries(),
-                        
-                        const SizedBox(height: 24),
-                      ],
+          ? Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.error_outline, size: 64, color: Colors.red[300]),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Có lỗi xảy ra',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.red[700],
                     ),
                   ),
+                  const SizedBox(height: 8),
+                  Text(
+                    _error!,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: Colors.grey[600]),
+                  ),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: _loadHomePageData,
+                    child: const Text('Thử lại'),
+                  ),
+                ],
+              ),
+            )
+          : RefreshIndicator(
+              onRefresh: _loadHomePageData,
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Header với logo và thông báo
+                    _buildHeader(),
+
+                    const SizedBox(height: 24),
+
+                    // Search form
+                    _buildSearchForm(),
+
+                    const SizedBox(height: 24),
+
+                    // Quick search buttons
+                    _buildQuickSearchSection(),
+
+                    const SizedBox(height: 24),
+
+                    // Featured promotions
+                    if (_featuredPromotions.isNotEmpty)
+                      _buildFeaturedPromotions(),
+
+                    const SizedBox(height: 24),
+
+                    // Featured hotels
+                    if (_featuredHotels.isNotEmpty) _buildFeaturedHotels(),
+
+                    const SizedBox(height: 24),
+
+                    // Hot destinations
+                    if (_hotDestinations.isNotEmpty) _buildHotDestinations(),
+
+                    const SizedBox(height: 24),
+
+                    // Popular countries
+                    if (_popularCountries.isNotEmpty) _buildPopularCountries(),
+
+                    const SizedBox(height: 24),
+                  ],
                 ),
+              ),
+            ),
     );
   }
 
+  /// Tạo header chứa logo ứng dụng, thông báo và nút tài khoản
   Widget _buildHeader() {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -232,11 +230,7 @@ class _OldHomeScreenState extends State<OldHomeScreen> {
                 color: Colors.blue[600],
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: const Icon(
-                Icons.hotel,
-                color: Colors.white,
-                size: 24,
-              ),
+              child: const Icon(Icons.hotel, color: Colors.white, size: 24),
             ),
             const SizedBox(width: 12),
             const Text(
@@ -249,7 +243,7 @@ class _OldHomeScreenState extends State<OldHomeScreen> {
             ),
           ],
         ),
-        
+
         // Thông báo và tài khoản
         Row(
           children: [
@@ -286,11 +280,13 @@ class _OldHomeScreenState extends State<OldHomeScreen> {
                 ),
               ],
             ),
-            
+
             // Tài khoản
             IconButton(
               icon: Icon(
-                widget.isAuthenticated ? Icons.account_circle : Icons.person_outline,
+                widget.isAuthenticated
+                    ? Icons.account_circle
+                    : Icons.person_outline,
                 size: 28,
               ),
               onPressed: () {
@@ -304,9 +300,7 @@ class _OldHomeScreenState extends State<OldHomeScreen> {
                 } else {
                   Navigator.push(
                     context,
-                    MaterialPageRoute(
-                      builder: (context) => LoginScreen(),
-                    ),
+                    MaterialPageRoute(builder: (context) => LoginScreen()),
                   );
                 }
               },
@@ -317,6 +311,7 @@ class _OldHomeScreenState extends State<OldHomeScreen> {
     );
   }
 
+  /// Tạo form tìm kiếm khách sạn với các trường địa điểm, ngày, số khách và số phòng
   Widget _buildSearchForm() {
     return Container(
       padding: const EdgeInsets.all(20),
@@ -344,7 +339,7 @@ class _OldHomeScreenState extends State<OldHomeScreen> {
             ),
           ),
           const SizedBox(height: 16),
-          
+
           // Location input
           _buildInputField(
             label: 'Địa điểm',
@@ -352,9 +347,9 @@ class _OldHomeScreenState extends State<OldHomeScreen> {
             controller: _locationController,
             hintText: 'Chọn thành phố, quốc gia',
           ),
-          
+
           const SizedBox(height: 16),
-          
+
           // Date inputs
           Row(
             children: [
@@ -377,9 +372,9 @@ class _OldHomeScreenState extends State<OldHomeScreen> {
               ),
             ],
           ),
-          
+
           const SizedBox(height: 16),
-          
+
           // Guest and room inputs
           Row(
             children: [
@@ -402,9 +397,9 @@ class _OldHomeScreenState extends State<OldHomeScreen> {
               ),
             ],
           ),
-          
+
           const SizedBox(height: 20),
-          
+
           // Search button
           SizedBox(
             width: double.infinity,
@@ -433,6 +428,7 @@ class _OldHomeScreenState extends State<OldHomeScreen> {
     );
   }
 
+  /// Tạo widget input field cho các trường nhập liệu trong form tìm kiếm
   Widget _buildInputField({
     required String label,
     required IconData icon,
@@ -476,6 +472,7 @@ class _OldHomeScreenState extends State<OldHomeScreen> {
     );
   }
 
+  /// Tạo widget chọn ngày cho ngày nhận phòng và trả phòng
   Widget _buildDateField({
     required String label,
     required IconData icon,
@@ -508,7 +505,7 @@ class _OldHomeScreenState extends State<OldHomeScreen> {
                 Icon(icon, color: Colors.grey[600], size: 20),
                 const SizedBox(width: 8),
                 Text(
-                  date != null 
+                  date != null
                       ? DateFormat('dd/MM/yyyy').format(date)
                       : 'Chọn ngày',
                   style: TextStyle(
@@ -524,6 +521,7 @@ class _OldHomeScreenState extends State<OldHomeScreen> {
     );
   }
 
+  /// Tạo widget counter cho số khách và số phòng với nút tăng/giảm
   Widget _buildCounterField({
     required String label,
     required IconData icon,
@@ -555,10 +553,7 @@ class _OldHomeScreenState extends State<OldHomeScreen> {
               const SizedBox(width: 8),
               Text(
                 '$value ${label.contains('khách') ? 'khách' : 'phòng'}',
-                style: const TextStyle(
-                  color: Colors.black87,
-                  fontSize: 14,
-                ),
+                style: const TextStyle(color: Colors.black87, fontSize: 14),
               ),
               const Spacer(),
               Row(
@@ -605,6 +600,7 @@ class _OldHomeScreenState extends State<OldHomeScreen> {
     );
   }
 
+  /// Tạo section tìm kiếm nhanh với các nút tìm kiếm khách sạn gần đây và yêu thích
   Widget _buildQuickSearchSection() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -643,6 +639,7 @@ class _OldHomeScreenState extends State<OldHomeScreen> {
     );
   }
 
+  /// Tạo nút tìm kiếm nhanh với icon, tiêu đề và màu sắc tùy chỉnh
   Widget _buildQuickSearchButton({
     required String title,
     required IconData icon,
@@ -678,6 +675,7 @@ class _OldHomeScreenState extends State<OldHomeScreen> {
     );
   }
 
+  /// Tạo section hiển thị danh sách khuyến mãi nổi bật theo chiều ngang
   Widget _buildFeaturedPromotions() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -715,7 +713,10 @@ class _OldHomeScreenState extends State<OldHomeScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
                         decoration: BoxDecoration(
                           color: Colors.red,
                           borderRadius: BorderRadius.circular(12),
@@ -751,6 +752,7 @@ class _OldHomeScreenState extends State<OldHomeScreen> {
     );
   }
 
+  /// Tạo section hiển thị danh sách khách sạn nổi bật với hình ảnh và thông tin
   Widget _buildFeaturedHotels() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -790,20 +792,31 @@ class _OldHomeScreenState extends State<OldHomeScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     ClipRRect(
-                      borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+                      borderRadius: const BorderRadius.vertical(
+                        top: Radius.circular(12),
+                      ),
                       child: Container(
                         height: 100,
                         width: double.infinity,
                         color: Colors.grey[200],
-                        child: hotel.hinhAnh != null && hotel.hinhAnh!.isNotEmpty
+                        child:
+                            hotel.hinhAnh != null && hotel.hinhAnh!.isNotEmpty
                             ? Image.network(
                                 hotel.fullImageUrl,
                                 fit: BoxFit.cover,
                                 errorBuilder: (context, error, stackTrace) {
-                                  return const Icon(Icons.hotel, size: 40, color: Colors.grey);
+                                  return const Icon(
+                                    Icons.hotel,
+                                    size: 40,
+                                    color: Colors.grey,
+                                  );
                                 },
                               )
-                            : const Icon(Icons.hotel, size: 40, color: Colors.grey),
+                            : const Icon(
+                                Icons.hotel,
+                                size: 40,
+                                color: Colors.grey,
+                              ),
                       ),
                     ),
                     Padding(
@@ -833,11 +846,21 @@ class _OldHomeScreenState extends State<OldHomeScreen> {
                           const SizedBox(height: 8),
                           Row(
                             children: [
-                              Icon(Icons.star, size: 14, color: Colors.amber[600]),
+                              Icon(
+                                Icons.star,
+                                size: 14,
+                                color: Colors.amber[600],
+                              ),
                               const SizedBox(width: 4),
                               Text(
-                                hotel.diemDanhGiaTrungBinh?.toStringAsFixed(1) ?? 'N/A',
-                                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                                hotel.diemDanhGiaTrungBinh?.toStringAsFixed(
+                                      1,
+                                    ) ??
+                                    'N/A',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                ),
                               ),
                             ],
                           ),
@@ -854,6 +877,7 @@ class _OldHomeScreenState extends State<OldHomeScreen> {
     );
   }
 
+  /// Tạo section hiển thị danh sách địa điểm du lịch hot theo chiều ngang
   Widget _buildHotDestinations() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -895,7 +919,9 @@ class _OldHomeScreenState extends State<OldHomeScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       ClipRRect(
-                        borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+                        borderRadius: const BorderRadius.vertical(
+                          top: Radius.circular(12),
+                        ),
                         child: Container(
                           height: 80,
                           width: double.infinity,
@@ -905,10 +931,18 @@ class _OldHomeScreenState extends State<OldHomeScreen> {
                                   'http://10.0.2.2:5000${destination.hinhAnh}',
                                   fit: BoxFit.cover,
                                   errorBuilder: (context, error, stackTrace) {
-                                    return const Icon(Icons.location_on, size: 30, color: Colors.grey);
+                                    return const Icon(
+                                      Icons.location_on,
+                                      size: 30,
+                                      color: Colors.grey,
+                                    );
                                   },
                                 )
-                              : const Icon(Icons.location_on, size: 30, color: Colors.grey),
+                              : const Icon(
+                                  Icons.location_on,
+                                  size: 30,
+                                  color: Colors.grey,
+                                ),
                         ),
                       ),
                       Padding(
@@ -948,6 +982,7 @@ class _OldHomeScreenState extends State<OldHomeScreen> {
     );
   }
 
+  /// Tạo section hiển thị lưới các quốc gia phổ biến với hình ảnh và số lượng khách sạn
   Widget _buildPopularCountries() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1001,10 +1036,18 @@ class _OldHomeScreenState extends State<OldHomeScreen> {
                                 'http://10.0.2.2:5000${country.hinhAnh}',
                                 fit: BoxFit.cover,
                                 errorBuilder: (context, error, stackTrace) {
-                                  return const Icon(Icons.public, size: 40, color: Colors.grey);
+                                  return const Icon(
+                                    Icons.public,
+                                    size: 40,
+                                    color: Colors.grey,
+                                  );
                                 },
                               )
-                            : const Icon(Icons.public, size: 40, color: Colors.grey),
+                            : const Icon(
+                                Icons.public,
+                                size: 40,
+                                color: Colors.grey,
+                              ),
                       ),
                       Container(
                         decoration: BoxDecoration(
@@ -1060,22 +1103,26 @@ class _OldHomeScreenState extends State<OldHomeScreen> {
     );
   }
 
+  /// Hiển thị date picker cho người dùng chọn ngày nhận phòng hoặc trả phòng
+  /// [isCheckIn] - true nếu chọn ngày nhận phòng, false nếu chọn ngày trả phòng
   Future<void> _selectDate(bool isCheckIn) async {
     final DateTime? picked = await showDatePicker(
       context: context,
-      initialDate: isCheckIn 
+      initialDate: isCheckIn
           ? (_checkInDate ?? DateTime.now())
-          : (_checkOutDate ?? (_checkInDate ?? DateTime.now()).add(const Duration(days: 1))),
+          : (_checkOutDate ??
+                (_checkInDate ?? DateTime.now()).add(const Duration(days: 1))),
       firstDate: DateTime.now(),
       lastDate: DateTime.now().add(const Duration(days: 365)),
     );
-    
+
     if (picked != null) {
       setState(() {
         if (isCheckIn) {
           _checkInDate = picked;
           // Nếu ngày check-out trước ngày check-in, cập nhật ngày check-out
-          if (_checkOutDate != null && _checkOutDate!.isBefore(picked.add(const Duration(days: 1)))) {
+          if (_checkOutDate != null &&
+              _checkOutDate!.isBefore(picked.add(const Duration(days: 1)))) {
             _checkOutDate = picked.add(const Duration(days: 1));
           }
         } else {

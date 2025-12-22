@@ -1,3 +1,13 @@
+/// Model đại diện cho thông báo trong hệ thống
+/// 
+/// Chứa thông tin:
+/// - Thông tin cơ bản: id, title, content, type
+/// - Hình ảnh và hành động: imageUrl, actionUrl, actionText
+/// - Trạng thái: isRead, createdAt, expiresAt
+/// - Người gửi: senderName, senderType
+/// - Thông tin bổ sung: hotelId (nếu thông báo dành cho một khách sạn), metadata
+/// 
+/// Các loại thông báo: 'promotion', 'new_room', 'app_program', 'booking_success'
 class NotificationModel {
   final int id;
   final String title;
@@ -31,6 +41,14 @@ class NotificationModel {
     this.metadata,
   });
 
+  /// Tạo đối tượng NotificationModel từ JSON
+  /// 
+  /// [json] - Map chứa dữ liệu JSON từ API
+  /// 
+  /// Xử lý:
+  /// - Parse an toàn các kiểu dữ liệu (int, DateTime)
+  /// - Hỗ trợ nhiều tên field (tiếng Anh và tiếng Việt)
+  /// - Xử lý lỗi parse để tránh crash
   factory NotificationModel.fromJson(Map<String, dynamic> json) {
     // Safe parsing for id
     int? parseId(dynamic value) {
@@ -64,31 +82,40 @@ class NotificationModel {
       return null;
     }
 
-    // Get fields with fallbacks
+    // Get fields with fallbacks - safe parsing
     final id = parseId(json['id']) ?? parseId(json['ma_thong_bao']) ?? 0;
     final title = json['title'] ?? json['tieu_de'] ?? '';
     final content = json['content'] ?? json['noi_dung'] ?? '';
     final type = json['type'] ?? json['loai_thong_bao'] ?? 'promotion';
     final createdAt = parseDate(json['created_at'] ?? json['ngay_tao']) ?? DateTime.now();
     
+    // Safe toString helper for nullable fields
+    String? safeToString(dynamic value) {
+      if (value == null) return null;
+      return value.toString();
+    }
+    
     return NotificationModel(
       id: id,
       title: title.toString(),
       content: content.toString(),
       type: type.toString(),
-      imageUrl: json['image_url']?.toString() ?? json['url_hinh_anh']?.toString(),
-      actionUrl: json['action_url']?.toString() ?? json['url_hanh_dong']?.toString(),
-      actionText: json['action_text']?.toString() ?? json['van_ban_nut']?.toString(),
+      imageUrl: safeToString(json['image_url'] ?? json['url_hinh_anh']),
+      actionUrl: safeToString(json['action_url'] ?? json['url_hanh_dong']),
+      actionText: safeToString(json['action_text'] ?? json['van_ban_nut']),
       isRead: json['is_read'] == true || json['da_doc'] == 1 || json['da_doc'] == true,
       createdAt: createdAt,
       expiresAt: parseDate(json['expires_at'] ?? json['ngay_het_han']),
-      senderName: json['sender_name']?.toString() ?? json['nguoi_tao']?.toString(),
-      senderType: json['sender_type']?.toString() ?? json['loai_nguoi_gui']?.toString(),
+      senderName: safeToString(json['sender_name'] ?? json['nguoi_tao']),
+      senderType: safeToString(json['sender_type'] ?? json['loai_nguoi_gui']),
       hotelId: parseHotelId(json['hotel_id'] ?? json['khach_san_id']),
       metadata: json['metadata'] is Map<String, dynamic> ? json['metadata'] : null,
     );
   }
 
+  /// Chuyển đổi đối tượng NotificationModel sang JSON
+  /// 
+  /// Trả về Map chứa tất cả các trường dưới dạng JSON
   Map<String, dynamic> toJson() {
     return {
       'id': id,
@@ -108,6 +135,11 @@ class NotificationModel {
     };
   }
 
+  /// Tạo bản sao của NotificationModel với các trường được cập nhật
+  /// 
+  /// Cho phép cập nhật từng trường riêng lẻ mà không cần tạo mới toàn bộ object
+  /// 
+  /// Tất cả các tham số đều tùy chọn, nếu không cung cấp sẽ giữ nguyên giá trị cũ
   NotificationModel copyWith({
     int? id,
     String? title,
@@ -142,12 +174,17 @@ class NotificationModel {
     );
   }
 
-  // Helper methods
+  /// Kiểm tra xem thông báo đã hết hạn chưa
+  /// 
+  /// Trả về true nếu có expiresAt và thời gian hiện tại đã qua expiresAt
   bool get isExpired {
     if (expiresAt == null) return false;
     return DateTime.now().isAfter(expiresAt!);
   }
 
+  /// Lấy tên hiển thị của loại thông báo bằng tiếng Việt
+  /// 
+  /// Trả về tên tương ứng: "Ưu đãi", "Phòng mới", "Chương trình", "Đặt phòng", hoặc "Thông báo"
   String get typeDisplayName {
     switch (type) {
       case 'promotion':
@@ -163,6 +200,9 @@ class NotificationModel {
     }
   }
 
+  /// Lấy icon emoji tương ứng với loại thông báo
+  /// 
+  /// Trả về emoji: 🎉 (promotion), 🏨 (new_room), 📱 (app_program), ✅ (booking_success), 📢 (default)
   String get typeIcon {
     switch (type) {
       case 'promotion':
@@ -178,6 +218,9 @@ class NotificationModel {
     }
   }
 
+  /// Lấy thời gian tạo đã được format theo định dạng "X ngày/giờ/phút trước"
+  /// 
+  /// Ví dụ: "2 ngày trước", "3 giờ trước", "15 phút trước", "Vừa xong"
   String get formattedCreatedAt {
     final now = DateTime.now();
     final difference = now.difference(createdAt);

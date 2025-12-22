@@ -135,22 +135,26 @@ class HotelRegistrationService {
 
   /// Tạo đơn đăng ký với upload ảnh
   /// 
-  /// Upload ảnh khách sạn và phòng cùng với data đăng ký
+  /// Upload ảnh khách sạn, phòng và dịch vụ cùng với data đăng ký
   /// Sử dụng multipart/form-data để gửi files
   /// 
   /// Parameters:
   ///   - registrationData: Map chứa tất cả thông tin đăng ký
   ///   - hotelImages: List các file ảnh khách sạn
   ///   - roomImages: List các file ảnh phòng
+  ///   - amenityImages: List các file ảnh dịch vụ (optional)
+  ///   - amenityNames: List tên dịch vụ tương ứng với amenityImages (optional)
   /// 
   /// Returns: HotelRegistrationResult
   Future<HotelRegistrationResult> createRegistrationWithImages({
     required Map<String, dynamic> registrationData,
     required List<File> hotelImages,
     required List<File> roomImages,
+    List<File>? amenityImages,
+    List<String>? amenityNames,
   }) async {
     try {
-      print('📸 Uploading registration with ${hotelImages.length} hotel images and ${roomImages.length} room images');
+      print('📸 Uploading registration with ${hotelImages.length} hotel images, ${roomImages.length} room images, and ${amenityImages?.length ?? 0} amenity images');
 
       // Create FormData
       final formData = FormData();
@@ -184,6 +188,26 @@ class HotelRegistrationService {
             contentType: MediaType('image', 'jpeg'),
           ),
         ));
+      }
+
+      // Add amenity images
+      if (amenityImages != null && amenityNames != null && amenityImages.isNotEmpty) {
+        // Thêm danh sách tên dịch vụ như một JSON array
+        formData.fields.add(MapEntry('amenity_names', jsonEncode(amenityNames)));
+        
+        for (int i = 0; i < amenityImages.length; i++) {
+          final file = amenityImages[i];
+          final fileName = file.path.split('/').last;
+          formData.files.add(MapEntry(
+            'amenity_images',
+            await MultipartFile.fromFile(
+              file.path,
+              filename: fileName,
+              contentType: MediaType('image', 'jpeg'),
+            ),
+          ));
+        }
+        print('📸 Added ${amenityImages.length} amenity images for ${amenityNames.length} amenities');
       }
 
       print('📤 Sending multipart request...');

@@ -1293,6 +1293,7 @@ class _EnhancedBookingScreenState extends State<EnhancedBookingScreen> {
     // Calculate nights
     final nights = _checkOutDate!.difference(_checkInDate!).inDays;
 
+    // ✅ Reload room availability sau khi quay lại từ payment screen
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -1304,9 +1305,14 @@ class _EnhancedBookingScreenState extends State<EnhancedBookingScreen> {
           guestCount: _adults,
           nights: nights,
           roomPrice: finalPrice,
+          roomCount: _rooms,
         ),
       ),
-    );
+    ).then((_) {
+      // Reload room availability sau khi quay lại (có thể đã đặt phòng thành công)
+      print('🔄 Reloading room availability after returning from payment...');
+      _loadAvailableRooms();
+    });
   }
 }
 

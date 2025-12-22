@@ -5,34 +5,34 @@
 const express = require('express');
 const router = express.Router();
 const vnpayController = require('../controllers/vnpayController');
-const { verifyToken } = require('../middleware/auth');
 
 /**
- * @route   POST /api/payment/vnpay/create-payment-url
+ * @route   POST /api/v2/vnpay/create-payment
  * @desc    Tạo URL thanh toán VNPay
- * @access  Public (no authentication required for payment)
- */
-router.post('/create-payment-url', vnpayController.createPaymentUrl);
-
-/**
- * @route   GET /api/payment/vnpay-return
- * @desc    Callback URL từ VNPay sau khi thanh toán
- * @access  Public (VNPay callback)
- */
-router.get('/vnpay-return', vnpayController.vnpayReturn);
-
-/**
- * @route   POST /api/payment/vnpay/query-transaction
- * @desc    Query trạng thái giao dịch
- * @access  Private
- */
-router.post('/query-transaction', verifyToken, vnpayController.queryTransaction);
-
-/**
- * @route   GET /api/payment/vnpay/banks
- * @desc    Lấy danh sách ngân hàng hỗ trợ VNPay
  * @access  Public
  */
-router.get('/banks', vnpayController.getBankList);
+router.post('/create-payment', vnpayController.createPayment);
+
+/**
+ * @route   GET /api/v2/vnpay/config
+ * @desc    Lấy cấu hình VNPay (Return URL, IPN URL)
+ * @access  Public
+ */
+router.get('/config', vnpayController.getConfig);
+
+/**
+ * @route   GET /api/v2/vnpay/payment-status/:orderId
+ * @desc    Lấy trạng thái thanh toán theo order ID
+ * @access  Public
+ */
+router.get('/payment-status/:orderId', vnpayController.getPaymentStatus);
+
+/**
+ * @route   POST /api/v2/vnpay/query-transaction
+ * @desc    Query trạng thái giao dịch
+ * @access  Public
+ */
+router.post('/query-transaction', vnpayController.queryTransaction);
 
 module.exports = router;
+

@@ -8,6 +8,7 @@ import '../models/room.dart';
 import '../models/booking.dart';
 import '../models/discount_voucher.dart';
 import '../models/hotel_review.dart';
+import '../models/amenity.dart';
 import '../../core/constants/app_constants.dart';
 
 /// Service quản lý tất cả API calls với Backend
@@ -362,6 +363,96 @@ class ApiService {
     }
   }
 
+  /// Lấy danh sách tiện ích/dịch vụ của khách sạn
+  /// 
+  /// API: GET /api/khachsan/{id}/tien-nghi
+  /// 
+  /// Parameters:
+  ///   - hotelId: ID của khách sạn
+  /// 
+  /// Returns: ApiResponse<List<Amenity>>
+  Future<ApiResponse<List<Amenity>>> getHotelAmenities(int hotelId) async {
+    try {
+      final response = await _dio.get(
+        '${AppConstants.hotelsEndpoint}/$hotelId/tien-nghi',
+      );
+
+      return ApiResponse<List<Amenity>>.fromJson(response.data, (data) {
+        if (data is List) {
+          return data.map((item) => Amenity.fromJson(item)).toList();
+        }
+        return <Amenity>[];
+      });
+    } catch (e) {
+      print('❌ Error getting hotel amenities: $e');
+      return ApiResponse<List<Amenity>>(
+        success: false,
+        message: 'Không thể tải danh sách tiện ích',
+        data: [],
+      );
+    }
+  }
+
+  /// Lấy danh sách dịch vụ có phí của khách sạn
+  /// 
+  /// API: GET /api/khachsan/{id}/tien-nghi/co-phi
+  /// 
+  /// Parameters:
+  ///   - hotelId: ID của khách sạn
+  /// 
+  /// Returns: ApiResponse<List<Amenity>>
+  Future<ApiResponse<List<Amenity>>> getHotelPaidAmenities(int hotelId) async {
+    try {
+      final response = await _dio.get(
+        '${AppConstants.hotelsEndpoint}/$hotelId/tien-nghi/co-phi',
+      );
+
+      return ApiResponse<List<Amenity>>.fromJson(response.data, (data) {
+        if (data is List) {
+          return data.map((item) => Amenity.fromJson(item)).toList();
+        }
+        return <Amenity>[];
+      });
+    } catch (e) {
+      print('❌ Error getting hotel paid amenities: $e');
+      return ApiResponse<List<Amenity>>(
+        success: false,
+        message: 'Không thể tải danh sách dịch vụ có phí',
+        data: [],
+      );
+    }
+  }
+
+  /// Lấy danh sách dịch vụ miễn phí của khách sạn
+  /// 
+  /// API: GET /api/khachsan/{id}/tien-nghi/mien-phi
+  /// 
+  /// Parameters:
+  ///   - hotelId: ID của khách sạn
+  /// 
+  /// Returns: ApiResponse<List<Amenity>>
+  Future<ApiResponse<List<Amenity>>> getHotelFreeAmenities(int hotelId) async {
+    try {
+      final response = await _dio.get(
+        '${AppConstants.hotelsEndpoint}/$hotelId/tien-nghi/mien-phi',
+      );
+
+      return ApiResponse<List<Amenity>>.fromJson(response.data, (data) {
+        if (data is List) {
+          return data.map((item) => Amenity.fromJson(item)).toList();
+        }
+        return <Amenity>[];
+      });
+    } catch (e) {
+      print('❌ Error getting hotel free amenities: $e');
+      return ApiResponse<List<Amenity>>(
+        success: false,
+        message: 'Không thể tải danh sách dịch vụ miễn phí',
+        data: [],
+      );
+    }
+  }
+
   /// Tìm kiếm khách sạn theo query + filters
   /// 
   /// API: GET /khachsan/search
@@ -480,15 +571,47 @@ class ApiService {
         queryParams['active'] = active;
       }
 
+      print('📡 Requesting promotions: page=$page, limit=$limit, active=$active');
       final response = await _dio.get(
         AppConstants.promotionsEndpoint,
         queryParameters: queryParams,
       );
+      
+      print('📥 Response status: ${response.statusCode}');
+      print('📦 Response data type: ${response.data.runtimeType}');
+      if (response.data is Map) {
+        print('📦 Response keys: ${(response.data as Map).keys.toList()}');
+        if ((response.data as Map)['data'] != null) {
+          print('📦 Data array length: ${(response.data as Map)['data']?.length ?? 0}');
+        }
+      }
 
       return ApiResponse<List<Promotion>>.fromJson(response.data, (data) {
         if (data is List) {
-          return data.map((item) => Promotion.fromJson(item)).toList();
+          print('📦 Parsing ${data.length} promotions from API response');
+          final promotions = <Promotion>[];
+          for (var i = 0; i < data.length; i++) {
+            try {
+              final item = data[i];
+              if (item is Map<String, dynamic>) {
+                final promotion = Promotion.fromJson(item);
+                promotions.add(promotion);
+                if (i < 3) {
+                  print('   ✅ Promotion ${i + 1}: ${promotion.ten} (${promotion.phanTramGiam}%)');
+                }
+              } else {
+                print('   ⚠️ Item $i is not a Map: ${item.runtimeType}');
+              }
+            } catch (e, stackTrace) {
+              print('   ❌ Error parsing promotion $i: $e');
+              print('   Stack trace: $stackTrace');
+              print('   Item data: ${data[i]}');
+            }
+          }
+          print('   ✅ Successfully parsed ${promotions.length}/${data.length} promotions');
+          return promotions;
         }
+        print('   ⚠️ Response data is not a List: ${data.runtimeType}');
         return <Promotion>[];
       });
     } catch (e) {

@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:hotel_mobile/data/models/hotel.dart';
 import 'package:hotel_mobile/data/services/api_service.dart';
-import 'package:hotel_mobile/presentation/screens/room/room_detail_screen.dart';
-import 'package:hotel_mobile/presentation/screens/booking/enhanced_booking_screen.dart';
+import 'package:hotel_mobile/data/services/saved_items_service.dart';
+import 'package:hotel_mobile/data/services/applied_promotion_service.dart';
 import 'package:hotel_mobile/presentation/screens/property/property_detail_screen.dart';
-import 'package:hotel_mobile/presentation/widgets/hotel_card_with_favorite.dart';
 import 'package:hotel_mobile/presentation/widgets/enhanced_filter_bottom_sheet.dart';
+import 'package:hotel_mobile/core/utils/image_url_helper.dart';
 import 'package:intl/intl.dart';
 
 class HotelListScreen extends StatefulWidget {
@@ -32,31 +32,33 @@ class HotelListScreen extends StatefulWidget {
 
 class _HotelListScreenState extends State<HotelListScreen> {
   final ApiService _apiService = ApiService();
+  final SavedItemsService _savedItemsService = SavedItemsService();
+  final AppliedPromotionService _promotionService = AppliedPromotionService();
   final currencyFormat = NumberFormat.currency(locale: 'vi_VN', symbol: '₫');
 
   List<Hotel> _hotels = [];
-  List<Hotel> _allHotels = []; // Store all hotels for filtering
+  List<Hotel> _allHotels = [];
   bool _isLoading = true;
   String? _error;
   
-  // Dates state - sử dụng từ widget hoặc default
   late DateTime _checkInDate;
   late DateTime _checkOutDate;
   
-  // Filter state - sẽ được cập nhật khi có hotels
   Map<String, dynamic> _filters = {
     'starRating': <int>{},
-    'priceRange': const RangeValues(0, 40000000), // Default, sẽ được cập nhật khi load hotels
+    'priceRange': const RangeValues(0, 40000000),
     'guestReviewScore': null,
     'amenities': <String>{},
     'cancellationPolicy': false,
   };
   int _activeFilterCount = 0;
+  
+  // Favorite status tracking
+  final Map<int, bool> _favoriteStatus = {};
 
   @override
   void initState() {
     super.initState();
-    // Khởi tạo dates từ widget hoặc default
     _checkInDate = widget.checkInDate ?? DateTime.now().add(const Duration(days: 1));
     _checkOutDate = widget.checkOutDate ?? DateTime.now().add(const Duration(days: 2));
     
@@ -85,20 +87,19 @@ class _HotelListScreenState extends State<HotelListScreen> {
     });
 
     try {
-      // Handle special search cases
       String searchQuery = widget.location;
       bool sortByRating = false;
 
       if (widget.location == 'Tất cả') {
-        searchQuery = ''; // Get all hotels
+        searchQuery = '';
       } else if (widget.location.contains('đánh giá cao') ||
           widget.location.contains('rating') ||
           widget.location.contains('Đánh giá cao')) {
-        searchQuery = ''; // Get all hotels to sort by rating
+        searchQuery = '';
         sortByRating = true;
       } else if (widget.location.contains('Gần bạn') ||
           widget.location.contains('gần đây')) {
-        searchQuery = 'Thành phố Hồ Chí Minh'; // Default to HCMC for nearby
+        searchQuery = 'Thành phố Hồ Chí Minh';
       }
 
       print('🔍 Searching hotels with query: "$searchQuery"');
@@ -111,10 +112,8 @@ class _HotelListScreenState extends State<HotelListScreen> {
       print('📊 API Response: success=${response.success}, count=${response.data?.length ?? 0}');
 
       if (response.success && response.data != null && response.data!.isNotEmpty) {
-        // ✅ API thành công và có data - dùng data thật từ SQL Server
         List<Hotel> hotels = response.data!;
 
-        // Sort by rating if needed
         if (sortByRating) {
           hotels.sort(
             (a, b) => (b.diemDanhGiaTrungBinh ?? 0.0).compareTo(
@@ -123,7 +122,6 @@ class _HotelListScreenState extends State<HotelListScreen> {
           );
         }
 
-        // Calculate maxPrice and update filter
         double maxPrice = 40000000;
         if (hotels.isNotEmpty) {
           final prices = hotels.map((h) => h.giaTb ?? 0).where((p) => p > 0).toList();
@@ -132,7 +130,6 @@ class _HotelListScreenState extends State<HotelListScreen> {
           }
           if (maxPrice < 1000000) maxPrice = 40000000;
           
-          // Update priceRange if current max is larger than actual maxPrice
           final currentPriceRange = _filters['priceRange'] as RangeValues;
           if (currentPriceRange.end > maxPrice) {
             _filters['priceRange'] = RangeValues(
@@ -141,6 +138,9 @@ class _HotelListScreenState extends State<HotelListScreen> {
             );
           }
         }
+        
+        // Load favorite status for all hotels
+        await _loadFavoriteStatus(hotels);
         
         setState(() {
           _allHotels = hotels;
@@ -149,254 +149,39 @@ class _HotelListScreenState extends State<HotelListScreen> {
         });
         print('✅ Loaded ${hotels.length} hotels from backend API');
       } else {
-        // ❌ API fail hoặc không có data - dùng fallback
-        print('⚠️ API returned no data, using fallback');
-        _loadFallbackData();
+        print('⚠️ API returned no data');
+        setState(() {
+          _allHotels = [];
+          _hotels = [];
+          _isLoading = false;
+        });
       }
     } catch (e) {
       print('❌ Error loading hotels: $e');
-      // Use fallback data when API fails
-      _loadFallbackData();
-    }
-  }
-
-  void _loadFallbackData() {
-    // Create fallback hotels based on location
-    List<Hotel> fallbackHotels = [];
-    
-    final locationLower = widget.location.toLowerCase();
-    
-    if (locationLower.contains('hà nội') || locationLower.contains('hanoi')) {
-      fallbackHotels = _getHanoiHotels();
-    } else if (locationLower.contains('hồ chí minh') || 
-               locationLower.contains('tp.hcm') ||
-               locationLower.contains('saigon') ||
-               locationLower.contains('sài gòn')) {
-      fallbackHotels = _getHCMCHotels();
-    } else if (locationLower.contains('đà nẵng') || locationLower.contains('danang')) {
-      fallbackHotels = _getDaNangHotels();
-    } else if (locationLower.contains('vũng tàu') || locationLower.contains('vung tau')) {
-      fallbackHotels = _getVungTauHotels();
-    } else if (locationLower.contains('nha trang')) {
-      fallbackHotels = _getNhaTrangHotels();
-    } else if (locationLower.contains('phú quốc') || locationLower.contains('phu quoc')) {
-      fallbackHotels = _getPhuQuocHotels();
-    } else {
-      // If no match, show empty to avoid confusion
-      fallbackHotels = [];
-    }
-
-        // Calculate maxPrice and update filter for fallback data
-        double maxPrice = 40000000;
-        if (fallbackHotels.isNotEmpty) {
-          final prices = fallbackHotels.map((h) => h.giaTb ?? 0).where((p) => p > 0).toList();
-          if (prices.isNotEmpty) {
-            maxPrice = prices.reduce((a, b) => a > b ? a : b).toDouble();
-          }
-          if (maxPrice < 1000000) maxPrice = 40000000;
-          
-          // Update priceRange if current max is larger than actual maxPrice
-          final currentPriceRange = _filters['priceRange'] as RangeValues;
-          if (currentPriceRange.end > maxPrice) {
-            _filters['priceRange'] = RangeValues(
-              currentPriceRange.start.clamp(0.0, maxPrice),
-              maxPrice,
-            );
-          }
-        }
-        
         setState(() {
-          _allHotels = fallbackHotels;
-          _applyFilters();
+        _error = e.toString();
           _isLoading = false;
-          _error = null;
-        });
+      });
+    }
   }
-
-  List<Hotel> _getHanoiHotels() {
-    return [
-      Hotel(
-        id: 1,
-        ten: 'Hanoi Heritage Hotel',
-        diaChi: 'Phố Cổ, Hoàn Kiếm, Hà Nội',
-        giaTb: 800000,
-        soSao: 4,
-        diemDanhGiaTrungBinh: 4.5,
-        hinhAnh: '/images/hotels/hanoi_heritage.jpg',
-        moTa: 'Khách sạn cổ điển tại trung tâm phố cổ Hà Nội',
-      ),
-      Hotel(
-        id: 2,
-        ten: 'Grand Hotel Hanoi',
-        diaChi: 'Quận Ba Đình, Hà Nội',
-        giaTb: 1200000,
-        soSao: 5,
-        diemDanhGiaTrungBinh: 4.8,
-        hinhAnh: '/images/hotels/hanoi_deluxe.jpg',
-        moTa: 'Khách sạn 5 sao sang trọng gần Hồ Gươm',
-      ),
-      Hotel(
-        id: 3,
-        ten: 'Lake View Hotel',
-        diaChi: 'Bờ Hồ Tây, Hà Nội',
-        giaTb: 900000,
-        soSao: 4,
-        diemDanhGiaTrungBinh: 4.3,
-        hinhAnh: '/images/hotels/lake_view.jpg',
-        moTa: 'Khách sạn với view hồ tuyệt đẹp',
-      ),
-    ];
-  }
-
-  List<Hotel> _getHCMCHotels() {
-    return [
-      Hotel(
-        id: 4,
-        ten: 'Grand Hotel Saigon',
-        diaChi: 'Quận 1, TP. Hồ Chí Minh',
-        giaTb: 1500000,
-        soSao: 5,
-        diemDanhGiaTrungBinh: 4.7,
-        hinhAnh: '/images/hotels/saigon_star.jpg',
-        moTa: 'Khách sạn 5 sao tại trung tâm Sài Gòn',
-      ),
-      Hotel(
-        id: 5,
-        ten: 'Saigon Riverside Hotel',
-        diaChi: 'Quận 1, TP. Hồ Chí Minh',
-        giaTb: 1100000,
-        soSao: 4,
-        diemDanhGiaTrungBinh: 4.4,
-        hinhAnh: '/images/hotels/saigon_riverside.jpg',
-        moTa: 'Khách sạn bên sông Sài Gòn',
-      ),
-      Hotel(
-        id: 6,
-        ten: 'District 3 Boutique Hotel',
-        diaChi: 'Quận 3, TP. Hồ Chí Minh',
-        giaTb: 700000,
-        soSao: 3,
-        diemDanhGiaTrungBinh: 4.1,
-        hinhAnh: '/images/hotels/district3_boutique.jpg',
-        moTa: 'Khách sạn boutique tại Quận 3',
-      ),
-    ];
-  }
-
-  List<Hotel> _getDaNangHotels() {
-    return [
-      Hotel(
-        id: 7,
-        ten: 'Da Nang Beach Resort',
-        diaChi: 'Bãi biển Mỹ Khê, Đà Nẵng',
-        giaTb: 1300000,
-        soSao: 5,
-        diemDanhGiaTrungBinh: 4.6,
-        hinhAnh: '/images/hotels/marble_mountain.jpg',
-        moTa: 'Resort 5 sao bên bãi biển đẹp nhất Đà Nẵng',
-      ),
-      Hotel(
-        id: 8,
-        ten: 'Golden Bay Hotel',
-        diaChi: 'Sơn Trà, Đà Nẵng',
-        giaTb: 1000000,
-        soSao: 4,
-        diemDanhGiaTrungBinh: 4.3,
-        hinhAnh: '/images/hotels/golden_bay.jpg',
-        moTa: 'Khách sạn với view biển tuyệt đẹp',
-      ),
-    ];
-  }
-
-  List<Hotel> _getVungTauHotels() {
-    return [
-      Hotel(
-        id: 9,
-        ten: 'Seashell Hotel & Spa',
-        diaChi: 'Bãi Sau, Vũng Tàu',
-        giaTb: 950000,
-        soSao: 4,
-        diemDanhGiaTrungBinh: 4.4,
-        hinhAnh: '/images/hotels/beach_paradise.jpg',
-        moTa: 'Resort view biển đẹp tại Vũng Tàu',
-      ),
-      Hotel(
-        id: 10,
-        ten: 'Imperial Hotel Vung Tau',
-        diaChi: 'Bãi Trước, Vũng Tàu',
-        giaTb: 1200000,
-        soSao: 5,
-        diemDanhGiaTrungBinh: 4.6,
-        hinhAnh: '/images/hotels/golden_bay.jpg',
-        moTa: 'Khách sạn 5 sao sang trọng view biển',
-      ),
-      Hotel(
-        id: 11,
-        ten: 'Sammy Hotel',
-        diaChi: 'Thùy Vân, Vũng Tàu',
-        giaTb: 650000,
-        soSao: 3,
-        diemDanhGiaTrungBinh: 4.1,
-        hinhAnh: '/images/hotels/danang_city.jpg',
-        moTa: 'Khách sạn tiện nghi giá tốt gần biển',
-      ),
-    ];
-  }
-
-  List<Hotel> _getNhaTrangHotels() {
-    return [
-      Hotel(
-        id: 12,
-        ten: 'Beach Paradise Resort',
-        diaChi: 'Trần Phú, Nha Trang',
-        giaTb: 1200000,
-        soSao: 4,
-        diemDanhGiaTrungBinh: 4.5,
-        hinhAnh: '/images/hotels/nhatrang_beachfront.jpg',
-        moTa: 'Resort bên bãi biển Nha Trang',
-      ),
-      Hotel(
-        id: 13,
-        ten: 'Nha Trang Lodge',
-        diaChi: 'Lô 29, Trần Phú, Nha Trang',
-        giaTb: 850000,
-        soSao: 4,
-        diemDanhGiaTrungBinh: 4.3,
-        hinhAnh: '/images/hotels/marble_mountain.jpg',
-        moTa: 'Khách sạn ven biển với tiện nghi hiện đại',
-      ),
-    ];
-  }
-
-  List<Hotel> _getPhuQuocHotels() {
-    return [
-      Hotel(
-        id: 14,
-        ten: 'Phu Quoc Eco Beach Resort',
-        diaChi: 'Bãi Dài, Phú Quốc',
-        giaTb: 1500000,
-        soSao: 5,
-        diemDanhGiaTrungBinh: 4.7,
-        hinhAnh: '/images/hotels/beach_paradise.jpg',
-        moTa: 'Resort sinh thái cao cấp',
-      ),
-      Hotel(
-        id: 15,
-        ten: 'Sunset Beach Hotel',
-        diaChi: 'Bãi Kem, Phú Quốc',
-        giaTb: 1100000,
-        soSao: 4,
-        diemDanhGiaTrungBinh: 4.4,
-        hinhAnh: '/images/hotels/golden_bay.jpg',
-        moTa: 'Khách sạn view hoàng hôn tuyệt đẹp',
-      ),
-    ];
+  
+  Future<void> _loadFavoriteStatus(List<Hotel> hotels) async {
+    for (var hotel in hotels) {
+      try {
+        final result = await _savedItemsService.isSaved(
+          hotel.id.toString(),
+          'hotel',
+        );
+        _favoriteStatus[hotel.id] = result.success && (result.data ?? false);
+      } catch (e) {
+        _favoriteStatus[hotel.id] = false;
+      }
+    }
   }
 
   void _applyFilters() {
     List<Hotel> filtered = List.from(_allHotels);
     
-    // Apply star rating filter
     final starRating = _filters['starRating'] as Set<int>;
     if (starRating.isNotEmpty) {
       filtered = filtered.where((hotel) {
@@ -404,29 +189,18 @@ class _HotelListScreenState extends State<HotelListScreen> {
       }).toList();
     }
     
-    // Apply price range filter
     final priceRange = _filters['priceRange'] as RangeValues;
     filtered = filtered.where((hotel) {
       final price = hotel.giaTb ?? 1000000;
       return price >= priceRange.start && price <= priceRange.end;
     }).toList();
     
-    // Apply guest review score filter
     final guestReview = _filters['guestReviewScore'];
     if (guestReview != null) {
       filtered = filtered.where((hotel) {
         final rating = hotel.diemDanhGiaTrungBinh ?? 0;
         return rating >= guestReview;
       }).toList();
-    }
-    
-    // Apply amenities filter (if needed in future)
-    final amenities = _filters['amenities'] as Set<String>;
-    // TODO: Implement amenities filter when backend supports it
-    
-    // Apply cancellation policy filter
-    if (_filters['cancellationPolicy'] == true) {
-      // TODO: Filter hotels with free cancellation when backend supports it
     }
     
     setState(() {
@@ -436,18 +210,15 @@ class _HotelListScreenState extends State<HotelListScreen> {
   }
   
   void _showFilterBottomSheet() {
-    // Calculate max price from all hotels
     double maxPrice = 40000000;
     if (_allHotels.isNotEmpty) {
       final prices = _allHotels.map((h) => h.giaTb ?? 0).where((p) => p > 0).toList();
       if (prices.isNotEmpty) {
         maxPrice = prices.reduce((a, b) => a > b ? a : b).toDouble();
       }
-      // Ensure min maxPrice
       if (maxPrice < 1000000) maxPrice = 40000000;
     }
     
-    // Clamp existing priceRange to new maxPrice if needed
     final currentPriceRange = _filters['priceRange'] as RangeValues;
     if (currentPriceRange.end > maxPrice) {
       _filters['priceRange'] = RangeValues(
@@ -476,7 +247,6 @@ class _HotelListScreenState extends State<HotelListScreen> {
 
   Future<void> _viewHotelRooms(Hotel hotel) async {
     try {
-      // Navigate to PropertyDetailScreen với dates hiện tại
       if (mounted) {
         Navigator.push(
           context,
@@ -501,6 +271,43 @@ class _HotelListScreenState extends State<HotelListScreen> {
       }
     }
   }
+  
+  Future<void> _toggleFavorite(Hotel hotel) async {
+    final isCurrentlyFavorite = _favoriteStatus[hotel.id] ?? false;
+    
+    setState(() {
+      _favoriteStatus[hotel.id] = !isCurrentlyFavorite;
+    });
+    
+    try {
+      if (isCurrentlyFavorite) {
+        await _savedItemsService.removeFromSavedByItemId(
+          hotel.id.toString(),
+          'hotel',
+        );
+      } else {
+        await _savedItemsService.addToSaved(
+          itemId: hotel.id.toString(),
+          type: 'hotel',
+          name: hotel.ten,
+          location: hotel.diaChi ?? hotel.tenViTri ?? '',
+          price: hotel.giaTb != null 
+              ? currencyFormat.format(hotel.giaTb)
+              : null,
+          imageUrl: hotel.hinhAnh,
+          metadata: {
+            'diemDanhGia': hotel.diemDanhGiaTrungBinh,
+            'soSao': hotel.soSao,
+          },
+        );
+      }
+    } catch (e) {
+      // Revert on error
+      setState(() {
+        _favoriteStatus[hotel.id] = isCurrentlyFavorite;
+      });
+    }
+  }
 
   String _getAppBarTitle() {
     if (widget.title != null) {
@@ -519,7 +326,6 @@ class _HotelListScreenState extends State<HotelListScreen> {
     }
   }
 
-  /// Edit location - Show dialog to input new location
   void _editLocation() {
     final TextEditingController controller = TextEditingController(text: widget.location);
     
@@ -529,7 +335,7 @@ class _HotelListScreenState extends State<HotelListScreen> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Row(
           children: [
-            Icon(Icons.location_on, color: Color(0xFF1E88E5)),
+            Icon(Icons.location_on, color: Color(0xFF003580)),
             SizedBox(width: 8),
             Text('Thay đổi địa điểm'),
           ],
@@ -552,7 +358,6 @@ class _HotelListScreenState extends State<HotelListScreen> {
             onPressed: () {
               Navigator.pop(context);
               if (controller.text.isNotEmpty && controller.text != widget.location) {
-                // Navigate to new search with updated location
                 Navigator.pushReplacement(
                   context,
                   MaterialPageRoute(
@@ -568,7 +373,7 @@ class _HotelListScreenState extends State<HotelListScreen> {
               }
             },
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF1E88E5),
+              backgroundColor: const Color(0xFF003580),
               foregroundColor: Colors.white,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             ),
@@ -579,7 +384,6 @@ class _HotelListScreenState extends State<HotelListScreen> {
     );
   }
 
-  /// Edit dates - Show date range picker
   void _editDates() async {
     final DateTimeRange? picked = await showDateRangePicker(
       context: context,
@@ -590,7 +394,7 @@ class _HotelListScreenState extends State<HotelListScreen> {
         return Theme(
           data: Theme.of(context).copyWith(
             colorScheme: const ColorScheme.light(
-              primary: Color(0xFF1E88E5),
+              primary: Color(0xFF003580),
               onPrimary: Colors.white,
             ),
           ),
@@ -604,13 +408,9 @@ class _HotelListScreenState extends State<HotelListScreen> {
         _checkInDate = picked.start;
         _checkOutDate = picked.end;
       });
-      
-      // Cập nhật dates khi navigate đến hotel detail
-      // Dates sẽ được truyền qua khi user click vào hotel card
     }
   }
 
-  /// Edit guests and rooms - Show dialog with counter
   void _editGuests() {
     int tempGuestCount = widget.guestCount;
     int tempRoomCount = widget.roomCount;
@@ -622,7 +422,7 @@ class _HotelListScreenState extends State<HotelListScreen> {
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           title: const Row(
             children: [
-              Icon(Icons.people, color: Color(0xFF1E88E5)),
+              Icon(Icons.people, color: Color(0xFF003580)),
               SizedBox(width: 8),
               Text('Số khách & phòng'),
             ],
@@ -630,7 +430,6 @@ class _HotelListScreenState extends State<HotelListScreen> {
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // Guest count
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -644,7 +443,7 @@ class _HotelListScreenState extends State<HotelListScreen> {
                           }
                         },
                         icon: const Icon(Icons.remove_circle_outline),
-                        color: const Color(0xFF1E88E5),
+                        color: const Color(0xFF003580),
                       ),
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -664,14 +463,13 @@ class _HotelListScreenState extends State<HotelListScreen> {
                           }
                         },
                         icon: const Icon(Icons.add_circle_outline),
-                        color: const Color(0xFF1E88E5),
+                        color: const Color(0xFF003580),
                       ),
                     ],
                   ),
                 ],
               ),
               const SizedBox(height: 16),
-              // Room count
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -685,7 +483,7 @@ class _HotelListScreenState extends State<HotelListScreen> {
                           }
                         },
                         icon: const Icon(Icons.remove_circle_outline),
-                        color: const Color(0xFF1E88E5),
+                        color: const Color(0xFF003580),
                       ),
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -705,7 +503,7 @@ class _HotelListScreenState extends State<HotelListScreen> {
                           }
                         },
                         icon: const Icon(Icons.add_circle_outline),
-                        color: const Color(0xFF1E88E5),
+                        color: const Color(0xFF003580),
                       ),
                     ],
                   ),
@@ -737,7 +535,7 @@ class _HotelListScreenState extends State<HotelListScreen> {
                 }
               },
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF1E88E5),
+                backgroundColor: const Color(0xFF003580),
                 foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
@@ -752,29 +550,27 @@ class _HotelListScreenState extends State<HotelListScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey[50],
+      backgroundColor: Colors.white,
       appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          onPressed: () => Navigator.pop(context),
+        ),
         title: Text(
           _getAppBarTitle(),
-          style: const TextStyle(fontWeight: FontWeight.bold),
-        ),
-        flexibleSpace: Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              colors: [Color(0xFF1E88E5), Color(0xFF1565C0)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
+          style: const TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+            fontSize: 18,
           ),
         ),
-        foregroundColor: Colors.white,
+        backgroundColor: const Color(0xFF003580), // Agoda blue
         elevation: 0,
         actions: [
-          // Filter button với badge hiển thị số lượng filter đang active
           Stack(
             children: [
               IconButton(
-                icon: const Icon(Icons.tune),
+                icon: const Icon(Icons.tune, color: Colors.white),
                 tooltip: 'Bộ lọc',
                 onPressed: _showFilterBottomSheet,
               ),
@@ -809,196 +605,91 @@ class _HotelListScreenState extends State<HotelListScreen> {
       ),
       body: Column(
         children: [
-          // Search Info Header with Gradient
+          // Agoda-style Search Inputs Section
           Container(
-            width: double.infinity,
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [Color(0xFF1E88E5), Color(0xFF1565C0)],
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.blue.withOpacity(0.3),
-                  blurRadius: 10,
-                  offset: const Offset(0, 5),
-                ),
-              ],
-            ),
-            child: Column(
-              children: [
-                Padding(
+            color: const Color(0xFF003580),
                   padding: const EdgeInsets.all(16),
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Location - Editable
-                      InkWell(
+                // Location Input
+                _buildSearchInput(
+                  icon: Icons.location_on,
+                  label: widget.location,
                         onTap: _editLocation,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.2),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: Colors.white.withOpacity(0.3)),
-                          ),
-                          child: Row(
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.all(6),
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withOpacity(0.2),
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: const Icon(
-                                  Icons.location_on,
-                                  color: Colors.white,
-                                  size: 20,
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Text(
-                                  widget.location,
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ),
-                              Icon(
-                                Icons.edit,
-                                color: Colors.white.withOpacity(0.7),
-                                size: 18,
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                      
-                      // Dates and Guests
+                ),
                       const SizedBox(height: 12),
                       Row(
                         children: [
-                          // Check-in/Check-out dates - LUÔN HIỂN THỊ
+                    // Date Input
                           Expanded(
-                            child: InkWell(
+                      child: _buildSearchInput(
+                        icon: Icons.calendar_today,
+                        label: '${DateFormat('dd/MM').format(_checkInDate)} - ${DateFormat('dd/MM').format(_checkOutDate)}',
+                        subtitle: '${_checkOutDate.difference(_checkInDate).inDays} đêm',
                               onTap: _editDates,
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withOpacity(0.15),
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    const Icon(Icons.calendar_today, color: Colors.white, size: 14),
-                                    const SizedBox(width: 6),
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Text(
-                                            '${DateFormat('dd/MM').format(_checkInDate)} - ${DateFormat('dd/MM').format(_checkOutDate)}',
-                                            style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w500),
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
-                                          Text(
-                                            '${_checkOutDate.difference(_checkInDate).inDays} đêm',
-                                            style: TextStyle(color: Colors.white.withOpacity(0.8), fontSize: 10),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                    Icon(Icons.edit, color: Colors.white.withOpacity(0.7), size: 14),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          InkWell(
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    // Guests Input
+                    Expanded(
+                      child: _buildSearchInput(
+                        icon: Icons.people,
+                        label: '${widget.roomCount}K • ${widget.guestCount}P',
                             onTap: _editGuests,
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                              decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.15),
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  const Icon(Icons.people, color: Colors.white, size: 14),
-                                  const SizedBox(width: 6),
-                                  Text(
-                                    '${widget.guestCount}K • ${widget.roomCount}P',
-                                    style: const TextStyle(color: Colors.white, fontSize: 12),
-                                  ),
-                                  const SizedBox(width: 4),
-                                  Icon(Icons.edit, color: Colors.white.withOpacity(0.7), size: 14),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ],
+                      ),
+                    ),
+                  ],
                       ),
                     ],
                   ),
                 ),
                 
-                // Results count
+          // Results Summary
                 Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.1),
-                    borderRadius: const BorderRadius.only(
-                      bottomLeft: Radius.circular(20),
-                      bottomRight: Radius.circular(20),
+              color: Colors.grey[50],
+              border: Border(
+                bottom: BorderSide(color: Colors.grey[200]!),
                     ),
                   ),
                   child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
-                        _isLoading ? 'Đang tìm kiếm...' : 'Tìm thấy ${_hotels.length} khách sạn',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                      if (_activeFilterCount > 0 && !_isLoading) ...[
-                        const SizedBox(width: 8),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  _isLoading 
+                      ? 'Đang tìm kiếm...' 
+                      : 'Tìm thấy ${_hotels.length} khách sạn',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.grey[800],
+                  ),
+                ),
+                if (_activeFilterCount > 0 && !_isLoading)
+                  InkWell(
+                    onTap: _showFilterBottomSheet,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                           decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.2),
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(color: Colors.white.withOpacity(0.3)),
+                        color: const Color(0xFF003580),
+                        borderRadius: BorderRadius.circular(16),
                           ),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              const Icon(Icons.filter_alt, size: 12, color: Colors.white),
+                          const Icon(Icons.filter_alt, size: 14, color: Colors.white),
                               const SizedBox(width: 4),
                               Text(
                                 '$_activeFilterCount bộ lọc',
                                 style: const TextStyle(
                                   color: Colors.white,
-                                  fontSize: 11,
+                              fontSize: 12,
                                   fontWeight: FontWeight.w600,
                                 ),
                               ),
                             ],
                           ),
-                        ),
-                      ],
-                    ],
                   ),
                 ),
               ],
@@ -1008,16 +699,13 @@ class _HotelListScreenState extends State<HotelListScreen> {
           // Hotels List
           Expanded(
             child: _isLoading
-                ? Center(
+                ? const Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        const CircularProgressIndicator(color: Color(0xFF1E88E5)),
-                        const SizedBox(height: 16),
-                        Text(
-                          'Đang tìm kiếm khách sạn...',
-                          style: TextStyle(color: Colors.grey[600]),
-                        ),
+                        CircularProgressIndicator(color: Color(0xFF003580)),
+                        SizedBox(height: 16),
+                        Text('Đang tìm kiếm khách sạn...'),
                       ],
                     ),
                   )
@@ -1028,6 +716,60 @@ class _HotelListScreenState extends State<HotelListScreen> {
                 : _buildHotelsList(),
           ),
         ],
+      ),
+    );
+  }
+  
+  Widget _buildSearchInput({
+    required IconData icon,
+    required String label,
+    String? subtitle,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.grey[300]!),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, color: const Color(0xFF003580), size: 20),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    label,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.black87,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  if (subtitle != null) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey[600],
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            Icon(Icons.edit, color: Colors.grey[400], size: 18),
+          ],
+        ),
       ),
     );
   }
@@ -1052,9 +794,9 @@ class _HotelListScreenState extends State<HotelListScreen> {
               ),
             ),
             const SizedBox(height: 24),
-            Text(
+            const Text(
               'Đã xảy ra lỗi',
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
               ),
@@ -1071,7 +813,7 @@ class _HotelListScreenState extends State<HotelListScreen> {
               icon: const Icon(Icons.refresh),
               label: const Text('Thử lại'),
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF1E88E5),
+                backgroundColor: const Color(0xFF003580),
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
                 shape: RoundedRectangleBorder(
@@ -1105,9 +847,9 @@ class _HotelListScreenState extends State<HotelListScreen> {
               ),
             ),
             const SizedBox(height: 24),
-            Text(
+            const Text(
               'Không tìm thấy khách sạn',
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
               ),
@@ -1118,43 +860,19 @@ class _HotelListScreenState extends State<HotelListScreen> {
               style: TextStyle(color: Colors.grey[600]),
               textAlign: TextAlign.center,
             ),
-            const SizedBox(height: 8),
-            Text(
-              'Vui lòng thử tìm kiếm địa điểm khác',
-              style: TextStyle(color: Colors.grey[500], fontSize: 14),
-            ),
             const SizedBox(height: 24),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                OutlinedButton.icon(
-                  onPressed: () => Navigator.pop(context),
-                  icon: const Icon(Icons.arrow_back),
-                  label: const Text('Quay lại'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: const Color(0xFF1E88E5),
-                    side: const BorderSide(color: Color(0xFF1E88E5)),
-                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
                 ElevatedButton.icon(
                   onPressed: _loadHotels,
                   icon: const Icon(Icons.refresh),
                   label: const Text('Thử lại'),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF1E88E5),
+                backgroundColor: const Color(0xFF003580),
                     foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
                   ),
-                ),
-              ],
             ),
           ],
         ),
@@ -1165,26 +883,394 @@ class _HotelListScreenState extends State<HotelListScreen> {
   Widget _buildHotelsList() {
     return RefreshIndicator(
       onRefresh: _loadHotels,
+      color: const Color(0xFF003580),
       child: ListView.builder(
         padding: const EdgeInsets.all(16),
         itemCount: _hotels.length,
         itemBuilder: (context, index) {
           final hotel = _hotels[index];
-          return _buildHotelCard(hotel);
+          return _buildAgodaStyleHotelCard(hotel);
         },
       ),
     );
   }
 
-  Widget _buildHotelCard(Hotel hotel) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
-      child: HotelCardWithFavorite(
-        hotel: hotel,
-        width: double.infinity,
-        height: 280,
-        onTap: () => _viewHotelRooms(hotel),
+  Widget _buildAgodaStyleHotelCard(Hotel hotel) {
+    final isFavorite = _favoriteStatus[hotel.id] ?? false;
+    final imageUrl = hotel.fullImageUrl;
+    final nights = _checkOutDate.difference(_checkInDate).inDays;
+    
+    return Container(
+      margin: const EdgeInsets.only(bottom: 20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.1),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
+      child: InkWell(
+        onTap: () => _viewHotelRooms(hotel),
+        borderRadius: BorderRadius.circular(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Image Section
+            Stack(
+              children: [
+                ClipRRect(
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(12),
+                  ),
+                  child: Container(
+                    height: 200,
+                    width: double.infinity,
+                    color: Colors.grey[200],
+                    child: imageUrl.isNotEmpty
+                        ? Image.network(
+                            imageUrl,
+                            fit: BoxFit.cover,
+                            loadingBuilder: (context, child, loadingProgress) {
+                              if (loadingProgress == null) return child;
+                              return Center(
+                                child: CircularProgressIndicator(
+                                  value: loadingProgress.expectedTotalBytes != null
+                                      ? loadingProgress.cumulativeBytesLoaded / 
+                                        loadingProgress.expectedTotalBytes!
+                                      : null,
+                                  color: const Color(0xFF003580),
+                                ),
+                              );
+                            },
+                            errorBuilder: (context, error, stackTrace) {
+                              return Container(
+                                color: Colors.grey[300],
+                                child: const Icon(
+                                  Icons.hotel,
+                                  size: 48,
+                                  color: Colors.grey,
+                                ),
+                              );
+                            },
+                          )
+                        : Container(
+                            color: Colors.grey[300],
+                            child: const Icon(
+                              Icons.hotel,
+                              size: 48,
+                              color: Colors.grey,
+                            ),
+                          ),
+                  ),
+                ),
+                
+                // Star Rating Badge (Top Left)
+                if (hotel.soSao != null)
+                  Positioned(
+                    top: 12,
+                    left: 12,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.amber[700],
+                        borderRadius: BorderRadius.circular(20),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.2),
+                            blurRadius: 4,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.star,
+                            color: Colors.white,
+                            size: 16,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            '${hotel.soSao}',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                
+                // Favorite Button (Top Right)
+                Positioned(
+                  top: 12,
+                  right: 12,
+                  child: GestureDetector(
+                    onTap: () => _toggleFavorite(hotel),
+                    child: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.9),
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.1),
+                            blurRadius: 4,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: Icon(
+                        isFavorite ? Icons.favorite : Icons.favorite_border,
+                        color: isFavorite ? Colors.red : Colors.grey[600],
+                        size: 22,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            
+            // Content Section
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Hotel Name
+                  Text(
+                    hotel.ten,
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black87,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  
+                  const SizedBox(height: 8),
+                  
+                  // Location
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.location_on,
+                        size: 16,
+                        color: Colors.grey[600],
+                      ),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          hotel.diaChi ?? hotel.tenViTri ?? 'Địa chỉ không xác định',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: Colors.grey[700],
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                  
+                  const SizedBox(height: 10),
+                  
+                  // Rating and Reviews
+                  if (hotel.diemDanhGiaTrungBinh != null)
+                    Row(
+                      children: [
+                        ...List.generate(
+                          5,
+                          (index) => Icon(
+                            index < (hotel.soSao ?? 0)
+                                ? Icons.star
+                                : Icons.star_border,
+                            size: 16,
+                            color: Colors.amber[700],
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          '${hotel.diemDanhGiaTrungBinh!.toStringAsFixed(1)}',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.grey[800],
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        if (hotel.soLuotDanhGia != null && hotel.soLuotDanhGia! > 0) ...[
+                          const SizedBox(width: 4),
+                          Text(
+                            '(${hotel.soLuotDanhGia})',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  
+                  const SizedBox(height: 8),
+                  
+                  // Description/Tagline
+                  if (hotel.moTa != null && hotel.moTa!.isNotEmpty)
+                    Text(
+                      hotel.moTa!,
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Colors.grey[600],
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  
+                  const SizedBox(height: 12),
+                  
+                  // Price and CTA
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      _buildPriceWithPromotion(hotel, nights),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 20,
+                          vertical: 10,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF003580),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Text(
+                          'Xem phòng',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Hiển thị giá với promotion cho hotel card
+  Widget _buildPriceWithPromotion(Hotel hotel, int nights) {
+    final originalPrice = hotel.giaTb;
+    if (originalPrice == null) {
+      return const Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Liên hệ để biết giá',
+            style: TextStyle(
+              fontSize: 14,
+              color: Colors.grey,
+            ),
+          ),
+        ],
+      );
+    }
+
+    final promotion = _promotionService.getAppliedPromotion(hotelId: hotel.id);
+    final hasPromotion = promotion != null;
+    
+    if (hasPromotion) {
+      final discountedPrice = _promotionService.calculateDiscountedPrice(originalPrice, hotelId: hotel.id);
+      
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Giá gốc (gạch ngang)
+          Text(
+            'Từ ${currencyFormat.format(originalPrice)}',
+            style: TextStyle(
+              fontSize: 14,
+              color: Colors.grey[400],
+              decoration: TextDecoration.lineThrough,
+            ),
+          ),
+          const SizedBox(height: 2),
+          // Giá đã giảm
+          Row(
+            children: [
+              Text(
+                'Từ ${currencyFormat.format(discountedPrice)}',
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF003580),
+                ),
+              ),
+              const SizedBox(width: 6),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Colors.green[50],
+                  borderRadius: BorderRadius.circular(4),
+                  border: Border.all(color: Colors.green[300]!),
+                ),
+                child: Text(
+                  '-${promotion!.phanTramGiam.toInt()}%',
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.green[700],
+                  ),
+                ),
+              ),
+            ],
+          ),
+          Text(
+            'cho $nights đêm',
+            style: TextStyle(
+              fontSize: 12,
+              color: Colors.grey[600],
+            ),
+          ),
+        ],
+      );
+    }
+    
+    // Không có promotion
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Từ ${currencyFormat.format(originalPrice)}',
+          style: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+            color: Color(0xFF003580),
+          ),
+        ),
+        Text(
+          'cho $nights đêm',
+          style: TextStyle(
+            fontSize: 12,
+            color: Colors.grey[600],
+          ),
+        ),
+      ],
     );
   }
 }

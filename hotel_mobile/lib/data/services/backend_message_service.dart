@@ -3,6 +3,13 @@ import '../models/message.dart';
 import '../models/api_response.dart';
 import '../../core/constants/app_constants.dart';
 
+/// Service xử lý tin nhắn từ Backend API
+/// 
+/// Chức năng:
+/// - Lấy danh sách tin nhắn với pagination
+/// - Đánh dấu tin nhắn đã đọc
+/// - Đếm số tin nhắn chưa đọc
+/// - Tự động thêm JWT token vào headers
 class BackendMessageService {
   static final BackendMessageService _instance = BackendMessageService._internal();
   factory BackendMessageService() => _instance;
@@ -11,6 +18,9 @@ class BackendMessageService {
   late Dio _dio;
   String? _token;
 
+  /// Khởi tạo service với cấu hình Dio
+  /// 
+  /// Thiết lập interceptors cho logging và authentication
   void initialize() {
     _dio = Dio(
       BaseOptions(
@@ -58,11 +68,19 @@ class BackendMessageService {
     );
   }
 
+  /// Thiết lập JWT token cho các request
+  /// 
+  /// [token] - JWT token từ BackendAuthService
   void setToken(String token) {
     _token = token;
   }
 
-  // Get all messages for user
+  /// Lấy danh sách tin nhắn của người dùng với phân trang
+  /// 
+  /// [page] - Trang cần lấy (mặc định: 1)
+  /// [limit] - Số lượng tin nhắn mỗi trang (mặc định: 20)
+  /// 
+  /// Trả về ApiResponse chứa danh sách Message
   Future<ApiResponse<List<Message>>> getMessages({
     int page = 1,
     int limit = 20,
@@ -95,7 +113,11 @@ class BackendMessageService {
     }
   }
 
-  // Mark message as read
+  /// Đánh dấu tin nhắn đã đọc
+  /// 
+  /// [messageId] - ID của tin nhắn cần đánh dấu
+  /// 
+  /// Trả về true nếu thành công, false nếu thất bại
   Future<bool> markAsRead(String messageId) async {
     try {
       final response = await _dio.put('/api/messages/$messageId/read');
@@ -107,7 +129,9 @@ class BackendMessageService {
     }
   }
 
-  // Get unread message count
+  /// Lấy số lượng tin nhắn chưa đọc của người dùng
+  /// 
+  /// Trả về số lượng tin nhắn chưa đọc (0 nếu có lỗi)
   Future<int> getUnreadCount() async {
     try {
       final response = await _dio.get('/api/messages/unread-count');
@@ -122,6 +146,11 @@ class BackendMessageService {
     return 0;
   }
 
+  /// Xử lý và chuyển đổi lỗi thành thông báo tiếng Việt
+  /// 
+  /// [error] - Lỗi từ DioException hoặc các exception khác
+  /// 
+  /// Trả về chuỗi thông báo lỗi bằng tiếng Việt
   String _getErrorMessage(dynamic error) {
     if (error is DioException) {
       switch (error.type) {

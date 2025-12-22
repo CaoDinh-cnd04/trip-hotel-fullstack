@@ -106,41 +106,95 @@ class DashboardKpi {
   final int availableRooms;
   final int occupiedRooms;
   final int totalBookings;
+  final int todayBookings;
+  final int ongoingBookings;
   final int completedBookings;
   final int pendingBookings;
   final int cancelledBookings;
   final double totalRevenue;
+  final double todayRevenue;
   final double monthlyRevenue;
+  final double occupancyRate;
   final double averageRating;
   final int totalReviews;
+  final List<RevenueChartData> revenueChart;
 
   DashboardKpi({
     required this.totalRooms,
     required this.availableRooms,
     required this.occupiedRooms,
     required this.totalBookings,
+    required this.todayBookings,
+    required this.ongoingBookings,
     required this.completedBookings,
     required this.pendingBookings,
     required this.cancelledBookings,
     required this.totalRevenue,
+    required this.todayRevenue,
     required this.monthlyRevenue,
+    required this.occupancyRate,
     required this.averageRating,
     required this.totalReviews,
+    required this.revenueChart,
   });
 
   factory DashboardKpi.fromJson(Map<String, dynamic> json) {
+    // Parse revenue chart data
+    List<RevenueChartData> revenueChart = [];
+    if (json['revenueChart'] != null && json['revenueChart'] is List) {
+      revenueChart = (json['revenueChart'] as List)
+          .map((item) => RevenueChartData.fromJson(item))
+          .toList();
+    }
+
     return DashboardKpi(
       totalRooms: json['totalRooms'] ?? 0,
       availableRooms: json['availableRooms'] ?? 0,
       occupiedRooms: json['occupiedRooms'] ?? 0,
       totalBookings: json['totalBookings'] ?? 0,
+      todayBookings: json['todayBookings'] ?? 0,
+      ongoingBookings: json['ongoingBookings'] ?? 0,
       completedBookings: json['completedBookings'] ?? 0,
       pendingBookings: json['pendingBookings'] ?? 0,
       cancelledBookings: json['cancelledBookings'] ?? 0,
       totalRevenue: (json['totalRevenue'] ?? 0).toDouble(),
+      todayRevenue: (json['todayRevenue'] ?? 0).toDouble(),
       monthlyRevenue: (json['monthlyRevenue'] ?? 0).toDouble(),
+      occupancyRate: (json['occupancyRate'] ?? 0).toDouble(),
       averageRating: (json['averageRating'] ?? 0).toDouble(),
       totalReviews: json['totalReviews'] ?? 0,
+      revenueChart: revenueChart,
+    );
+  }
+}
+
+class RevenueChartData {
+  final DateTime date;
+  final double revenue;
+
+  RevenueChartData({
+    required this.date,
+    required this.revenue,
+  });
+
+  factory RevenueChartData.fromJson(Map<String, dynamic> json) {
+    DateTime parseDate(dynamic dateValue) {
+      if (dateValue == null) return DateTime.now();
+      try {
+        if (dateValue is String) {
+          return DateTime.parse(dateValue);
+        } else if (dateValue is DateTime) {
+          return dateValue;
+        }
+        return DateTime.now();
+      } catch (e) {
+        return DateTime.now();
+      }
+    }
+
+    return RevenueChartData(
+      date: parseDate(json['date']),
+      revenue: (json['revenue'] ?? 0).toDouble(),
     );
   }
 }

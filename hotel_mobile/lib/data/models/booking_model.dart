@@ -1,3 +1,15 @@
+/// Model đại diện cho đặt phòng (phiên bản chi tiết với payment)
+/// 
+/// Chứa thông tin:
+/// - Thông tin booking: bookingCode, userId, userEmail, userName, userPhone
+/// - Thông tin khách sạn/phòng: hotelId, hotelName, roomId, roomNumber, roomType
+/// - Thông tin đặt phòng: checkInDate, checkOutDate, guestCount, roomCount, nights
+/// - Giá cả: roomPrice, totalPrice, discountAmount, finalPrice
+/// - Thanh toán: paymentMethod, paymentStatus, paymentTransactionId, paymentDate
+/// - Hoàn tiền: refundStatus, refundAmount, refundTransactionId, refundDate, refundReason
+/// - Trạng thái: bookingStatus, cancellationAllowed, canCancelNow, secondsLeftToCancel
+/// - Thời gian: createdAt, updatedAt, cancelledAt
+/// - Ghi chú: specialRequests, adminNotes
 class BookingModel {
   final int id;
   final String bookingCode;
@@ -81,6 +93,12 @@ class BookingModel {
     required this.secondsLeftToCancel,
   });
 
+  /// Tạo đối tượng BookingModel từ JSON
+  /// 
+  /// [json] - Map chứa dữ liệu JSON từ API
+  /// 
+  /// Parse các trường từ snake_case sang camelCase
+  /// Chuyển đổi an toàn các kiểu dữ liệu số và DateTime
   factory BookingModel.fromJson(Map<String, dynamic> json) {
     return BookingModel(
       id: (json['id'] as num).toInt(),
@@ -135,6 +153,9 @@ class BookingModel {
     );
   }
 
+  /// Chuyển đổi đối tượng BookingModel sang JSON
+  /// 
+  /// Trả về Map chứa tất cả các trường dưới dạng JSON (snake_case)
   Map<String, dynamic> toJson() {
     return {
       'id': id,
@@ -178,7 +199,10 @@ class BookingModel {
     };
   }
 
-  /// Lấy tên trạng thái booking bằng tiếng Việt
+  /// Lấy text hiển thị trạng thái booking bằng tiếng Việt
+  /// 
+  /// Hỗ trợ cả tiếng Anh và tiếng Việt
+  /// Trả về: "Đã xác nhận", "Đã hủy", "Hoàn thành", "Không đến", "Đang tiến hành", "Chờ xác nhận", v.v.
   String get bookingStatusText {
     switch (bookingStatus.toLowerCase()) {
       case 'confirmed':
@@ -215,7 +239,9 @@ class BookingModel {
     }
   }
 
-  /// Lấy tên phương thức thanh toán
+  /// Lấy text hiển thị phương thức thanh toán bằng tiếng Việt
+  /// 
+  /// Trả về: "VNPay", "MoMo", "Tiền mặt"
   String get paymentMethodText {
     switch (paymentMethod.toLowerCase()) {
       case 'vnpay':
@@ -231,7 +257,9 @@ class BookingModel {
     }
   }
 
-  /// Lấy tên trạng thái thanh toán
+  /// Lấy text hiển thị trạng thái thanh toán bằng tiếng Việt
+  /// 
+  /// Trả về: "Chờ thanh toán", "Đã thanh toán", "Đã hoàn tiền", "Thất bại"
   String get paymentStatusText {
     switch (paymentStatus) {
       case 'pending':
@@ -247,7 +275,9 @@ class BookingModel {
     }
   }
 
-  /// Lấy tên trạng thái hoàn tiền
+  /// Lấy text hiển thị trạng thái hoàn tiền bằng tiếng Việt
+  /// 
+  /// Trả về: "Đang yêu cầu", "Đang xử lý", "Hoàn thành", "Từ chối", hoặc chuỗi rỗng nếu không có
   String get refundStatusText {
     if (refundStatus == null) return '';
     switch (refundStatus) {

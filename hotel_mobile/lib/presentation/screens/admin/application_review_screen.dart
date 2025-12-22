@@ -1,22 +1,30 @@
 import 'package:flutter/material.dart';
+import '../../../data/services/admin_service.dart';
 import '../../../data/services/hotel_registration_service.dart';
+import '../../../data/services/notification_service.dart';
+import '../../../data/services/email_notification_service.dart';
 
 class ApplicationReviewScreen extends StatefulWidget {
   const ApplicationReviewScreen({super.key});
 
   @override
-  State<ApplicationReviewScreen> createState() => _ApplicationReviewScreenState();
+  State<ApplicationReviewScreen> createState() =>
+      _ApplicationReviewScreenState();
 }
 
 class _ApplicationReviewScreenState extends State<ApplicationReviewScreen>
     with SingleTickerProviderStateMixin {
-  final HotelRegistrationService _registrationService = HotelRegistrationService();
+  final HotelRegistrationService _registrationService =
+      HotelRegistrationService();
+  final AdminService _adminService = AdminService();
+  final NotificationService _notificationService = NotificationService();
+  final EmailNotificationService _emailService = EmailNotificationService();
   late TabController _tabController;
-  
-  List<HotelRegistration> _pendingApplications = [];
-  List<HotelRegistration> _approvedApplications = [];
-  List<HotelRegistration> _rejectedApplications = [];
-  
+
+  List<dynamic> _pendingApplications = [];
+  List<dynamic> _approvedApplications = [];
+  List<dynamic> _rejectedApplications = [];
+
   bool _isLoading = true;
   String? _error;
 
@@ -41,12 +49,20 @@ class _ApplicationReviewScreenState extends State<ApplicationReviewScreen>
       });
 
       // ✅ FIX: Use HotelRegistrationService with proper token
-      final allRegistrations = await _registrationService.getAllRegistrations('dummy'); // Token handled internally
+      final allRegistrations = await _registrationService.getAllRegistrations(
+        'dummy',
+      ); // Token handled internally
 
       setState(() {
-        _pendingApplications = allRegistrations.where((r) => r.status == 'pending').toList();
-        _approvedApplications = allRegistrations.where((r) => r.status == 'approved').toList();
-        _rejectedApplications = allRegistrations.where((r) => r.status == 'rejected').toList();
+        _pendingApplications = allRegistrations
+            .where((r) => r.status == 'pending')
+            .toList();
+        _approvedApplications = allRegistrations
+            .where((r) => r.status == 'approved')
+            .toList();
+        _rejectedApplications = allRegistrations
+            .where((r) => r.status == 'rejected')
+            .toList();
         _isLoading = false;
       });
     } catch (e) {
@@ -61,31 +77,75 @@ class _ApplicationReviewScreenState extends State<ApplicationReviewScreen>
     }
   }
 
-  Future<void> _approveApplication(String applicationId, {String? ghiChu}) async {
+  Future<void> _approveApplication(
+    String applicationId, {
+    String? ghiChu,
+  }) async {
     try {
+      // Tìm application để lấy thông tin khách sạn
+      dynamic application;
+      try {
+        application = _pendingApplications.firstWhere(
+          (app) => app.id == applicationId,
+        );
+      } catch (e) {
+        application = null;
+      }
+
       await _adminService.approveApplication(applicationId, ghiChu: ghiChu);
+      
+      // Gửi thông báo khách sạn mới nếu duyệt thành công
+      if (application != null) {
+        try {
+          // Tạo thông báo trong app
+          await _notificationService.createNotification(
+            title: '🏨 Khách sạn mới: ${application.tenKhachSan}',
+            content: 'Khách sạn ${application.tenKhachSan} tại ${application.diaChi} đã được thêm vào hệ thống. Hãy khám phá ngay!',
+            type: 'new_room', // Sử dụng type 'new_room' cho khách sạn mới
+            imageUrl: application.hinhAnh.isNotEmpty ? application.hinhAnh.first : null,
+            actionUrl: '/hotels',
+            actionText: 'Xem khách sạn',
+            hotelId: null, // Có thể lấy hotel ID từ response nếu backend trả về
+            sendEmail: true, // Gửi email đến tất cả người dùng
+          );
+
+          // Gửi email thông báo riêng (backup nếu notification service không gửi)
+          _emailService.initialize();
+          await _emailService.sendNewHotelNotificationEmail(
+            hotelName: application.tenKhachSan,
+            hotelAddress: application.diaChi,
+            hotelImageUrl: application.hinhAnh.isNotEmpty ? application.hinhAnh.first : null,
+            hotelId: null,
+          );
+        } catch (e) {
+          print('⚠️ Lỗi gửi thông báo khách sạn mới: $e');
+          // Không hiển thị lỗi cho user vì việc duyệt đã thành công
+        }
+      }
+
       _loadApplications(); // Reload data
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Duyệt hồ sơ thành công'),
+            content: Text('Duyệt hồ sơ thành công. Đã gửi thông báo đến người dùng.'),
             backgroundColor: Colors.green,
+            duration: Duration(seconds: 4),
           ),
         );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Lỗi: $e'),
-            backgroundColor: Colors.red,
-          ),
+          SnackBar(content: Text('Lỗi: $e'), backgroundColor: Colors.red),
         );
       }
     }
   }
 
-  Future<void> _rejectApplication(String applicationId, String lyDoTuChoi) async {
+  Future<void> _rejectApplication(
+    String applicationId,
+    String lyDoTuChoi,
+  ) async {
     try {
       await _adminService.rejectApplication(applicationId, lyDoTuChoi);
       _loadApplications(); // Reload data
@@ -100,10 +160,7 @@ class _ApplicationReviewScreenState extends State<ApplicationReviewScreen>
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Lỗi: $e'),
-            backgroundColor: Colors.red,
-          ),
+          SnackBar(content: Text('Lỗi: $e'), backgroundColor: Colors.red),
         );
       }
     }
@@ -116,10 +173,7 @@ class _ApplicationReviewScreenState extends State<ApplicationReviewScreen>
       appBar: AppBar(
         title: const Text(
           'Duyệt Hồ sơ',
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-            color: Colors.white,
-          ),
+          style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
         ),
         backgroundColor: Colors.purple[700],
         elevation: 0,
@@ -153,15 +207,15 @@ class _ApplicationReviewScreenState extends State<ApplicationReviewScreen>
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _error != null
-              ? _buildErrorWidget()
-              : TabBarView(
-                  controller: _tabController,
-                  children: [
-                    _buildApplicationsList(_pendingApplications, 'pending'),
-                    _buildApplicationsList(_approvedApplications, 'approved'),
-                    _buildApplicationsList(_rejectedApplications, 'rejected'),
-                  ],
-                ),
+          ? _buildErrorWidget()
+          : TabBarView(
+              controller: _tabController,
+              children: [
+                _buildApplicationsList(_pendingApplications, 'pending'),
+                _buildApplicationsList(_approvedApplications, 'approved'),
+                _buildApplicationsList(_rejectedApplications, 'rejected'),
+              ],
+            ),
     );
   }
 
@@ -176,11 +230,7 @@ class _ApplicationReviewScreenState extends State<ApplicationReviewScreen>
               color: Colors.red[50],
               shape: BoxShape.circle,
             ),
-            child: Icon(
-              Icons.cloud_off,
-              size: 64,
-              color: Colors.red[300],
-            ),
+            child: Icon(Icons.cloud_off, size: 64, color: Colors.red[300]),
           ),
           const SizedBox(height: 24),
           Text(
@@ -220,7 +270,7 @@ class _ApplicationReviewScreenState extends State<ApplicationReviewScreen>
     );
   }
 
-  Widget _buildApplicationsList(List<ApplicationModel> applications, String status) {
+  Widget _buildApplicationsList(List<dynamic> applications, String status) {
     if (applications.isEmpty) {
       return Center(
         child: Column(
@@ -267,7 +317,10 @@ class _ApplicationReviewScreenState extends State<ApplicationReviewScreen>
               icon: const Icon(Icons.refresh),
               label: const Text('Làm mới'),
               style: OutlinedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 12,
+                ),
               ),
             ),
           ],
@@ -286,10 +339,10 @@ class _ApplicationReviewScreenState extends State<ApplicationReviewScreen>
           return ApplicationCard(
             application: application,
             onTap: () => _showApplicationDetail(application),
-            onApprove: status == 'pending' 
+            onApprove: status == 'pending'
                 ? () => _showApprovalDialog(application)
                 : null,
-            onReject: status == 'pending' 
+            onReject: status == 'pending'
                 ? () => _showRejectionDialog(application)
                 : null,
           );
@@ -350,7 +403,7 @@ class _ApplicationReviewScreenState extends State<ApplicationReviewScreen>
     }
   }
 
-  void _showApplicationDetail(ApplicationModel application) {
+  void _showApplicationDetail(dynamic application) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -383,8 +436,8 @@ class _ApplicationReviewScreenState extends State<ApplicationReviewScreen>
               Text(
                 'Chi tiết hồ sơ',
                 style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
+                  fontWeight: FontWeight.bold,
+                ),
               ),
               const SizedBox(height: 20),
               // Content
@@ -395,19 +448,34 @@ class _ApplicationReviewScreenState extends State<ApplicationReviewScreen>
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       _buildDetailRow('Tên khách sạn', application.tenKhachSan),
-                      _buildDetailRow('Người đăng ký', application.tenNguoiDangKy),
+                      _buildDetailRow(
+                        'Người đăng ký',
+                        application.tenNguoiDangKy,
+                      ),
                       _buildDetailRow('Số điện thoại', application.soDienThoai),
                       _buildDetailRow('Email', application.email),
                       _buildDetailRow('Địa chỉ', application.diaChi),
                       _buildDetailRow('Mô tả', application.moTa),
-                      _buildDetailRow('Trạng thái', application.statusDisplayName),
-                      _buildDetailRow('Ngày đăng ký', application.formattedNgayDangKy),
+                      _buildDetailRow(
+                        'Trạng thái',
+                        application.statusDisplayName,
+                      ),
+                      _buildDetailRow(
+                        'Ngày đăng ký',
+                        application.formattedNgayDangKy,
+                      ),
                       if (application.ngayDuyet != null)
-                        _buildDetailRow('Ngày duyệt', application.formattedNgayDuyet),
+                        _buildDetailRow(
+                          'Ngày duyệt',
+                          application.formattedNgayDuyet,
+                        ),
                       if (application.nguoiDuyet != null)
                         _buildDetailRow('Người duyệt', application.nguoiDuyet!),
                       if (application.lyDoTuChoi != null)
-                        _buildDetailRow('Lý do từ chối', application.lyDoTuChoi!),
+                        _buildDetailRow(
+                          'Lý do từ chối',
+                          application.lyDoTuChoi!,
+                        ),
                       if (application.hinhAnh.isNotEmpty) ...[
                         const SizedBox(height: 16),
                         const Text(
@@ -421,11 +489,12 @@ class _ApplicationReviewScreenState extends State<ApplicationReviewScreen>
                         GridView.builder(
                           shrinkWrap: true,
                           physics: const NeverScrollableScrollPhysics(),
-                          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: 3,
-                            crossAxisSpacing: 8,
-                            mainAxisSpacing: 8,
-                          ),
+                          gridDelegate:
+                              const SliverGridDelegateWithFixedCrossAxisCount(
+                                crossAxisCount: 3,
+                                crossAxisSpacing: 8,
+                                mainAxisSpacing: 8,
+                              ),
                           itemCount: application.hinhAnh.length,
                           itemBuilder: (context, index) {
                             return ClipRRect(
@@ -433,10 +502,13 @@ class _ApplicationReviewScreenState extends State<ApplicationReviewScreen>
                               child: Image.network(
                                 application.hinhAnh[index],
                                 fit: BoxFit.cover,
-                                errorBuilder: (context, error, stackTrace) => Container(
-                                  color: Colors.grey[200],
-                                  child: const Icon(Icons.image_not_supported),
-                                ),
+                                errorBuilder: (context, error, stackTrace) =>
+                                    Container(
+                                      color: Colors.grey[200],
+                                      child: const Icon(
+                                        Icons.image_not_supported,
+                                      ),
+                                    ),
                               ),
                             );
                           },
@@ -474,7 +546,10 @@ class _ApplicationReviewScreenState extends State<ApplicationReviewScreen>
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.green,
                         ),
-                        child: const Text('Duyệt', style: TextStyle(color: Colors.white)),
+                        child: const Text(
+                          'Duyệt',
+                          style: TextStyle(color: Colors.white),
+                        ),
                       ),
                     ),
                   ],
@@ -515,9 +590,9 @@ class _ApplicationReviewScreenState extends State<ApplicationReviewScreen>
     );
   }
 
-  void _showApprovalDialog(ApplicationModel application) {
+  void _showApprovalDialog(dynamic application) {
     final ghiChuController = TextEditingController();
-    
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -525,7 +600,9 @@ class _ApplicationReviewScreenState extends State<ApplicationReviewScreen>
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text('Bạn có chắc chắn muốn duyệt hồ sơ "${application.tenKhachSan}"?'),
+            Text(
+              'Bạn có chắc chắn muốn duyệt hồ sơ "${application.tenKhachSan}"?',
+            ),
             const SizedBox(height: 16),
             TextField(
               controller: ghiChuController,
@@ -545,7 +622,10 @@ class _ApplicationReviewScreenState extends State<ApplicationReviewScreen>
           ElevatedButton(
             onPressed: () {
               Navigator.pop(context);
-              _approveApplication(application.id, ghiChu: ghiChuController.text);
+              _approveApplication(
+                application.id,
+                ghiChu: ghiChuController.text,
+              );
             },
             style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
             child: const Text('Duyệt', style: TextStyle(color: Colors.white)),
@@ -555,9 +635,9 @@ class _ApplicationReviewScreenState extends State<ApplicationReviewScreen>
     );
   }
 
-  void _showRejectionDialog(ApplicationModel application) {
+  void _showRejectionDialog(dynamic application) {
     final lyDoController = TextEditingController();
-    
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -565,7 +645,9 @@ class _ApplicationReviewScreenState extends State<ApplicationReviewScreen>
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text('Bạn có chắc chắn muốn từ chối hồ sơ "${application.tenKhachSan}"?'),
+            Text(
+              'Bạn có chắc chắn muốn từ chối hồ sơ "${application.tenKhachSan}"?',
+            ),
             const SizedBox(height: 16),
             TextField(
               controller: lyDoController,
@@ -603,7 +685,7 @@ class _ApplicationReviewScreenState extends State<ApplicationReviewScreen>
 }
 
 class ApplicationCard extends StatelessWidget {
-  final ApplicationModel application;
+  final dynamic application;
   final VoidCallback? onTap;
   final VoidCallback? onApprove;
   final VoidCallback? onReject;
@@ -643,9 +725,14 @@ class ApplicationCard extends StatelessWidget {
                     ),
                   ),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
                     decoration: BoxDecoration(
-                      color: _getStatusColor(application.trangThai).withOpacity(0.1),
+                      color: _getStatusColor(
+                        application.trangThai,
+                      ).withOpacity(0.1),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Text(
@@ -689,10 +776,7 @@ class ApplicationCard extends StatelessWidget {
                   Expanded(
                     child: Text(
                       application.email,
-                      style: TextStyle(
-                        color: Colors.grey[600],
-                        fontSize: 14,
-                      ),
+                      style: TextStyle(color: Colors.grey[600], fontSize: 14),
                     ),
                   ),
                 ],
@@ -701,10 +785,7 @@ class ApplicationCard extends StatelessWidget {
               // Description
               Text(
                 application.shortMoTa,
-                style: TextStyle(
-                  color: Colors.grey[600],
-                  fontSize: 14,
-                ),
+                style: TextStyle(color: Colors.grey[600], fontSize: 14),
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
               ),
@@ -715,22 +796,27 @@ class ApplicationCard extends StatelessWidget {
                 children: [
                   Text(
                     'Đăng ký: ${application.formattedNgayDangKy}',
-                    style: TextStyle(
-                      color: Colors.grey[600],
-                      fontSize: 12,
-                    ),
+                    style: TextStyle(color: Colors.grey[600], fontSize: 12),
                   ),
                   if (application.isPending) ...[
                     Row(
                       children: [
                         IconButton(
                           onPressed: onReject,
-                          icon: const Icon(Icons.close, color: Colors.red, size: 20),
+                          icon: const Icon(
+                            Icons.close,
+                            color: Colors.red,
+                            size: 20,
+                          ),
                           tooltip: 'Từ chối',
                         ),
                         IconButton(
                           onPressed: onApprove,
-                          icon: const Icon(Icons.check, color: Colors.green, size: 20),
+                          icon: const Icon(
+                            Icons.check,
+                            color: Colors.green,
+                            size: 20,
+                          ),
                           tooltip: 'Duyệt',
                         ),
                       ],

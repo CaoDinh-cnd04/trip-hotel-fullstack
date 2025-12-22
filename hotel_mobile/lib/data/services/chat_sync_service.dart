@@ -1,4 +1,10 @@
-// Chat Sync Service - Sync messages from Firestore to SQL Server
+/// Service đồng bộ tin nhắn từ Firestore sang SQL Server
+/// 
+/// Chức năng:
+/// - Đồng bộ tin nhắn đã gửi trong Firestore lên SQL Server
+/// - Lấy lịch sử cuộc trò chuyện từ SQL Server
+/// - Tìm kiếm tin nhắn trong SQL Server
+/// - Lấy thống kê chat
 import 'package:dio/dio.dart';
 import 'backend_auth_service.dart';
 import '../models/message_model.dart';
@@ -24,7 +30,12 @@ class ChatSyncService {
     ));
   }
 
-  /// Sync message to SQL Server after sending to Firestore
+  /// Đồng bộ tin nhắn lên SQL Server sau khi đã gửi vào Firestore
+  /// 
+  /// [message] - Đối tượng MessageModel cần đồng bộ
+  /// [firestoreConversationId] - ID cuộc trò chuyện trong Firestore
+  /// 
+  /// Lưu ý: Lỗi đồng bộ sẽ không làm gián đoạn chat
   Future<void> syncMessage(MessageModel message, String firestoreConversationId) async {
     try {
       // Extract hotel/booking info from metadata for email context
@@ -63,7 +74,12 @@ class ChatSyncService {
     }
   }
 
-  /// Get conversation history from SQL Server
+  /// Lấy lịch sử cuộc trò chuyện từ SQL Server
+  /// 
+  /// [page] - Trang cần lấy (mặc định: 1)
+  /// [limit] - Số lượng cuộc trò chuyện mỗi trang (mặc định: 20)
+  /// 
+  /// Trả về danh sách cuộc trò chuyện (rỗng nếu có lỗi)
   Future<List<dynamic>> getConversationHistory({int page = 1, int limit = 20}) async {
     try {
       final response = await _dio.get(
@@ -78,7 +94,13 @@ class ChatSyncService {
     }
   }
 
-  /// Get message history for a conversation from SQL Server
+  /// Lấy lịch sử tin nhắn của một cuộc trò chuyện từ SQL Server
+  /// 
+  /// [conversationId] - ID cuộc trò chuyện
+  /// [page] - Trang cần lấy (mặc định: 1)
+  /// [limit] - Số lượng tin nhắn mỗi trang (mặc định: 50)
+  /// 
+  /// Trả về danh sách tin nhắn (rỗng nếu có lỗi)
   Future<List<dynamic>> getMessageHistory(
     int conversationId, {
     int page = 1,
@@ -97,7 +119,13 @@ class ChatSyncService {
     }
   }
 
-  /// Search messages in SQL Server
+  /// Tìm kiếm tin nhắn trong SQL Server
+  /// 
+  /// [query] - Từ khóa tìm kiếm
+  /// [page] - Trang cần lấy (mặc định: 1)
+  /// [limit] - Số lượng kết quả mỗi trang (mặc định: 20)
+  /// 
+  /// Trả về danh sách tin nhắn khớp (rỗng nếu có lỗi)
   Future<List<dynamic>> searchMessages(
     String query, {
     int page = 1,
@@ -116,7 +144,10 @@ class ChatSyncService {
     }
   }
 
-  /// Get chat statistics from SQL Server
+  /// Lấy thống kê chat từ SQL Server
+  /// 
+  /// Trả về Map chứa dữ liệu thống kê (null nếu có lỗi)
+  /// Bao gồm: số lượng tin nhắn, cuộc trò chuyện, người dùng hoạt động, v.v.
   Future<Map<String, dynamic>?> getChatStatistics() async {
     try {
       final response = await _dio.get('/api/chat-sync/statistics');

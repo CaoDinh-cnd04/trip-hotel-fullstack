@@ -57,6 +57,15 @@
 				<string>fb1361581552264816</string>
 			</array>
 		</dict>
+		<!-- VNPay Deep Link Configuration -->
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>vnpaypayment</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>vnpaypayment</string>
+			</array>
+		</dict>
 	</array>
 	<key>FacebookAppID</key>
 	<string>1361581552264816</string>

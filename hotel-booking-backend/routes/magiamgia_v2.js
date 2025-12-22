@@ -22,7 +22,8 @@ const validateMaGiamGia = [
 ];
 
 const validateId = [
-    param('id').isInt({ min: 1 }).withMessage('ID không hợp lệ')
+    param('id').notEmpty().withMessage('ID không được để trống')
+        .isLength({ min: 1, max: 50 }).withMessage('ID không hợp lệ')
 ];
 
 const validateVoucherCode = [

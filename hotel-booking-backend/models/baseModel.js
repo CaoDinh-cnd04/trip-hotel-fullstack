@@ -44,38 +44,54 @@ class BaseModel {
     } = options;
     
     const offset = (page - 1) * limit;
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
+    
+    // Build WHERE clause safely
+    const whereClause = where ? `WHERE ${where}` : '';
     
     let query = `
       SELECT ${includes} 
       FROM ${this.tableName}
-      ${where ? `WHERE ${where}` : ''}
+      ${whereClause}
       ORDER BY ${orderBy}
-      OFFSET @offset ROWS
-      FETCH NEXT @limit ROWS ONLY
+      OFFSET ${offset} ROWS
+      FETCH NEXT ${limitNum} ROWS ONLY
     `;
     
     const countQuery = `
       SELECT COUNT(*) as total 
       FROM ${this.tableName}
-      ${where ? `WHERE ${where}` : ''}
+      ${whereClause}
     `;
     
     try {
+      console.log(`🔍 Executing findAll query for ${this.tableName}:`, {
+        query: query.substring(0, 200) + '...',
+        offset,
+        limit: limitNum
+      });
+      
       const [data, count] = await Promise.all([
-        this.executeQuery(query, { offset, limit }),
+        this.executeQuery(query),
         this.executeQuery(countQuery)
       ]);
       
+      const total = count.recordset[0]?.total || 0;
+      
       return {
-        data: data.recordset,
+        data: data.recordset || [],
         pagination: {
-          page: parseInt(page),
-          limit: parseInt(limit),
-          total: count.recordset[0].total,
-          totalPages: Math.ceil(count.recordset[0].total / limit)
+          page: pageNum,
+          limit: limitNum,
+          total: total,
+          totalPages: Math.ceil(total / limitNum)
         }
       };
     } catch (error) {
+      console.error(`❌ Error in findAll for ${this.tableName}:`, error);
+      console.error('Query:', query);
+      console.error('Count Query:', countQuery);
       throw error;
     }
   }
@@ -117,10 +133,16 @@ class BaseModel {
       const request = pool.request();
       
       // Add parameters
+      const sql = require('mssql');
       Object.keys(filteredData).forEach(key => {
         const value = filteredData[key];
         if (value !== null && value !== undefined && value !== '') {
-          request.input(key, value);
+          // Handle boolean values for BIT columns
+          if (typeof value === 'boolean') {
+            request.input(key, sql.Bit, value ? 1 : 0);
+          } else {
+            request.input(key, value);
+          }
         }
       });
       

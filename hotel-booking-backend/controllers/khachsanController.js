@@ -47,7 +47,9 @@ exports.getAllHotels = async (req, res) => {
       gia_min,
       gia_max,
       available_from,
-      available_to
+      available_to,
+      trang_thai, // Admin can filter by status
+      admin_view // If true, show all hotels (including inactive)
     } = req.query;
 
     // Ensure page and limit are integers
@@ -56,7 +58,10 @@ exports.getAllHotels = async (req, res) => {
 
     let result;
 
-    if (search || vi_tri_id || so_sao_min || so_sao_max || gia_min || gia_max) {
+    // If admin_view is true or user is admin, show all hotels
+    const isAdmin = req.user?.chuc_vu === 'Admin' || admin_view === 'true';
+    
+    if (search || vi_tri_id || so_sao_min || so_sao_max || gia_min || gia_max || trang_thai) {
       // Search with filters
       result = await KhachSan.searchHotels(search, {
         page: pageInt,
@@ -65,10 +70,20 @@ exports.getAllHotels = async (req, res) => {
         so_sao_min,
         so_sao_max,
         gia_min,
-        gia_max
+        gia_max,
+        trang_thai: trang_thai || (isAdmin ? null : 'Hoạt động')
+      });
+    } else if (isAdmin) {
+      // Admin: Get all hotels (including inactive)
+      const whereClause = trang_thai ? `ks.trang_thai = N'${trang_thai}'` : '';
+      result = await KhachSan.getHotelsWithFullInfo({ 
+        page: pageInt, 
+        limit: limitInt,
+        where: whereClause,
+        orderBy: 'ks.created_at DESC'
       });
     } else {
-      // Get all active hotels
+      // Regular user: Get only active hotels
       result = await KhachSan.getActiveHotels({ page: pageInt, limit: limitInt });
     }
 
@@ -112,6 +127,21 @@ exports.getHotelById = async (req, res) => {
 
     // Transform hotel image URL
     hotel.hinh_anh = transformHotelImageUrl(hotel.hinh_anh, req);
+
+    // Get all hotel images (gallery)
+    try {
+      const hotelImages = await KhachSan.getHotelImages(id);
+      // Transform image URLs
+      hotel.danh_sach_anh = hotelImages.map(img => ({
+        id: img.id,
+        duong_dan_anh: transformHotelImageUrl(img.duong_dan_anh, req),
+        thu_tu: img.thu_tu,
+        la_anh_dai_dien: img.la_anh_dai_dien === 1 || img.la_anh_dai_dien === true
+      }));
+    } catch (error) {
+      console.log('⚠️ Could not fetch hotel images:', error.message);
+      hotel.danh_sach_anh = [];
+    }
 
     // Get amenities if requested
     if (with_amenities === 'true') {
@@ -250,6 +280,109 @@ exports.getHotelAmenities = async (req, res) => {
   }
 };
 
+// Get hotel paid amenities (for payment screen suggestions)
+exports.getHotelPaidAmenities = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Check if hotel exists
+    const hotel = await KhachSan.findById(id);
+    if (!hotel) {
+      return res.status(404).json({
+        success: false,
+        message: 'Không tìm thấy khách sạn'
+      });
+    }
+
+    const pool = getPool();
+    const query = `
+      SELECT 
+        tn.id,
+        tn.ten,
+        tn.nhom,
+        tn.mo_ta,
+        kstn.mien_phi,
+        kstn.gia_phi,
+        kstn.ghi_chu
+      FROM dbo.khach_san_tien_nghi kstn
+      JOIN dbo.tien_nghi tn ON kstn.tien_nghi_id = tn.id
+      WHERE kstn.khach_san_id = @hotelId 
+        AND tn.trang_thai = 1
+        AND kstn.mien_phi = 0
+        AND kstn.gia_phi > 0
+      ORDER BY kstn.gia_phi ASC, tn.nhom, tn.ten
+    `;
+
+    const result = await pool.request()
+      .input('hotelId', sql.Int, id)
+      .query(query);
+
+    res.json({
+      success: true,
+      message: 'Lấy danh sách dịch vụ có phí thành công',
+      data: result.recordset || []
+    });
+
+  } catch (error) {
+    console.error('Get hotel paid amenities error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Lỗi server khi lấy danh sách dịch vụ có phí'
+    });
+  }
+};
+
+// Get hotel free amenities (for high price bookings)
+exports.getHotelFreeAmenities = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Check if hotel exists
+    const hotel = await KhachSan.findById(id);
+    if (!hotel) {
+      return res.status(404).json({
+        success: false,
+        message: 'Không tìm thấy khách sạn'
+      });
+    }
+
+    const pool = getPool();
+    const query = `
+      SELECT 
+        tn.id,
+        tn.ten,
+        tn.nhom,
+        tn.mo_ta,
+        kstn.mien_phi,
+        kstn.gia_phi,
+        kstn.ghi_chu
+      FROM dbo.khach_san_tien_nghi kstn
+      JOIN dbo.tien_nghi tn ON kstn.tien_nghi_id = tn.id
+      WHERE kstn.khach_san_id = @hotelId 
+        AND tn.trang_thai = 1
+        AND kstn.mien_phi = 1
+      ORDER BY tn.nhom, tn.ten
+    `;
+
+    const result = await pool.request()
+      .input('hotelId', sql.Int, id)
+      .query(query);
+
+    res.json({
+      success: true,
+      message: 'Lấy danh sách dịch vụ miễn phí thành công',
+      data: result.recordset || []
+    });
+
+  } catch (error) {
+    console.error('Get hotel free amenities error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Lỗi server khi lấy danh sách dịch vụ miễn phí'
+    });
+  }
+};
+
 // Get hotel statistics
 exports.getHotelStats = async (req, res) => {
   try {
@@ -375,12 +508,27 @@ exports.updateHotel = [
       }
 
       const { id } = req.params;
-      const hotel = await KhachSan.updateHotel(id, req.body);
+      const khachSan = new KhachSan();
+      
+      // Check if hotel exists (without status filter for admin)
+      const checkQuery = `SELECT * FROM ${khachSan.tableName} WHERE ${khachSan.primaryKey} = @id`;
+      const checkResult = await khachSan.executeQuery(checkQuery, { id });
+      const existingHotel = checkResult.recordset[0];
 
-      if (!hotel) {
+      if (!existingHotel) {
         return res.status(404).json({
           success: false,
           message: 'Không tìm thấy khách sạn'
+        });
+      }
+
+      // Update hotel
+      const hotel = await khachSan.updateHotel(id, req.body);
+
+      if (!hotel) {
+        return res.status(500).json({
+          success: false,
+          message: 'Không thể cập nhật khách sạn'
         });
       }
 
@@ -394,36 +542,244 @@ exports.updateHotel = [
       console.error('Update hotel error:', error);
       res.status(500).json({
         success: false,
-        message: 'Lỗi server khi cập nhật khách sạn'
+        message: 'Lỗi server khi cập nhật khách sạn',
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined,
+        stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
       });
     }
   }
 ];
 
-// Delete hotel (soft delete)
-exports.deleteHotel = async (req, res) => {
+// Toggle hotel status (lock/unlock)
+exports.toggleHotelStatus = async (req, res) => {
   try {
     const { id } = req.params;
+    const { action } = req.body; // 'lock' or 'unlock'
+    console.log(`🔒 Toggling hotel status for ID: ${id}, action: ${action}`);
+    const khachSan = new KhachSan();
 
-    const success = await KhachSan.update(id, { trang_thai: 'Ngừng hoạt động' });
+    // Find hotel by ID without status check (to toggle blocked hotels)
+    const checkQuery = `SELECT * FROM ${khachSan.tableName} WHERE ${khachSan.primaryKey} = @id`;
+    console.log(`🔍 Checking hotel existence: ${checkQuery}`);
+    const checkResult = await khachSan.executeQuery(checkQuery, { id });
+    const hotel = checkResult.recordset[0];
 
-    if (!success) {
+    if (!hotel) {
+      console.log(`❌ Hotel ${id} not found`);
       return res.status(404).json({
         success: false,
         message: 'Không tìm thấy khách sạn'
       });
     }
 
+    console.log(`✅ Hotel found: ${hotel.ten}, current status: ${hotel.trang_thai}`);
+
+    let newStatus;
+    if (action === 'lock' || action === 'ban') {
+      newStatus = 'Bị chặn';
+    } else if (action === 'unlock' || action === 'activate') {
+      newStatus = 'Hoạt động';
+    } else {
+      // Toggle current status
+      const currentStatus = hotel.trang_thai?.toString() || '';
+      if (currentStatus === 'Hoạt động') {
+        newStatus = 'Bị chặn';
+      } else {
+        newStatus = 'Hoạt động';
+      }
+    }
+
+    console.log(`🔄 Updating status to: ${newStatus}`);
+
+    // Update status using direct query with NVARCHAR for Vietnamese text
+    // Use sql.NVarChar for proper Unicode handling
+    const sql = require('mssql');
+    const updateQuery = `
+      UPDATE ${khachSan.tableName} 
+      SET trang_thai = @newStatus, updated_at = GETDATE()
+      WHERE ${khachSan.primaryKey} = @id
+    `;
+    
+    try {
+      const { getPool } = require('../config/db');
+      const pool = await getPool();
+      const updateResult = await pool.request()
+        .input('id', sql.Int, parseInt(id))
+        .input('newStatus', sql.NVarChar(50), newStatus)
+        .query(updateQuery);
+
+      console.log(`✅ Update executed, rows affected: ${updateResult.rowsAffected[0]}`);
+      
+      if (updateResult.rowsAffected[0] === 0) {
+        console.log(`⚠️ No rows affected for hotel ${id}`);
+        return res.status(500).json({
+          success: false,
+          message: 'Không thể cập nhật trạng thái khách sạn - không có dòng nào được cập nhật'
+        });
+      }
+    } catch (updateError) {
+      console.error('❌ Update query error:', updateError);
+      throw updateError;
+    }
+
     res.json({
       success: true,
-      message: 'Xóa khách sạn thành công'
+      message: `Khách sạn đã được ${newStatus === 'Hoạt động' ? 'mở khóa' : 'khóa'}`,
+      data: {
+        id,
+        trang_thai: newStatus
+      }
     });
 
   } catch (error) {
-    console.error('Delete hotel error:', error);
+    console.error('❌ Toggle hotel status error:', error);
+    console.error('Error details:', {
+      message: error.message,
+      code: error.code,
+      number: error.number,
+      stack: error.stack
+    });
     res.status(500).json({
       success: false,
-      message: 'Lỗi server khi xóa khách sạn'
+      message: 'Lỗi server khi cập nhật trạng thái khách sạn',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
+  }
+};
+
+// Delete hotel (soft delete)
+exports.deleteHotel = async (req, res) => {
+  try {
+    const { id } = req.params;
+    console.log(`🗑️ Deleting hotel with ID: ${id}`);
+    const khachSan = new KhachSan();
+
+    // Find hotel by ID without status check (to delete blocked hotels)
+    const checkQuery = `SELECT * FROM ${khachSan.tableName} WHERE ${khachSan.primaryKey} = @id`;
+    console.log(`🔍 Checking hotel existence: ${checkQuery}`);
+    const checkResult = await khachSan.executeQuery(checkQuery, { id });
+    const hotel = checkResult.recordset[0];
+
+    if (!hotel) {
+      console.log(`❌ Hotel ${id} not found`);
+      return res.status(404).json({
+        success: false,
+        message: 'Không tìm thấy khách sạn'
+      });
+    }
+
+    console.log(`✅ Hotel found: ${hotel.ten}, current status: ${hotel.trang_thai}`);
+
+    // Soft delete - set trang_thai = 'Ngừng hoạt động' using direct query with NVARCHAR
+    // Sử dụng transaction để đảm bảo commit
+    const sql = require('mssql');
+    const { getPool } = require('../config/db');
+    const pool = await getPool();
+    const transaction = new sql.Transaction(pool);
+    
+    try {
+        await transaction.begin();
+        console.log(`🔄 Transaction started for deleting hotel ${id}`);
+        
+        const deleteStatus = 'Ngừng hoạt động';
+        const deleteQuery = `
+          UPDATE ${khachSan.tableName} 
+          SET trang_thai = @deleteStatus, updated_at = GETDATE()
+          WHERE ${khachSan.primaryKey} = @id
+        `;
+        
+        console.log(`🔄 Executing delete query: ${deleteQuery}`);
+        const request = new sql.Request(transaction);
+        const deleteResult = await request
+          .input('id', sql.Int, parseInt(id))
+          .input('deleteStatus', sql.NVarChar(50), deleteStatus)
+          .query(deleteQuery);
+
+        console.log(`✅ Delete query executed, rows affected: ${deleteResult.rowsAffected[0]}`);
+        
+        if (deleteResult.rowsAffected[0] === 0) {
+            await transaction.rollback();
+            console.log(`⚠️ No rows affected for hotel ${id}, rolling back`);
+            return res.status(500).json({
+                success: false,
+                message: 'Không thể xóa khách sạn - không có dòng nào được cập nhật'
+            });
+        }
+        
+        // Commit transaction
+        await transaction.commit();
+        console.log(`✅ Transaction committed for hotel ${id}`);
+        
+        // Verify deletion sau khi commit
+        await new Promise(resolve => setTimeout(resolve, 200));
+
+        // Verify deletion
+        const verifyQuery = `SELECT ${khachSan.primaryKey}, trang_thai FROM ${khachSan.tableName} WHERE ${khachSan.primaryKey} = @id`;
+        const verifyResult = await pool.request()
+          .input('id', sql.Int, parseInt(id))
+          .query(verifyQuery);
+        const updatedHotel = verifyResult.recordset[0];
+
+        console.log(`🔍 Verification result:`, updatedHotel);
+
+        // Check if trang_thai matches 'Ngừng hoạt động'
+        const isDeleted = updatedHotel && 
+                         (updatedHotel.trang_thai === 'Ngừng hoạt động' || 
+                          updatedHotel.trang_thai?.toString() === 'Ngừng hoạt động');
+
+        if (!isDeleted) {
+            console.log(`❌ Hotel status not updated correctly. Current status: ${updatedHotel?.trang_thai}`);
+            return res.status(500).json({
+                success: false,
+                message: 'Không thể xóa khách sạn - trạng thái không được cập nhật'
+            });
+        }
+
+        console.log(`✅ Hotel ${id} deleted successfully`);
+        res.json({
+            success: true,
+            message: 'Xóa khách sạn thành công'
+        });
+    } catch (deleteError) {
+        // Rollback transaction nếu có lỗi
+        if (transaction) {
+            try {
+                await transaction.rollback();
+                console.log(`🔄 Transaction rolled back due to error`);
+            } catch (rollbackError) {
+                console.error('❌ Error rolling back transaction:', rollbackError);
+            }
+        }
+        
+        console.error('❌ Delete query error:', deleteError);
+        // Kiểm tra xem có phải lỗi foreign key constraint không
+        if (deleteError.number === 547) {
+            return res.status(400).json({
+                success: false,
+                message: 'Không thể xóa khách sạn vì đang được sử dụng trong hệ thống (có dữ liệu liên quan)',
+                error: process.env.NODE_ENV === 'development' ? {
+                    message: deleteError.message,
+                    number: deleteError.number
+                } : undefined
+            });
+        }
+        throw deleteError; // Re-throw để catch block xử lý
+    }
+
+  } catch (error) {
+    console.error('❌ Delete hotel error:', error);
+    console.error('Error details:', {
+      message: error.message,
+      code: error.code,
+      number: error.number,
+      stack: error.stack
+    });
+    res.status(500).json({
+      success: false,
+      message: 'Lỗi server khi xóa khách sạn',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
   }
 };

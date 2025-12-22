@@ -33,13 +33,15 @@ exports.getRoomAvailability = async (req, res) => {
       ),
       BookedCounts AS (
         -- Đếm số phòng đã được đặt theo từng loại
+        -- ✅ SỬA: Tính cả pending bookings để tránh overbooking
+        -- Bao gồm: pending, confirmed, in_progress, checked_in
         SELECT 
           p.loai_phong_id,
           COUNT(DISTINCT b.room_id) as booked_rooms
         FROM dbo.bookings b
         INNER JOIN dbo.phong p ON b.room_id = p.id
         WHERE p.khach_san_id = @hotel_id
-          AND b.booking_status NOT IN ('pending', 'cancelled', 'completed')
+          AND b.booking_status IN ('pending', 'confirmed', 'in_progress', 'checked_in')
           ${check_in && check_out ? `
           AND (
             (b.check_in_date < @check_out AND b.check_out_date > @check_in)
@@ -76,15 +78,17 @@ exports.getRoomAvailability = async (req, res) => {
         
         -- Status text with count
         CASE 
-          WHEN (rc.total_rooms - ISNULL(bc.booked_rooms, 0)) > 0 
-            THEN N'Còn trống (' + CAST((rc.total_rooms - ISNULL(bc.booked_rooms, 0)) AS NVARCHAR) + N')'
-          ELSE N'Hết phòng'
+          WHEN (rc.total_rooms - ISNULL(bc.booked_rooms, 0)) <= 0 THEN N'Hết phòng'
+          WHEN (rc.total_rooms - ISNULL(bc.booked_rooms, 0)) <= 2 
+            THEN N'Gần hết phòng (' + CAST((rc.total_rooms - ISNULL(bc.booked_rooms, 0)) AS NVARCHAR) + N')'
+          ELSE N'Còn trống (' + CAST((rc.total_rooms - ISNULL(bc.booked_rooms, 0)) AS NVARCHAR) + N')'
         END as trang_thai_text,
         
-        -- Status color
+        -- Status color (Xanh: >2, Cam: 1-2, Đỏ: 0)
         CASE 
-          WHEN (rc.total_rooms - ISNULL(bc.booked_rooms, 0)) > 0 THEN '#008000'
-          ELSE '#FF0000'
+          WHEN (rc.total_rooms - ISNULL(bc.booked_rooms, 0)) <= 0 THEN '#FF0000'  -- Đỏ: Hết phòng
+          WHEN (rc.total_rooms - ISNULL(bc.booked_rooms, 0)) <= 2 THEN '#FF9800'  -- Cam: Gần hết phòng
+          ELSE '#008000'  -- Xanh: Còn nhiều phòng
         END as trang_thai_color
         
       FROM RoomCounts rc

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'dart:async';
+import 'dart:ui';
 import '../../../data/models/hotel.dart';
 import '../../../data/models/promotion.dart';
 import '../../../data/models/destination.dart';
@@ -13,15 +14,17 @@ import '../../../data/services/notification_service.dart';
 import '../../../data/services/user_profile_service.dart';
 import '../../../data/models/notification.dart';
 import '../../../data/models/user.dart';
+import '../../../core/widgets/glass_card.dart';
 import '../hotel/hotel_list_screen.dart';
 import '../login_screen.dart';
-import '../auth/agoda_style_login_screen.dart';
+import '../auth/triphotel_style_login_screen.dart';
 import '../profile/profile_screen.dart';
 import '../search/hotel_search_screen.dart';
 import '../search/activity_search_screen.dart';
 import '../booking/enhanced_booking_screen.dart';
 import '../property/property_detail_screen.dart';
 import '../../widgets/notification_bell_button.dart';
+import '../../../data/services/applied_promotion_service.dart';
 
 class TriphotelStyleHomeScreen extends StatefulWidget {
   final bool isAuthenticated;
@@ -71,7 +74,9 @@ class _TriphotelStyleHomeScreenState extends State<TriphotelStyleHomeScreen> wit
   late PageController _destinationsPageController;
   late PageController _countriesPageController;
   late AnimationController _fadeAnimationController;
+  late AnimationController _slideAnimationController;
   late Animation<double> _fadeAnimation;
+  late Animation<Offset> _slideAnimation;
   
   Timer? _hotelsAutoScrollTimer;
   Timer? _promotionsAutoScrollTimer;
@@ -119,13 +124,27 @@ class _TriphotelStyleHomeScreenState extends State<TriphotelStyleHomeScreen> wit
     // Initialize fade animation controller
     _fadeAnimationController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 600),
+      duration: const Duration(milliseconds: 800),
     );
     
     _fadeAnimation = CurvedAnimation(
       parent: _fadeAnimationController,
-      curve: Curves.easeIn,
+      curve: Curves.easeOut,
     );
+    
+    // Initialize slide animation controller
+    _slideAnimationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 600),
+    );
+    
+    _slideAnimation = Tween<Offset>(
+      begin: const Offset(0, 0.3),
+      end: Offset.zero,
+    ).animate(CurvedAnimation(
+      parent: _slideAnimationController,
+      curve: Curves.easeOutCubic,
+    ));
   }
   
   void _startAutoScroll() {
@@ -193,6 +212,7 @@ class _TriphotelStyleHomeScreenState extends State<TriphotelStyleHomeScreen> wit
     _destinationsPageController.dispose();
     _countriesPageController.dispose();
     _fadeAnimationController.dispose();
+    _slideAnimationController.dispose();
     _hotelsAutoScrollTimer?.cancel();
     _promotionsAutoScrollTimer?.cancel();
     _destinationsAutoScrollTimer?.cancel();
@@ -233,6 +253,7 @@ class _TriphotelStyleHomeScreenState extends State<TriphotelStyleHomeScreen> wit
       
       // 🎬 Start Agoda-style animations
       _fadeAnimationController.forward();
+      _slideAnimationController.forward();
       Future.delayed(const Duration(milliseconds: 300), () {
         if (mounted) {
           _startAutoScroll();
@@ -380,18 +401,6 @@ class _TriphotelStyleHomeScreenState extends State<TriphotelStyleHomeScreen> wit
           ),
         );
         break;
-      case 'flight':
-        // TODO: Navigate to flight booking
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Tính năng vé máy bay đang phát triển')),
-        );
-        break;
-      case 'combo':
-        // TODO: Navigate to combo deals
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Tính năng combo tiết kiệm đang phát triển')),
-        );
-        break;
       case 'activity':
         Navigator.push(
           context,
@@ -407,7 +416,7 @@ class _TriphotelStyleHomeScreenState extends State<TriphotelStyleHomeScreen> wit
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: const Color(0xFFF5F7FA),
       body: _isLoading
           ? const Center(
               child: Column(
@@ -484,9 +493,34 @@ class _TriphotelStyleHomeScreenState extends State<TriphotelStyleHomeScreen> wit
   }
 
   Widget _buildHeader() {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(16, 50, 16, 20),
-      child: Row(
+    return FadeTransition(
+      opacity: _fadeAnimation,
+      child: SlideTransition(
+        position: _slideAnimation,
+        child: Container(
+          padding: EdgeInsets.fromLTRB(16, MediaQuery.of(context).padding.top + 16, 16, 20),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(20),
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.8),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.3),
+                    width: 1,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.05),
+                      blurRadius: 20,
+                      offset: const Offset(0, 5),
+                    ),
+                  ],
+                ),
+                child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           // Logo Triphotel
@@ -535,7 +569,7 @@ class _TriphotelStyleHomeScreenState extends State<TriphotelStyleHomeScreen> wit
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (context) => const AgodaStyleLoginScreen(),
+                        builder: (context) => const TriphotelStyleLoginScreen(),
                       ),
                     );
                   },
@@ -587,7 +621,7 @@ class _TriphotelStyleHomeScreenState extends State<TriphotelStyleHomeScreen> wit
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (context) => const AgodaStyleLoginScreen(),
+                        builder: (context) => const TriphotelStyleLoginScreen(),
                       ),
                     );
                   }
@@ -626,17 +660,26 @@ class _TriphotelStyleHomeScreenState extends State<TriphotelStyleHomeScreen> wit
             ],
           ),
         ],
+                ),
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
 
 
   Widget _buildMainServices() {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      child: Column(
+    return FadeTransition(
+      opacity: _fadeAnimation,
+      child: SlideTransition(
+        position: _slideAnimation,
+        child: Container(
+          padding: const EdgeInsets.all(20),
+          child: Column(
         children: [
-          // 2x2 Grid for main services
+          // Main services: Khách sạn và Hoạt động
           Row(
             children: [
               Expanded(
@@ -649,36 +692,6 @@ class _TriphotelStyleHomeScreenState extends State<TriphotelStyleHomeScreen> wit
                     end: Alignment.bottomRight,
                   ),
                   onTap: () => _onServiceTap('hotel'),
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: _buildServiceCard(
-                  title: 'Vé máy bay',
-                  icon: Icons.flight,
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFFB19CD9), Color(0xFF87CEEB)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  onTap: () => _onServiceTap('flight'),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(
-                child: _buildServiceCard(
-                  title: 'Combo tiết kiệm',
-                  icon: Icons.savings,
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFF4A90E2), Color(0xFF87CEEB)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  onTap: () => _onServiceTap('combo'),
                 ),
               ),
               const SizedBox(width: 16),
@@ -697,6 +710,8 @@ class _TriphotelStyleHomeScreenState extends State<TriphotelStyleHomeScreen> wit
             ],
           ),
         ],
+          ),
+        ),
       ),
     );
   }
@@ -709,31 +724,37 @@ class _TriphotelStyleHomeScreenState extends State<TriphotelStyleHomeScreen> wit
   }) {
     return GestureDetector(
       onTap: onTap,
-      child: Container(
-        height: 100,
-        decoration: BoxDecoration(
-          gradient: gradient,
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              icon,
-              size: 32,
-              color: Colors.white,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              title,
-              style: const TextStyle(
+      child: GlassCard(
+        blur: 8,
+        opacity: 0.3,
+        borderRadius: 20,
+        padding: EdgeInsets.zero,
+        child: Container(
+          height: 100,
+          decoration: BoxDecoration(
+            gradient: gradient,
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                icon,
+                size: 32,
                 color: Colors.white,
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
               ),
-              textAlign: TextAlign.center,
-            ),
-          ],
+              const SizedBox(height: 8),
+              Text(
+                title,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -741,17 +762,22 @@ class _TriphotelStyleHomeScreenState extends State<TriphotelStyleHomeScreen> wit
 
 
   Widget _buildTodaysDeals() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      child: Column(
+    return FadeTransition(
+      opacity: _fadeAnimation,
+      child: SlideTransition(
+        position: _slideAnimation,
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
             'Xem ưu đãi hôm nay',
             style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
+              fontSize: 20,
+              fontWeight: FontWeight.w700,
               color: Colors.black87,
+              letterSpacing: -0.5,
             ),
           ),
           const SizedBox(height: 16),
@@ -771,13 +797,12 @@ class _TriphotelStyleHomeScreenState extends State<TriphotelStyleHomeScreen> wit
                 ),
               );
             },
-            child: Container(
+            child: GlassCard(
+              blur: 10,
+              opacity: 0.25,
+              borderRadius: 16,
               padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.grey[50],
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.grey[200]!),
-              ),
+              child: Container(
             child: Row(
               children: [
                 Container(
@@ -824,9 +849,12 @@ class _TriphotelStyleHomeScreenState extends State<TriphotelStyleHomeScreen> wit
                 ),
               ],
             ),
+              ),
             ),
           ),
         ],
+          ),
+        ),
       ),
     );
   }
@@ -845,9 +873,10 @@ class _TriphotelStyleHomeScreenState extends State<TriphotelStyleHomeScreen> wit
                 const Text(
                   'Khuyến mại',
                   style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
+                    fontSize: 20,
+                    fontWeight: FontWeight.w700,
                     color: Colors.black87,
+                    letterSpacing: -0.5,
                   ),
                 ),
                 if (_featuredPromotions.isNotEmpty)
@@ -912,6 +941,7 @@ class _TriphotelStyleHomeScreenState extends State<TriphotelStyleHomeScreen> wit
                         return Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 8),
                           child: _buildPromotionCard(
+                            promotion: promotion,
                             title: promotion.ten,
                             discount: '${promotion.phanTramGiam.isFinite && !promotion.phanTramGiam.isNaN ? promotion.phanTramGiam.toInt() : 0}%',
                             subtitle: subtitle,
@@ -954,6 +984,7 @@ class _TriphotelStyleHomeScreenState extends State<TriphotelStyleHomeScreen> wit
   }
 
   Widget _buildPromotionCard({
+    required Promotion promotion,
     required String title,
     required String discount,
     required String subtitle,
@@ -974,19 +1005,16 @@ class _TriphotelStyleHomeScreenState extends State<TriphotelStyleHomeScreen> wit
           ),
         );
       },
-      child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 4),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.15),
-              blurRadius: 12,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
+      child: GlassCard(
+        blur: 12,
+        opacity: 0.3,
+        borderRadius: 20,
+        padding: EdgeInsets.zero,
+        child: Container(
+          margin: const EdgeInsets.symmetric(horizontal: 4),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(20),
+          ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -1180,7 +1208,7 @@ class _TriphotelStyleHomeScreenState extends State<TriphotelStyleHomeScreen> wit
 
                   const SizedBox(height: 6),
 
-                  // Action Button
+                  // Action Buttons
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
@@ -1191,23 +1219,52 @@ class _TriphotelStyleHomeScreenState extends State<TriphotelStyleHomeScreen> wit
                           color: Colors.grey[500],
                         ),
                       ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 5,
-                        ),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF2196F3),
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: const Text(
-                          'Xem ngay',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w600,
-                            fontSize: 12,
+                      Row(
+                        children: [
+                          // Apply Button
+                          InkWell(
+                            onTap: () => _applyPromotionFromHome(promotion),
+                            borderRadius: BorderRadius.circular(16),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 5,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.green,
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                              child: const Text(
+                                'Áp dụng',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
                           ),
-                        ),
+                          const SizedBox(width: 8),
+                          // View Button
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 5,
+                            ),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF2196F3),
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            child: const Text(
+                              'Xem ngay',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w600,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
@@ -1215,7 +1272,90 @@ class _TriphotelStyleHomeScreenState extends State<TriphotelStyleHomeScreen> wit
               ),
             ),
           ],
+          ),
         ),
+      ),
+    );
+  }
+
+  /// Áp dụng promotion từ màn hình chính
+  void _applyPromotionFromHome(Promotion promotion) {
+    // Áp dụng promotion vào service
+    final appliedPromotionService = AppliedPromotionService();
+    appliedPromotionService.applyPromotion(promotion, hotelId: promotion.khachSanId);
+    
+    // Show success message
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            const Icon(Icons.check_circle, color: Colors.white),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                'Đã áp dụng ưu đãi: ${promotion.ten} (Giảm ${promotion.phanTramGiam.toStringAsFixed(0)}%)',
+                style: const TextStyle(fontSize: 14),
+              ),
+            ),
+          ],
+        ),
+        backgroundColor: Colors.green,
+        duration: const Duration(seconds: 3),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(10),
+        ),
+        action: promotion.khachSanId != null
+            ? SnackBarAction(
+                label: 'Xem khách sạn',
+                textColor: Colors.white,
+                onPressed: () async {
+                  // Fetch hotel data and navigate
+                  try {
+                    final hotelResponse = await _apiService.getHotelById(promotion.khachSanId!);
+                    if (mounted && hotelResponse.success && hotelResponse.data != null) {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => PropertyDetailScreen(
+                            hotel: hotelResponse.data!,
+                            checkInDate: DateTime.now().add(const Duration(days: 1)),
+                            checkOutDate: DateTime.now().add(const Duration(days: 2)),
+                            guestCount: 1,
+                          ),
+                        ),
+                      );
+                    } else {
+                      // Fallback: navigate to hotel list
+                      if (promotion.location != null) {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => HotelListScreen(
+                              location: promotion.location!,
+                              title: 'Khách sạn ${promotion.location}',
+                            ),
+                          ),
+                        );
+                      }
+                    }
+                  } catch (e) {
+                    // Fallback: navigate to hotel list
+                    if (mounted && promotion.location != null) {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => HotelListScreen(
+                            location: promotion.location!,
+                            title: 'Khách sạn ${promotion.location}',
+                          ),
+                        ),
+                      );
+                    }
+                  }
+                },
+              )
+            : null,
       ),
     );
   }
@@ -1267,9 +1407,10 @@ class _TriphotelStyleHomeScreenState extends State<TriphotelStyleHomeScreen> wit
                   const Text(
                     'Một số khách sạn nổi bật',
                     style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
+                      fontSize: 20,
+                      fontWeight: FontWeight.w700,
                       color: Colors.black87,
+                      letterSpacing: -0.5,
                     ),
                   ),
                   const Spacer(),
@@ -1347,22 +1488,18 @@ class _TriphotelStyleHomeScreenState extends State<TriphotelStyleHomeScreen> wit
   Widget _buildFeaturedHotelCard(Hotel hotel) {
     return GestureDetector(
       onTap: () => _navigateToBooking(hotel),
-      child: Container(
-        width: 260,
-        height: 200,
-        margin: const EdgeInsets.only(right: 16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.grey.withOpacity(0.1),
-              spreadRadius: 1,
-              blurRadius: 8,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
+      child: GlassCard(
+        blur: 10,
+        opacity: 0.25,
+        borderRadius: 16,
+        padding: EdgeInsets.zero,
+        child: Container(
+          width: 260,
+          height: 200,
+          margin: const EdgeInsets.only(right: 16),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+          ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -1487,6 +1624,7 @@ class _TriphotelStyleHomeScreenState extends State<TriphotelStyleHomeScreen> wit
               ),
             ),
           ],
+          ),
         ),
       ),
     );
@@ -1657,9 +1795,10 @@ class _TriphotelStyleHomeScreenState extends State<TriphotelStyleHomeScreen> wit
                   const Text(
                     'Địa điểm nổi bật',
                     style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
+                      fontSize: 20,
+                      fontWeight: FontWeight.w700,
                       color: Colors.black87,
+                      letterSpacing: -0.5,
                     ),
                   ),
                   const Spacer(),

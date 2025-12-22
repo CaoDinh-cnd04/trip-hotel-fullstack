@@ -1,3 +1,9 @@
+/// Model đại diện cho tình trạng sẵn có của loại phòng
+/// 
+/// Chứa thông tin:
+/// - Thông tin phòng: maLoaiPhong, tenLoaiPhong, giaCoban, soKhachToiDa
+/// - Tình trạng phòng: totalRooms, bookedRooms, availableRooms
+/// - Cảnh báo: isLowAvailability, isSoldOut, warning
 class RoomAvailability {
   final String maLoaiPhong;
   final String tenLoaiPhong;
@@ -23,6 +29,12 @@ class RoomAvailability {
     this.warning,
   });
 
+  /// Tạo đối tượng RoomAvailability từ JSON
+  /// 
+  /// [json] - Map chứa dữ liệu JSON từ API
+  /// 
+  /// Parse các trường từ snake_case sang camelCase
+  /// Chuyển đổi an toàn các kiểu dữ liệu số
   factory RoomAvailability.fromJson(Map<String, dynamic> json) {
     return RoomAvailability(
       maLoaiPhong: json['ma_loai_phong']?.toString() ?? '',
@@ -38,22 +50,38 @@ class RoomAvailability {
     );
   }
 
+  /// Lấy giá phòng đã được format (đơn vị: nghìn VNĐ)
+  /// 
+  /// Ví dụ: 500000 -> "500K VNĐ"
   String get formattedPrice {
     return '${(giaCoban / 1000).toStringAsFixed(0)}K VNĐ';
   }
 
+  /// Lấy text hiển thị trạng thái phòng bằng tiếng Việt
+  /// 
+  /// Trả về: "Hết phòng", "Sắp hết", hoặc "Còn phòng"
   String get availabilityStatus {
     if (isSoldOut) return 'Hết phòng';
     if (isLowAvailability) return 'Sắp hết';
     return 'Còn phòng';
   }
 
+  /// Tính tỷ lệ lấp đầy phòng (tính bằng phần trăm)
+  /// 
+  /// Trả về tỷ lệ bookedRooms / totalRooms * 100, hoặc 0 nếu totalRooms = 0
   double get occupancyRate {
     if (totalRooms == 0) return 0;
     return (bookedRooms / totalRooms * 100);
   }
 }
 
+/// Model đại diện cho response của API kiểm tra availability khách sạn
+/// 
+/// Chứa:
+/// - success: Trạng thái thành công/thất bại
+/// - message: Thông báo từ server
+/// - rooms: Danh sách RoomAvailability của tất cả loại phòng
+/// - warnings: Danh sách cảnh báo (nếu có)
 class HotelAvailabilityResponse {
   final bool success;
   final String message;
@@ -67,6 +95,11 @@ class HotelAvailabilityResponse {
     this.warnings,
   });
 
+  /// Tạo đối tượng HotelAvailabilityResponse từ JSON
+  /// 
+  /// [json] - Map chứa dữ liệu JSON từ API
+  /// 
+  /// Parse danh sách rooms từ field 'data'
   factory HotelAvailabilityResponse.fromJson(Map<String, dynamic> json) {
     return HotelAvailabilityResponse(
       success: json['success'] ?? false,

@@ -71,6 +71,7 @@ class PromotionService {
   /// Parameters:
   /// - promotionId: ID của promotion
   /// - orderAmount: Tổng tiền đơn hàng (trước khi giảm giá)
+  /// - checkInDate: Ngày check-in (để kiểm tra điều kiện thời gian)
   /// 
   /// Returns:
   /// - success: true/false
@@ -78,16 +79,29 @@ class PromotionService {
   /// - discountAmount: số tiền được giảm
   /// - promotion: thông tin promotion
   /// - message: string
+  /// - timeValidationReason: lý do không thể áp dụng (nếu có)
   Future<Map<String, dynamic>> validatePromotion({
     required int promotionId,
     required double orderAmount,
+    DateTime? checkInDate,
   }) async {
     try {
       final token = await _authService.getToken();
       
+      final queryParams = <String, dynamic>{
+        'tong_tien': orderAmount.toString(),
+      };
+      
+      // Thêm check_in_date nếu có
+      if (checkInDate != null) {
+        // Format: YYYY-MM-DD
+        queryParams['check_in_date'] = 
+            '${checkInDate.year}-${checkInDate.month.toString().padLeft(2, '0')}-${checkInDate.day.toString().padLeft(2, '0')}';
+      }
+      
       final response = await _dio.get(
         '${AppConstants.baseUrl}/api/v2/khuyenmai/$promotionId/validate',
-        queryParameters: {'tong_tien': orderAmount.toString()},
+        queryParameters: queryParams,
         options: Options(
           headers: {
             if (token != null) 'Authorization': 'Bearer $token',
@@ -99,6 +113,7 @@ class PromotionService {
         final data = response.data['data'];
         final isValid = data['isValid'] == true;
         final discountAmount = (data['discountAmount'] ?? 0).toDouble();
+        final timeValidation = data['timeValidation'];
         
         return {
           'success': true,
@@ -108,6 +123,9 @@ class PromotionService {
               ? Promotion.fromJson(data['promotion']) 
               : null,
           'message': response.data['message'] ?? 'Kiểm tra promotion thành công',
+          'timeValidationReason': timeValidation != null 
+              ? (timeValidation['reason'] as String?) 
+              : null,
         };
       } else {
         return {
@@ -116,6 +134,7 @@ class PromotionService {
           'discountAmount': 0.0,
           'promotion': null,
           'message': response.data['message'] ?? 'Không thể kiểm tra promotion',
+          'timeValidationReason': null,
         };
       }
     } on DioException catch (e) {

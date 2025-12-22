@@ -1,5 +1,12 @@
 import '../../core/utils/image_url_helper.dart';
 
+/// Model đại diện cho khách sạn
+/// 
+/// Chứa tất cả thông tin về khách sạn:
+/// - Thông tin cơ bản: tên, mô tả, hình ảnh, địa chỉ
+/// - Thông tin đánh giá: điểm trung bình, số lượt đánh giá
+/// - Thông tin quản lý: người quản lý, trạng thái
+/// - Chính sách: giờ nhận/trả phòng, chính sách hủy
 class Hotel {
   final int id;
   final String ten;
@@ -67,6 +74,14 @@ class Hotel {
     this.tongSoPhongThucTe,
   });
 
+  /// Tạo đối tượng Hotel từ JSON
+  /// 
+  /// [json] - Map chứa dữ liệu JSON từ API
+  /// 
+  /// Xử lý các trường hợp:
+  /// - Chuẩn hóa đường dẫn hình ảnh cho Android emulator
+  /// - Chuyển đổi an toàn các kiểu dữ liệu (int, double)
+  /// - Hỗ trợ nhiều tên field (sao/so_sao, danh_gia/diem_danh_gia_trung_binh)
   factory Hotel.fromJson(Map<String, dynamic> json) {
     // Get image path and normalize for Android emulator
     String? imagePath = json['hinh_anh'];
@@ -116,6 +131,11 @@ class Hotel {
     );
   }
 
+  /// Chuyển đổi giá trị sang double một cách an toàn
+  /// 
+  /// [value] - Giá trị có thể là double, int, String, hoặc null
+  /// 
+  /// Trả về double nếu chuyển đổi thành công, null nếu không
   static double? _safeToDouble(dynamic value) {
     if (value == null) return null;
     if (value is double) return value;
@@ -127,6 +147,11 @@ class Hotel {
     return null; // For boolean or other types
   }
 
+  /// Chuyển đổi giá trị sang int một cách an toàn
+  /// 
+  /// [value] - Giá trị có thể là int, double, String, hoặc null
+  /// 
+  /// Trả về int nếu chuyển đổi thành công, null nếu không
   static int? _safeToInt(dynamic value) {
     if (value == null) return null;
     if (value is int) return value;
@@ -138,6 +163,9 @@ class Hotel {
     return null; // For boolean or other types
   }
 
+  /// Chuyển đổi đối tượng Hotel sang JSON
+  /// 
+  /// Trả về Map chứa tất cả các trường của Hotel dưới dạng JSON
   Map<String, dynamic> toJson() {
     return {
       'id': id,

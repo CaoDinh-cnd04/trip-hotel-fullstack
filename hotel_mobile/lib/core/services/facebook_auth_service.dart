@@ -1,5 +1,13 @@
 import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
 
+/// Model đại diện cho kết quả đăng nhập Facebook
+/// 
+/// Chứa thông tin:
+/// - isSuccess: Trạng thái thành công/thất bại
+/// - isCancelled: true nếu user hủy đăng nhập
+/// - error: Error message (nếu thất bại)
+/// - userId, email, name, photoUrl: Thông tin user từ Facebook
+/// - accessToken: Facebook access token (dùng để xác thực với backend)
 class FacebookAuthResult {
   final bool isSuccess;
   final bool isCancelled;
@@ -22,8 +30,32 @@ class FacebookAuthResult {
   });
 }
 
+/// Service xử lý đăng nhập Facebook
+/// 
+/// Chức năng:
+/// - Đăng nhập bằng Facebook SDK
+/// - Lấy thông tin user (id, email, name, photo)
+/// - Lấy access token để gửi lên backend
+/// - Đăng xuất Facebook
+/// 
+/// Flow đăng nhập:
+/// 1. Trigger Facebook login với permissions (email, public_profile)
+/// 2. Lấy access token
+/// 3. Lấy user data từ Facebook Graph API
+/// 4. Trả về FacebookAuthResult với thông tin user
 class FacebookAuthService {
   /// Đăng nhập bằng Facebook
+  /// 
+  /// Quy trình:
+  /// 1. Trigger Facebook authentication flow với permissions
+  /// 2. Xử lý kết quả: success/cancelled/failed
+  /// 3. Lấy user data từ Facebook Graph API nếu thành công
+  /// 4. Trả về FacebookAuthResult với thông tin đầy đủ
+  /// 
+  /// Returns: FacebookAuthResult với:
+  /// - success: Thông tin user và access token
+  /// - cancelled: true nếu user hủy
+  /// - error: Error message nếu thất bại
   Future<FacebookAuthResult> signInWithFacebook() async {
     try {
       print('🔄 Bắt đầu Facebook Sign-In...');
@@ -87,7 +119,11 @@ class FacebookAuthService {
     }
   }
 
-  /// Đăng xuất Facebook
+  /// Đăng xuất khỏi Facebook
+  /// 
+  /// Xóa session và token của Facebook
+  /// 
+  /// Throws Exception nếu có lỗi trong quá trình đăng xuất
   Future<void> signOut() async {
     try {
       await FacebookAuth.instance.logOut();

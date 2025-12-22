@@ -8,8 +8,15 @@ const momoController = require('../controllers/momoController');
 const { verifyToken } = require('../middleware/auth');
 
 /**
+ * @route   POST /api/payment/momo/create-payment-url
+ * @desc    Tạo URL thanh toán MoMo (giống VNPay)
+ * @access  Public (no authentication required for payment)
+ */
+router.post('/create-payment-url', momoController.createPaymentUrl);
+
+/**
  * @route   POST /api/payment/momo/create-payment
- * @desc    Tạo payment request đến MoMo
+ * @desc    Tạo payment request đến MoMo (legacy)
  * @access  Public (no authentication required for payment)
  */
 router.post('/create-payment', momoController.createPayment);

@@ -67,7 +67,11 @@ class AdminService {
     ));
   }
 
-  /// Set JWT token cho admin
+  /// Thiết lập JWT token cho các request admin
+  /// 
+  /// [token] - JWT token từ BackendAuthService
+  /// 
+  /// Lưu ý: Token cũng được tự động thêm qua interceptor
   void setAuthToken(String token) {
     _dio.options.headers['Authorization'] = 'Bearer $token';
   }
@@ -166,7 +170,16 @@ class AdminService {
     }
   }
   
-  /// Get users với pagination info (for infinite scroll)
+  /// Lấy danh sách users với thông tin phân trang (dùng cho infinite scroll)
+  /// 
+  /// [page] - Trang cần lấy (mặc định: 1)
+  /// [limit] - Số lượng users mỗi trang (mặc định: 20)
+  /// [chucVu] - Lọc theo vai trò (tùy chọn)
+  /// [search] - Tìm kiếm theo tên hoặc email (tùy chọn)
+  /// 
+  /// Trả về Map chứa:
+  /// - 'users': Danh sách UserModel
+  /// - 'page', 'totalPages', 'total': Thông tin phân trang
   Future<Map<String, dynamic>> getUsersPaginated({
     int page = 1,
     int limit = 20,
@@ -223,6 +236,11 @@ class AdminService {
     }
   }
 
+  /// Lấy thông tin chi tiết một user theo ID
+  /// 
+  /// [id] - ID của user cần lấy
+  /// 
+  /// Trả về UserModel
   Future<UserModel> getUserById(String id) async {
     try {
       final response = await _dio.get('/api/v2/admin/users/$id');
@@ -232,7 +250,11 @@ class AdminService {
     }
   }
 
-  /// Create new user
+  /// Tạo user mới
+  /// 
+  /// [userData] - Map chứa thông tin user (tên, email, password, chucVu, v.v.)
+  /// 
+  /// Trả về UserModel của user đã được tạo
   Future<UserModel> createUser(Map<String, dynamic> userData) async {
     try {
       print('📤 Creating user: $userData');
@@ -245,7 +267,12 @@ class AdminService {
     }
   }
 
-  /// Update user (full update)
+  /// Cập nhật toàn bộ thông tin user
+  /// 
+  /// [id] - ID của user cần cập nhật
+  /// [userData] - Map chứa thông tin cần cập nhật
+  /// 
+  /// Trả về UserModel đã được cập nhật
   Future<UserModel> updateUser(String id, Map<String, dynamic> userData) async {
     try {
       print('📤 Updating user $id: $userData');
@@ -258,7 +285,9 @@ class AdminService {
     }
   }
 
-  /// Delete user
+  /// Xóa user
+  /// 
+  /// [id] - ID của user cần xóa
   Future<void> deleteUser(String id) async {
     try {
       print('🗑️ Deleting user: $id');
@@ -270,7 +299,12 @@ class AdminService {
     }
   }
 
-  /// Update user role only
+  /// Chỉ cập nhật vai trò của user
+  /// 
+  /// [id] - ID của user
+  /// [chucVu] - Vai trò mới (Admin, Manager, User)
+  /// 
+  /// Trả về UserModel đã được cập nhật
   Future<UserModel> updateUserRole(String id, String chucVu) async {
     try {
       final response = await _dio.put('/api/v2/admin/users/$id', data: {
@@ -282,6 +316,12 @@ class AdminService {
     }
   }
 
+  /// Cập nhật trạng thái của user (active/inactive)
+  /// 
+  /// [id] - ID của user
+  /// [trangThai] - Trạng thái mới (1: active, 0: inactive)
+  /// 
+  /// Trả về UserModel đã được cập nhật
   Future<UserModel> updateUserStatus(String id, int trangThai) async {
     try {
       final response = await _dio.put('/api/v2/admin/users/$id/status', data: {

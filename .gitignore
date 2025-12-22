@@ -200,6 +200,23 @@ scripts/deploy/
 *.sqlite
 *.sqlite3
 
+# Cloudflare Tunnel (temporary URL)
+hotel-booking-backend/CLOUDFLARE_TUNNEL_URL.txt
+
+# Temporary debug/test files
+hotel-booking-backend/*_test.js
+hotel-booking-backend/test-*.js
+hotel-booking-backend/*.ps1
+hotel-booking-backend/*.bat
+hotel-booking-backend/*.md
+!hotel-booking-backend/README.md
+
+# Flutter temp files
+hotel_mobile/*.ps1
+hotel_mobile/*.bat
+hotel_mobile/*.md
+!hotel_mobile/README.md
+
 # ==================== CACHE ====================
 # Various caches
 .cache/

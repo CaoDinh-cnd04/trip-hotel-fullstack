@@ -5,12 +5,14 @@ class PromotionCard extends StatelessWidget {
   final Promotion promotion;
   final String timeLeft;
   final VoidCallback? onTap;
+  final VoidCallback? onApply;
 
   const PromotionCard({
     super.key,
     required this.promotion,
     required this.timeLeft,
     this.onTap,
+    this.onApply,
   });
 
   @override
@@ -256,21 +258,25 @@ class PromotionCard extends StatelessWidget {
                       ),
 
                       // Action Button
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 6,
-                        ),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF2196F3),
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: const Text(
-                          'Áp dụng',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w600,
-                            fontSize: 13,
+                      InkWell(
+                        onTap: onApply,
+                        borderRadius: BorderRadius.circular(16),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF2196F3),
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: const Text(
+                            'Áp dụng',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 13,
+                            ),
                           ),
                         ),
                       ),

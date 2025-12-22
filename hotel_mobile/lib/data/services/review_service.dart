@@ -4,10 +4,23 @@ import '../models/review.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/services/backend_auth_service.dart';
 
+/// Service quản lý đánh giá/nhận xét khách sạn
+/// 
+/// Chức năng:
+/// - Lấy danh sách đánh giá của user
+/// - Tạo đánh giá mới cho booking
+/// - Cập nhật đánh giá đã tạo
+/// - Xóa đánh giá
 class ReviewService {
   final Dio _dio = Dio(BaseOptions(baseUrl: AppConstants.baseUrl));
   final BackendAuthService _authService = BackendAuthService();
 
+  /// Lấy danh sách đánh giá của người dùng hiện tại
+  /// 
+  /// Yêu cầu đăng nhập (JWT token)
+  /// 
+  /// Trả về ApiResponse chứa danh sách Review
+  /// Trả về danh sách rỗng nếu không có đánh giá nào
   Future<ApiResponse<List<Review>>> getMyReviews() async {
     try {
       final token = await _authService.getToken();
@@ -57,6 +70,15 @@ class ReviewService {
     }
   }
 
+  /// Tạo đánh giá mới cho một booking
+  /// 
+  /// [bookingId] - ID của booking cần đánh giá (bắt buộc)
+  /// [rating] - Điểm đánh giá từ 1-5 (bắt buộc)
+  /// [content] - Nội dung đánh giá (bắt buộc)
+  /// 
+  /// Yêu cầu đăng nhập (JWT token)
+  /// 
+  /// Trả về ApiResponse với kết quả tạo đánh giá
   Future<ApiResponse<void>> createReview({
     required String bookingId,
     required int rating,
@@ -103,6 +125,15 @@ class ReviewService {
     }
   }
 
+  /// Cập nhật đánh giá đã tạo
+  /// 
+  /// [reviewId] - ID của đánh giá cần cập nhật (bắt buộc)
+  /// [rating] - Điểm đánh giá mới từ 1-5 (bắt buộc)
+  /// [content] - Nội dung đánh giá mới (bắt buộc)
+  /// 
+  /// Yêu cầu đăng nhập (JWT token)
+  /// 
+  /// Trả về ApiResponse với kết quả cập nhật
   Future<ApiResponse<void>> updateReview({
     required String reviewId,
     required int rating,
@@ -148,6 +179,13 @@ class ReviewService {
     }
   }
 
+  /// Xóa đánh giá
+  /// 
+  /// [reviewId] - ID của đánh giá cần xóa
+  /// 
+  /// Yêu cầu đăng nhập (JWT token)
+  /// 
+  /// Trả về ApiResponse với kết quả xóa
   Future<ApiResponse<void>> deleteReview(String reviewId) async {
     try {
       final token = await _authService.getToken();
@@ -185,6 +223,13 @@ class ReviewService {
     }
   }
 
+  /// Lấy thông tin chi tiết một đánh giá theo ID
+  /// 
+  /// [reviewId] - ID của đánh giá cần lấy
+  /// 
+  /// Yêu cầu đăng nhập (JWT token)
+  /// 
+  /// Trả về ApiResponse chứa Review
   Future<ApiResponse<Review>> getReview(String reviewId) async {
     try {
       final token = await _authService.getToken();

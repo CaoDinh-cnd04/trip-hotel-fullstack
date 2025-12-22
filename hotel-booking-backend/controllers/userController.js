@@ -645,15 +645,33 @@ const userController = {
   async updateProfile(req, res) {
     try {
       const userId = req.user.ma_nguoi_dung || req.user.id;
-      const { ho_ten, hoTen, sdt, diaChi, ngaySinh, gioiTinh } = req.body;
+      // Support multiple field name formats for backward compatibility
+      const { 
+        ho_ten, hoTen, name,  // Name fields
+        sdt, phone,           // Phone fields
+        diaChi, address,      // Address fields
+        ngaySinh, gioiTinh 
+      } = req.body;
       
-      // Support both ho_ten and hoTen
-      const tenToUpdate = ho_ten || hoTen;
+      // Support both ho_ten/hoTen and name
+      const tenToUpdate = ho_ten || hoTen || name;
+      // Support both sdt and phone
+      const phoneToUpdate = sdt !== undefined ? sdt : phone;
+      // Support both diaChi and address
+      const addressToUpdate = diaChi !== undefined ? diaChi : address;
       
       if (!userId) {
         return res.status(401).json({
           success: false,
           message: 'Chưa đăng nhập'
+        });
+      }
+      
+      // Validation: name là bắt buộc nếu được gửi
+      if (tenToUpdate !== undefined && (!tenToUpdate || tenToUpdate.trim().length === 0)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Họ và tên không được để trống'
         });
       }
       
@@ -665,12 +683,18 @@ const userController = {
       
       if (tenToUpdate) {
         updates.push('ho_ten = @hoTen');
-        request.input('hoTen', sql.NVarChar, tenToUpdate);
+        request.input('hoTen', sql.NVarChar(255), tenToUpdate.trim());
       }
-      if (sdt !== undefined) {
+      if (phoneToUpdate !== undefined) {
         updates.push('sdt = @sdt');
-        request.input('sdt', sql.NVarChar, sdt);
+        request.input('sdt', sql.NVarChar(50), phoneToUpdate && phoneToUpdate.trim().length > 0 ? phoneToUpdate.trim() : null);
       }
+      // ⚠️ LƯU Ý: Bảng nguoi_dung không có cột dia_chi
+      // Nếu cần lưu địa chỉ, có thể lưu vào bảng ho_so hoặc bỏ qua
+      // if (addressToUpdate !== undefined) {
+      //   updates.push('dia_chi = @diaChi');
+      //   request.input('diaChi', sql.NVarChar(500), addressToUpdate && addressToUpdate.trim().length > 0 ? addressToUpdate.trim() : null);
+      // }
       if (ngaySinh !== undefined) {
         updates.push('ngay_sinh = @ngaySinh');
         request.input('ngaySinh', sql.Date, ngaySinh);
@@ -687,18 +711,38 @@ const userController = {
         });
       }
       
+      // Add updated_at to updates
+      updates.push('updated_at = GETDATE()');
+      
       const query = `
         UPDATE nguoi_dung 
         SET ${updates.join(', ')}
+        WHERE id = @userId
+        
+        SELECT 
+          id,
+          ho_ten,
+          email,
+          sdt,
+          updated_at
+        FROM nguoi_dung 
         WHERE id = @userId
       `;
       
       const result = await request.query(query);
       
-      if (result.rowsAffected[0] > 0) {
+      if (result.recordset.length > 0) {
+        const updatedUser = result.recordset[0];
         res.json({
           success: true,
-          message: 'Đã cập nhật profile thành công'
+          message: 'Cập nhật thông tin thành công',
+          data: {
+            id: updatedUser.id,
+            name: updatedUser.ho_ten || '',
+            email: updatedUser.email,
+            phone: updatedUser.sdt,
+            updatedAt: updatedUser.updated_at
+          }
         });
       } else {
         res.status(404).json({

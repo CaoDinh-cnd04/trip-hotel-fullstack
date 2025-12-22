@@ -2,6 +2,14 @@ import 'package:json_annotation/json_annotation.dart';
 
 part 'image_model.g.dart';
 
+/// Model đại diện cho hình ảnh trong hệ thống
+/// 
+/// Chứa thông tin:
+/// - File: fileName, originalName, filePath, url, mimeType, fileSize, width, height
+/// - Metadata: description, altText, category, entityId, entityType
+/// - Trạng thái: isActive
+/// - Thời gian: createdAt, updatedAt
+/// - Người upload: uploadedBy
 @JsonSerializable()
 class ImageModel {
   final String id;
@@ -44,11 +52,25 @@ class ImageModel {
     this.uploadedBy,
   });
 
+  /// Tạo đối tượng ImageModel từ JSON
+  /// 
+  /// [json] - Map chứa dữ liệu JSON từ API
+  /// 
+  /// Sử dụng code generation từ json_annotation
   factory ImageModel.fromJson(Map<String, dynamic> json) =>
       _$ImageModelFromJson(json);
 
+  /// Chuyển đổi đối tượng ImageModel sang JSON
+  /// 
+  /// Trả về Map chứa tất cả các trường dưới dạng JSON
+  /// Sử dụng code generation từ json_annotation
   Map<String, dynamic> toJson() => _$ImageModelToJson(this);
 
+  /// Tạo bản sao của ImageModel với các trường được cập nhật
+  /// 
+  /// Cho phép cập nhật từng trường riêng lẻ mà không cần tạo mới toàn bộ object
+  /// 
+  /// Tất cả các tham số đều tùy chọn, nếu không cung cấp sẽ giữ nguyên giá trị cũ
   ImageModel copyWith({
     String? id,
     String? fileName,
@@ -91,7 +113,9 @@ class ImageModel {
     );
   }
 
-  // Helper methods
+  /// Lấy kích thước file đã được format (B/KB/MB)
+  /// 
+  /// Ví dụ: 1024 -> "1.0 KB", 1048576 -> "1.0 MB"
   String get formattedFileSize {
     if (fileSize < 1024) {
       return '${fileSize} B';
@@ -102,8 +126,14 @@ class ImageModel {
     }
   }
 
+  /// Lấy kích thước hình ảnh đã được format (width x height)
+  /// 
+  /// Ví dụ: 1920x1080 -> "1920x1080"
   String get formattedDimensions => '${width}x${height}';
 
+  /// Lấy tên hiển thị của category bằng tiếng Việt
+  /// 
+  /// Trả về: "Ảnh đại diện", "Ảnh phòng", "Ảnh khách sạn", "Ảnh đặt phòng", v.v.
   String get categoryDisplayName {
     switch (category.toLowerCase()) {
       case 'avatar':
@@ -125,6 +155,9 @@ class ImageModel {
     }
   }
 
+  /// Lấy tên hiển thị của entity type bằng tiếng Việt
+  /// 
+  /// Trả về: "Người dùng", "Phòng", "Khách sạn", "Đặt phòng", v.v.
   String get entityTypeDisplayName {
     switch (entityType.toLowerCase()) {
       case 'user':

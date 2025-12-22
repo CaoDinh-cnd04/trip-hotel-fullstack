@@ -72,7 +72,8 @@ class NguoiDung extends BaseModel {
         gioi_tinh: userData.gioi_tinh || 'Khác',
         chuc_vu: userData.chuc_vu || 'User',
         anh_dai_dien: userData.anh_dai_dien || '/images/users/default.jpg',
-        trang_thai: 1
+        trang_thai: 1,
+        nhan_thong_bao_email: userData.nhan_thong_bao_email !== undefined ? (userData.nhan_thong_bao_email ? 1 : 0) : 1 // Default to enabled
       };
       
       // Only add ngay_sinh if it's provided
@@ -174,18 +175,48 @@ class NguoiDung extends BaseModel {
     const query = `
       SELECT 
         COUNT(*) as tong_so_nguoi_dung,
-        SUM(CASE WHEN trang_thai = 1 THEN 1 ELSE 0 END) as dang_hoat_dong,
-        SUM(CASE WHEN chuc_vu = 'Admin' THEN 1 ELSE 0 END) as admin,
-        SUM(CASE WHEN chuc_vu = 'HotelManager' THEN 1 ELSE 0 END) as quan_ly_khach_san,
-        SUM(CASE WHEN chuc_vu = 'User' THEN 1 ELSE 0 END) as khach_hang,
+        SUM(CASE WHEN trang_thai = CAST(1 AS BIT) THEN 1 ELSE 0 END) as dang_hoat_dong,
+        SUM(CASE WHEN chuc_vu = N'Admin' THEN 1 ELSE 0 END) as admin,
+        SUM(CASE WHEN chuc_vu = N'HotelManager' THEN 1 ELSE 0 END) as quan_ly_khach_san,
+        SUM(CASE WHEN chuc_vu = N'User' THEN 1 ELSE 0 END) as khach_hang,
         SUM(CASE WHEN last_login >= DATEADD(day, -30, GETDATE()) THEN 1 ELSE 0 END) as hoat_dong_30_ngay
       FROM ${this.tableName}
     `;
     
     try {
       const result = await this.executeQuery(query);
-      return result.recordset[0];
+      return result.recordset[0] || {};
     } catch (error) {
+      throw error;
+    }
+  }
+
+  // Get personal stats for a specific user
+  async getMyStats(userId) {
+    const query = `
+      SELECT 
+        COALESCE(SUM(CASE WHEN pdp.trang_thai = N'Đã xác nhận' THEN 1 ELSE 0 END), 0) as totalBookings,
+        COALESCE(COUNT(DISTINCT yth.ma_khach_san), 0) as favoriteHotels,
+        COALESCE(SUM(CASE WHEN pdp.trang_thai = N'Đã xác nhận' THEN pdp.tong_tien ELSE 0 END), 0) as totalSpent,
+        COALESCE(nd.diem_tich_luy, 0) as points
+      FROM nguoi_dung nd
+      LEFT JOIN phieu_dat_phong pdp ON nd.id = pdp.ma_nguoi_dung
+      LEFT JOIN yeu_thich_khach_san yth ON nd.id = yth.ma_nguoi_dung
+      WHERE nd.id = @userId
+      GROUP BY nd.id, nd.diem_tich_luy
+    `;
+    
+    try {
+      const result = await this.executeQuery(query, { userId });
+      const stats = result.recordset[0] || {
+        totalBookings: 0,
+        favoriteHotels: 0,
+        totalSpent: 0,
+        points: 0
+      };
+      return stats;
+    } catch (error) {
+      console.error('Get my stats error:', error);
       throw error;
     }
   }
@@ -271,6 +302,7 @@ class NguoiDung extends BaseModel {
       // Prepare user data for Facebook registration
       const newUser = {
         ho_ten: userData.ho_ten,
+        nhan_thong_bao_email: userData.nhan_thong_bao_email !== undefined ? (userData.nhan_thong_bao_email ? 1 : 0) : 1, // Default to enabled
         email: userData.email,
         facebook_id: userData.facebook_id,
         hinh_anh: userData.hinh_anh,
@@ -333,6 +365,7 @@ class NguoiDung extends BaseModel {
         anh_dai_dien: userData.anh_dai_dien,
         chuc_vu: userData.chuc_vu || 'User',
         trang_thai: userData.trang_thai || 1,
+        nhan_thong_bao_email: userData.nhan_thong_bao_email !== undefined ? (userData.nhan_thong_bao_email ? 1 : 0) : 1, // Default to enabled
         ngay_dang_ky: new Date(),
         created_at: new Date()
       };
@@ -448,13 +481,13 @@ class NguoiDung extends BaseModel {
       const query = `
         SELECT 
           COUNT(*) as totalUsers,
-          SUM(CASE WHEN trang_thai = 1 THEN 1 ELSE 0 END) as activeUsers,
-          SUM(CASE WHEN ngay_dang_ky >= DATEADD(month, -1, GETDATE()) THEN 1 ELSE 0 END) as newUsersThisMonth
+          SUM(CASE WHEN trang_thai = CAST(1 AS BIT) THEN 1 ELSE 0 END) as activeUsers,
+          SUM(CASE WHEN COALESCE(created_at, ngay_dang_ky, GETDATE()) >= DATEADD(month, -1, GETDATE()) THEN 1 ELSE 0 END) as newUsersThisMonth
         FROM ${this.tableName}
       `;
       
       const result = await this.executeQuery(query);
-      const stats = result.recordset[0];
+      const stats = result.recordset[0] || {};
       
       // Get role distribution
       const roleQuery = `
@@ -469,13 +502,16 @@ class NguoiDung extends BaseModel {
       const roleResult = await this.executeQuery(roleQuery);
       const roleDistribution = roleResult.recordset.map(row => ({
         role: row.chuc_vu,
-        count: row.count
+        count: parseInt(row.count) || 0
       }));
       
+      // Convert SQL Server types to JavaScript numbers
       return {
-        ...stats,
+        totalUsers: parseInt(stats.totalUsers) || 0,
+        activeUsers: parseInt(stats.activeUsers) || 0,
+        newUsersThisMonth: parseInt(stats.newUsersThisMonth) || 0,
         roleDistribution,
-        monthlyGrowth: Math.random() * 20 // Placeholder
+        monthlyGrowth: 0 // Placeholder - can be calculated later
       };
     } catch (error) {
       console.error('Get user stats error:', error);
@@ -513,4 +549,4 @@ class NguoiDung extends BaseModel {
   }
 }
 
-module.exports = new NguoiDung();
+module.exports = NguoiDung;

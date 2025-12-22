@@ -1,3 +1,12 @@
+/// Model đại diện cho voucher/mã giảm giá
+/// 
+/// Chứa thông tin:
+/// - Thông tin cơ bản: maGiamGia, tenMaGiamGia, moTa
+/// - Loại giảm giá: loaiGiam (phan_tram hoặc tien_mat), giaTriGiam, giamToiDa
+/// - Điều kiện: giaTriDonHangToiThieu, soLuongGioiHan, soLuongConLai, gioiHanSuDungMoiNguoi
+/// - Thời gian: ngayBatDau, ngayKetThuc
+/// - Trạng thái: trangThai, maNguoiDung (null = public voucher)
+/// - Theo dõi sử dụng: soLanDaSuDungCuaToi
 class DiscountVoucher {
   final int? id;
   final String maGiamGia;
@@ -39,6 +48,12 @@ class DiscountVoucher {
     this.soLanDaSuDungCuaToi,
   });
 
+  /// Tạo đối tượng DiscountVoucher từ JSON
+  /// 
+  /// [json] - Map chứa dữ liệu JSON từ API
+  /// 
+  /// Parse các trường từ snake_case sang camelCase
+  /// Xử lý parse DateTime và boolean
   factory DiscountVoucher.fromJson(Map<String, dynamic> json) {
     return DiscountVoucher(
       id: json['id'],
@@ -66,6 +81,9 @@ class DiscountVoucher {
     );
   }
 
+  /// Chuyển đổi đối tượng DiscountVoucher sang JSON
+  /// 
+  /// Trả về Map chứa tất cả các trường dưới dạng JSON (snake_case)
   Map<String, dynamic> toJson() {
     return {
       'id': id,
@@ -88,7 +106,12 @@ class DiscountVoucher {
     };
   }
 
-  // Check if voucher is currently valid
+  /// Kiểm tra xem voucher có hợp lệ để sử dụng không
+  /// 
+  /// Trả về true nếu:
+  /// - trangThai = true
+  /// - Thời gian hiện tại nằm trong khoảng ngayBatDau và ngayKetThuc
+  /// - soLuongConLai > 0
   bool get isValid {
     if (!trangThai) return false;
 
@@ -98,22 +121,30 @@ class DiscountVoucher {
         soLuongConLai > 0;
   }
 
-  // Check if voucher is active (not expired but might not be started)
+  /// Kiểm tra xem voucher có đang active không (chưa hết số lượt)
+  /// 
+  /// Trả về true nếu trangThai = true và soLuongConLai > 0
   bool get isActive {
     return trangThai && soLuongConLai > 0;
   }
 
-  // Check if voucher has started
+  /// Kiểm tra xem voucher đã bắt đầu chưa
+  /// 
+  /// Trả về true nếu thời gian hiện tại đã qua ngayBatDau
   bool get hasStarted {
     return DateTime.now().isAfter(ngayBatDau);
   }
 
-  // Check if voucher has expired
+  /// Kiểm tra xem voucher đã hết hạn chưa
+  /// 
+  /// Trả về true nếu thời gian hiện tại đã qua ngayKetThuc
   bool get hasExpired {
     return DateTime.now().isAfter(ngayKetThuc);
   }
 
-  // Get discount description text
+  /// Lấy mô tả giảm giá dưới dạng text
+  /// 
+  /// Ví dụ: "Giảm 20% (tối đa 100.000đ)" hoặc "Giảm 50.000đ"
   String get discountDescription {
     if (loaiGiam == 'phan_tram') {
       String desc = 'Giảm ${(giaTriGiam * 100).toInt()}%';
@@ -126,7 +157,10 @@ class DiscountVoucher {
     }
   }
 
-  // Get minimum order description
+  /// Lấy mô tả giá trị đơn hàng tối thiểu
+  /// 
+  /// Trả về chuỗi mô tả hoặc null nếu không có điều kiện tối thiểu
+  /// Ví dụ: "Đơn hàng từ 500.000đ"
   String? get minimumOrderDescription {
     if (giaTriDonHangToiThieu != null) {
       return 'Đơn hàng từ ${giaTriDonHangToiThieu!.toStringAsFixed(0)}đ';
@@ -134,7 +168,15 @@ class DiscountVoucher {
     return null;
   }
 
-  // Calculate discount amount for a given order value
+  /// Tính số tiền được giảm cho một đơn hàng
+  /// 
+  /// [orderValue] - Giá trị đơn hàng
+  /// 
+  /// Trả về số tiền được giảm dựa trên loaiGiam:
+  /// - phan_tram: orderValue * (giaTriGiam / 100), tối đa giamToiDa (nếu có)
+  /// - tien_mat: giaTriGiam
+  /// 
+  /// Trả về 0 nếu voucher không hợp lệ hoặc orderValue < giaTriDonHangToiThieu
   double calculateDiscountAmount(double orderValue) {
     if (!isValid ||
         (giaTriDonHangToiThieu != null &&
@@ -155,7 +197,13 @@ class DiscountVoucher {
     return discount;
   }
 
-  // Check if user can use this voucher (considering usage limits)
+  /// Kiểm tra xem user có thể sử dụng voucher này không (tính đến giới hạn sử dụng)
+  /// 
+  /// [currentUserUsage] - Số lần user đã sử dụng voucher này (tùy chọn)
+  /// 
+  /// Trả về true nếu:
+  /// - Voucher hợp lệ (isValid)
+  /// - currentUserUsage < gioiHanSuDungMoiNguoi (nếu có giới hạn)
   bool canUserUse({int? currentUserUsage}) {
     if (!isValid) return false;
 
@@ -166,13 +214,17 @@ class DiscountVoucher {
     return true;
   }
 
-  // Get remaining days until expiry
+  /// Tính số ngày còn lại cho đến khi hết hạn
+  /// 
+  /// Trả về số ngày còn lại, hoặc 0 nếu đã hết hạn
   int get remainingDays {
     if (hasExpired) return 0;
     return ngayKetThuc.difference(DateTime.now()).inDays;
   }
 
-  // Get status text for UI display
+  /// Lấy text hiển thị trạng thái voucher cho UI
+  /// 
+  /// Trả về: "Đã vô hiệu hóa", "Chưa bắt đầu", "Đã hết hạn", "Đã hết lượt", "Sắp hết hạn", hoặc "Có thể sử dụng"
   String get statusText {
     if (!trangThai) return 'Đã vô hiệu hóa';
     if (!hasStarted) return 'Chưa bắt đầu';
@@ -182,6 +234,11 @@ class DiscountVoucher {
     return 'Có thể sử dụng';
   }
 
+  /// Tạo bản sao của DiscountVoucher với các trường được cập nhật
+  /// 
+  /// Cho phép cập nhật từng trường riêng lẻ mà không cần tạo mới toàn bộ object
+  /// 
+  /// Tất cả các tham số đều tùy chọn, nếu không cung cấp sẽ giữ nguyên giá trị cũ
   DiscountVoucher copyWith({
     int? id,
     String? maGiamGia,

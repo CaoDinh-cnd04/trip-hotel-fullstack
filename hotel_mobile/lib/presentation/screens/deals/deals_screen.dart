@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:hotel_mobile/data/models/promotion.dart';
 import 'package:hotel_mobile/data/services/api_service.dart';
 import 'package:hotel_mobile/data/services/promotion_notification_service.dart';
+import 'package:hotel_mobile/data/services/applied_promotion_service.dart';
 import 'package:hotel_mobile/presentation/widgets/deals_header.dart';
 import 'package:hotel_mobile/presentation/widgets/personal_offers_card.dart';
 import 'package:hotel_mobile/presentation/widgets/deals_tab_bar.dart';
@@ -70,20 +71,58 @@ class _DealsScreenState extends State<DealsScreen>
         _error = null;
       });
 
-      // Tăng limit lên 50 để lấy hết tất cả khuyến mãi
-      final response = await _apiService.getPromotions(active: true, limit: 50);
+      // Lấy tất cả khuyến mãi - không giới hạn limit, lấy tất cả từ backend
+      // Backend có 11 promotions, cần lấy hết
+      final response = await _apiService.getPromotions(active: true, limit: 100, page: 1);
 
       print('🎁 Promotions API Response:');
       print('   Success: ${response.success}');
       print('   Data count: ${response.data?.length ?? 0}');
       print('   Message: ${response.message}');
+      
+      if (response.data != null && response.data!.isNotEmpty) {
+        print('   📋 Sample promotion: ${response.data![0].ten}');
+      }
 
       if (response.success) {
+        final allPromotions = response.data ?? [];
+        print('   ✅ All promotions loaded: ${allPromotions.length}');
+        
+        // Loại bỏ trùng lặp dựa trên ID (ưu tiên) hoặc tên + phần trăm giảm
+        final uniquePromotions = <int, Promotion>{};
+        final seenNames = <String>{};
+        
+        for (var promotion in allPromotions) {
+          // Ưu tiên loại bỏ trùng lặp theo ID
+          if (promotion.id != null) {
+            if (!uniquePromotions.containsKey(promotion.id)) {
+              uniquePromotions[promotion.id!] = promotion;
+            }
+          } else {
+            // Nếu không có ID, loại bỏ trùng lặp theo tên + phần trăm giảm
+            final key = '${promotion.ten ?? ""}_${promotion.phanTramGiam}';
+            if (!seenNames.contains(key)) {
+              seenNames.add(key);
+              // Tạo ID tạm thời để lưu vào map
+              final tempId = uniquePromotions.length + 10000;
+              uniquePromotions[tempId] = promotion;
+            }
+          }
+        }
+        
+        final deduplicatedPromotions = uniquePromotions.values.toList();
+        print('   🔍 After deduplication: ${deduplicatedPromotions.length} unique promotions (from ${allPromotions.length} total)');
+        
+        // Log các promotion trùng lặp đã bị loại bỏ (nếu có)
+        if (deduplicatedPromotions.length < allPromotions.length) {
+          print('   ⚠️ Removed ${allPromotions.length - deduplicatedPromotions.length} duplicate promotions');
+        }
+        
         setState(() {
-          _allPromotions = response.data ?? [];
-          print('   ✅ All promotions loaded: ${_allPromotions.length}');
+          _allPromotions = deduplicatedPromotions;
           _filterPromotions();
           print('   ✅ Filtered promotions: ${_filteredPromotions.length}');
+          print('   📋 Filtered promotion titles: ${_filteredPromotions.map((p) => p.ten).toList()}');
           _isLoading = false;
         });
       } else {
@@ -179,34 +218,83 @@ class _DealsScreenState extends State<DealsScreen>
     final now = DateTime.now();
 
     setState(() {
+      List<Promotion> filtered = [];
+      
       switch (_selectedTabIndex) {
         case 0: // Giờ chót
-          _filteredPromotions = _allPromotions.where((promotion) {
+          filtered = _allPromotions.where((promotion) {
+            if (!promotion.trangThai) return false;
+            
             // Filter for promotions ending within 48 hours
             final hoursLeft = promotion.ngayKetThuc.difference(now).inHours;
-            return hoursLeft <= 48 && hoursLeft > 0 && promotion.isActive;
+            // Cho phép promotions đang hoạt động và sắp kết thúc
+            final isCurrentlyActive = promotion.ngayBatDau.isBefore(now) && promotion.ngayKetThuc.isAfter(now);
+            return hoursLeft <= 48 && hoursLeft > 0 && isCurrentlyActive;
           }).toList();
           break;
         case 1: // Gần tôi
-          _filteredPromotions = _allPromotions.where((promotion) {
-            // Show all active promotions (in real app, filter by location)
-            return promotion.isActive && promotion.ngayKetThuc.isAfter(now);
+          filtered = _allPromotions.where((promotion) {
+            // Show all promotions còn hiệu lực (endDate >= today)
+            if (!promotion.trangThai) return false;
+            
+            // So sánh ngày kết thúc với hôm nay (không tính giờ)
+            final today = DateTime(now.year, now.month, now.day);
+            final endDateOnly = DateTime(
+              promotion.ngayKetThuc.year,
+              promotion.ngayKetThuc.month,
+              promotion.ngayKetThuc.day,
+            );
+            
+            // Promotion còn hiệu lực nếu endDate >= today
+            return endDateOnly.isAfter(today) || endDateOnly.isAtSameMomentAs(today);
           }).toList();
           break;
         case 2: // Theo điểm đến
-          _filteredPromotions = _allPromotions.where((promotion) {
-            // Show all active promotions with any discount
-            return promotion.isActive && promotion.phanTramGiam > 0;
+          filtered = _allPromotions.where((promotion) {
+            if (!promotion.trangThai || promotion.phanTramGiam <= 0) return false;
+            
+            // Show all promotions with any discount còn hiệu lực (endDate >= today)
+            final today = DateTime(now.year, now.month, now.day);
+            final endDateOnly = DateTime(
+              promotion.ngayKetThuc.year,
+              promotion.ngayKetThuc.month,
+              promotion.ngayKetThuc.day,
+            );
+            
+            // Promotion còn hiệu lực nếu endDate >= today
+            return endDateOnly.isAfter(today) || endDateOnly.isAtSameMomentAs(today);
           }).toList();
           break;
         default:
-          _filteredPromotions = _allPromotions.where((p) => p.isActive).toList();
+          filtered = _allPromotions.where((p) {
+            if (!p.trangThai) return false;
+            
+            // Promotion còn hiệu lực nếu endDate >= today
+            final today = DateTime(now.year, now.month, now.day);
+            final endDateOnly = DateTime(
+              p.ngayKetThuc.year,
+              p.ngayKetThuc.month,
+              p.ngayKetThuc.day,
+            );
+            
+            return endDateOnly.isAfter(today) || endDateOnly.isAtSameMomentAs(today);
+          }).toList();
+      }
+
+      print('🔍 Filtering promotions:');
+      print('   Total promotions: ${_allPromotions.length}');
+      print('   Selected tab: $_selectedTabIndex');
+      print('   Filtered count: ${filtered.length}');
+      if (filtered.isNotEmpty) {
+        print('   Sample filtered: ${filtered[0].ten} (${filtered[0].phanTramGiam}%)');
       }
 
       // Sort by discount percentage (highest first)
-      _filteredPromotions.sort(
+      filtered.sort(
         (a, b) => b.phanTramGiam.compareTo(a.phanTramGiam),
       );
+
+      _filteredPromotions = filtered;
     });
   }
 
@@ -239,7 +327,7 @@ class _DealsScreenState extends State<DealsScreen>
         child: Column(
           children: [
             // Compact Header
-            const DealsHeader(),
+            DealsHeader(promotions: _allPromotions),
 
             // Scrollable Content
             Expanded(
@@ -436,12 +524,13 @@ class _DealsScreenState extends State<DealsScreen>
         PromoCarousel(
           promotions: _filteredPromotions,
           onPromotionTap: _handlePromotionTap,
+          onPromotionApply: _applyPromotionDirectly,
         ),
         
         const SizedBox(height: 24),
         
-        // All Promotions List
-        if (_filteredPromotions.length > 3) ...[
+        // All Promotions List - Hiển thị tất cả promotions, không chỉ khi > 3
+        if (_filteredPromotions.isNotEmpty) ...[
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Row(
@@ -464,17 +553,19 @@ class _DealsScreenState extends State<DealsScreen>
             ),
           ),
           const SizedBox(height: 16),
+          // Hiển thị tất cả promotions trong list (không chỉ trong carousel)
           ...List.generate(
             _filteredPromotions.length,
             (index) {
               final promotion = _filteredPromotions[index];
               return Padding(
                 padding: const EdgeInsets.only(left: 16, right: 16, bottom: 16),
-                child: PromotionCard(
-                  promotion: promotion,
-                  timeLeft: _getTimeLeft(promotion.ngayKetThuc),
-                  onTap: () => _handlePromotionTap(promotion),
-                ),
+                child:                   PromotionCard(
+                    promotion: promotion,
+                    timeLeft: _getTimeLeft(promotion.ngayKetThuc),
+                    onTap: () => _handlePromotionTap(promotion),
+                    onApply: () => _applyPromotionDirectly(promotion),
+                  ),
               );
             },
           ),
@@ -485,8 +576,52 @@ class _DealsScreenState extends State<DealsScreen>
     );
   }
 
+  /// Áp dụng promotion trực tiếp (không navigate)
+  Future<void> _applyPromotionDirectly(Promotion promotion) async {
+    // Áp dụng promotion vào service
+    final appliedPromotionService = AppliedPromotionService();
+    appliedPromotionService.applyPromotion(promotion, hotelId: promotion.khachSanId);
+    
+    // Show success message
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              const Icon(Icons.check_circle, color: Colors.white),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'Đã áp dụng ưu đãi: ${promotion.ten} (Giảm ${promotion.phanTramGiam.toStringAsFixed(0)}%)',
+                  style: const TextStyle(fontSize: 14),
+                ),
+              ),
+            ],
+          ),
+          backgroundColor: Colors.green,
+          duration: const Duration(seconds: 3),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+          action: SnackBarAction(
+            label: 'Xem khách sạn',
+            textColor: Colors.white,
+            onPressed: () {
+              _handlePromotionTap(promotion);
+            },
+          ),
+        ),
+      );
+    }
+  }
+
   /// Áp dụng promotion và chuyển sang màn hình khách sạn
   Future<void> _applyPromotion(Promotion promotion) async {
+    // Áp dụng promotion vào service
+    final appliedPromotionService = AppliedPromotionService();
+    appliedPromotionService.applyPromotion(promotion, hotelId: promotion.khachSanId);
+    
     // Nếu có khachSanId, fetch hotel details và navigate
     if (promotion.khachSanId != null) {
       try {
@@ -524,9 +659,9 @@ class _DealsScreenState extends State<DealsScreen>
             // Show success message
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text('Đã áp dụng ưu đãi ${promotion.ten}'),
+                content: Text('Đã áp dụng ưu đãi ${promotion.ten} - Giảm ${promotion.phanTramGiam.toInt()}%'),
                 backgroundColor: Colors.green,
-                duration: const Duration(seconds: 2),
+                duration: const Duration(seconds: 3),
               ),
             );
           } else {
@@ -562,17 +697,18 @@ class _DealsScreenState extends State<DealsScreen>
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Đã áp dụng ưu đãi ${promotion.ten}'),
+          content: Text('Đã áp dụng ưu đãi ${promotion.ten} - Giảm ${promotion.phanTramGiam.toInt()}%'),
           backgroundColor: Colors.green,
-          duration: const Duration(seconds: 2),
+          duration: const Duration(seconds: 3),
         ),
       );
     } else {
       // Nếu không có location, chỉ show message
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Đã áp dụng ưu đãi ${promotion.ten}'),
+          content: Text('Đã áp dụng ưu đãi ${promotion.ten} - Giảm ${promotion.phanTramGiam.toInt()}%'),
           backgroundColor: Colors.green,
+          duration: const Duration(seconds: 3),
         ),
       );
     }

@@ -91,7 +91,7 @@ class HotelInfoCard extends StatelessWidget {
                         child:
                             hotel.hinhAnh != null && hotel.hinhAnh!.isNotEmpty
                             ? Image.network(
-                                hotel.hinhAnh!,
+                                hotel.fullImageUrl,
                                 width: 80,
                                 height: 60,
                                 fit: BoxFit.cover,

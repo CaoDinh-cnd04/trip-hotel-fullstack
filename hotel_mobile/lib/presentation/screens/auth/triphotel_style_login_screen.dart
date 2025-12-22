@@ -5,7 +5,7 @@ import 'otp_screen.dart';
 import '../../../data/services/backend_auth_service.dart';
 import '../../../data/services/otp_auth_service.dart';
 
-/// Màn hình đăng nhập theo phong cách Agoda
+/// Màn hình đăng nhập theo phong cách TripHotel
 /// 
 /// Cung cấp 3 phương thức đăng nhập:
 /// 1. **Email + OTP** - Đăng nhập/đăng ký bằng email, nhận mã OTP qua email
@@ -16,14 +16,14 @@ import '../../../data/services/otp_auth_service.dart';
 /// - UI hiện đại, clean với background trắng
 /// - Social login buttons với màu brand
 /// - Hỗ trợ WillPopScope để xử lý nút back
-class AgodaStyleLoginScreen extends StatefulWidget {
-  const AgodaStyleLoginScreen({super.key});
+class TriphotelStyleLoginScreen extends StatefulWidget {
+  const TriphotelStyleLoginScreen({super.key});
 
   @override
-  State<AgodaStyleLoginScreen> createState() => _AgodaStyleLoginScreenState();
+  State<TriphotelStyleLoginScreen> createState() => _TriphotelStyleLoginScreenState();
 }
 
-class _AgodaStyleLoginScreenState extends State<AgodaStyleLoginScreen> {
+class _TriphotelStyleLoginScreenState extends State<TriphotelStyleLoginScreen> {
   /// Controller cho trường nhập email
   final _emailController = TextEditingController();
   
@@ -493,3 +493,4 @@ class _AgodaStyleLoginScreenState extends State<AgodaStyleLoginScreen> {
     );
   }
 }
+

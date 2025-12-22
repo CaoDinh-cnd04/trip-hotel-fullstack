@@ -3,7 +3,7 @@ import 'admin_dashboard_screen.dart';
 import 'user_management_screen.dart';
 import 'hotel_registration_management_screen.dart';
 import 'feedback_management_screen.dart';
-import '../auth/agoda_style_login_screen.dart';
+import '../auth/triphotel_style_login_screen.dart';
 import '../../../data/services/auth_service.dart';
 import '../../../data/services/backend_auth_service.dart';
 
@@ -88,7 +88,7 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
       
       if (mounted) {
         Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (context) => const AgodaStyleLoginScreen()),
+          MaterialPageRoute(builder: (context) => const TriphotelStyleLoginScreen()),
           (route) => false,
         );
       }

@@ -294,8 +294,16 @@ class OTPAuthService {
     }
   }
 
-  /// Update Firestore user profile with backend user info
-  /// Creates a mapping between backend user ID and Firebase UID
+  /// Cập nhật profile user trong Firestore với thông tin từ backend
+  /// 
+  /// Tạo mapping giữa backend user ID và Firebase UID
+  /// 
+  /// [user] - Đối tượng User từ backend
+  /// [userRole] - Vai trò của user
+  /// 
+  /// Lưu thông tin vào:
+  /// - Collection 'users' với Firebase UID
+  /// - Collection 'user_mapping' với backend ID
   Future<void> _updateFirestoreUserProfile(User user, UserRoleModel userRole) async {
     try {
       final firebaseAuth = firebase_auth.FirebaseAuth.instance;

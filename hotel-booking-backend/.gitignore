@@ -162,3 +162,6 @@ uploads/*
 # Backup files
 *.bak
 *.backup
+
+# Firebase service account keys (sensitive)
+config/*firebase-adminsdk*.json

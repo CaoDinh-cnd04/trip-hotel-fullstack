@@ -8,80 +8,46 @@ part of 'notification_model.dart';
 
 NotificationModel _$NotificationModelFromJson(Map<String, dynamic> json) =>
     NotificationModel(
-      id: json['id'] as String,
-      type: json['type'] as String,
-      title: json['title'] as String,
-      message: json['message'] as String,
-      recipientEmail: json['recipientEmail'] as String,
-      recipientName: json['recipientName'] as String,
-      bookingId: json['bookingId'] as String?,
-      status: json['status'] as String,
-      createdAt: DateTime.parse(json['createdAt'] as String),
-      sentAt: json['sentAt'] == null
+      id: json['id'] as int,
+      tieuDe: json['tieuDe'] as String,
+      noiDung: json['noiDung'] as String,
+      loaiThongBao: json['loaiThongBao'] as String,
+      urlHinhAnh: json['urlHinhAnh'] as String?,
+      urlHanhDong: json['urlHanhDong'] as String?,
+      vanBanNut: json['vanBanNut'] as String?,
+      khachSanId: json['khachSanId'] as int?,
+      ngayHetHan: json['ngayHetHan'] == null
           ? null
-          : DateTime.parse(json['sentAt'] as String),
-      errorMessage: json['errorMessage'] as String?,
-      metadata: json['metadata'] as Map<String, dynamic>?,
+          : DateTime.parse(json['ngayHetHan'] as String),
+      hienThi: json['hienThi'] as bool,
+      doiTuongNhan: json['doiTuongNhan'] as String,
+      nguoiDungId: json['nguoiDungId'] as int?,
+      guiEmail: json['guiEmail'] as bool,
+      nguoiTaoId: json['nguoiTaoId'] as int,
+      ngayTao: DateTime.parse(json['ngayTao'] as String),
+      ngayCapNhat: json['ngayCapNhat'] == null
+          ? null
+          : DateTime.parse(json['ngayCapNhat'] as String),
+      daDoc: json['daDoc'] as bool? ?? false,
     );
 
 Map<String, dynamic> _$NotificationModelToJson(NotificationModel instance) =>
     <String, dynamic>{
       'id': instance.id,
-      'type': instance.type,
-      'title': instance.title,
-      'message': instance.message,
-      'recipientEmail': instance.recipientEmail,
-      'recipientName': instance.recipientName,
-      'bookingId': instance.bookingId,
-      'status': instance.status,
-      'createdAt': instance.createdAt.toIso8601String(),
-      'sentAt': instance.sentAt?.toIso8601String(),
-      'errorMessage': instance.errorMessage,
-      'metadata': instance.metadata,
+      'tieuDe': instance.tieuDe,
+      'noiDung': instance.noiDung,
+      'loaiThongBao': instance.loaiThongBao,
+      'urlHinhAnh': instance.urlHinhAnh,
+      'urlHanhDong': instance.urlHanhDong,
+      'vanBanNut': instance.vanBanNut,
+      'khachSanId': instance.khachSanId,
+      'ngayHetHan': instance.ngayHetHan?.toIso8601String(),
+      'hienThi': instance.hienThi,
+      'doiTuongNhan': instance.doiTuongNhan,
+      'nguoiDungId': instance.nguoiDungId,
+      'guiEmail': instance.guiEmail,
+      'nguoiTaoId': instance.nguoiTaoId,
+      'ngayTao': instance.ngayTao.toIso8601String(),
+      'ngayCapNhat': instance.ngayCapNhat?.toIso8601String(),
+      'daDoc': instance.daDoc,
     };
-
-EmailNotificationRequest _$EmailNotificationRequestFromJson(
-  Map<String, dynamic> json,
-) => EmailNotificationRequest(
-  toEmail: json['toEmail'] as String,
-  toName: json['toName'] as String,
-  templateType: json['templateType'] as String,
-  subject: json['subject'] as String,
-  data: json['data'] as Map<String, dynamic>,
-  bookingId: json['bookingId'] as String?,
-);
-
-Map<String, dynamic> _$EmailNotificationRequestToJson(
-  EmailNotificationRequest instance,
-) => <String, dynamic>{
-  'toEmail': instance.toEmail,
-  'toName': instance.toName,
-  'templateType': instance.templateType,
-  'subject': instance.subject,
-  'data': instance.data,
-  'bookingId': instance.bookingId,
-};
-
-NotificationSettings _$NotificationSettingsFromJson(
-  Map<String, dynamic> json,
-) => NotificationSettings(
-  emailNotificationsEnabled: json['emailNotificationsEnabled'] as bool,
-  smsNotificationsEnabled: json['smsNotificationsEnabled'] as bool,
-  pushNotificationsEnabled: json['pushNotificationsEnabled'] as bool,
-  enabledNotificationTypes: (json['enabledNotificationTypes'] as List<dynamic>)
-      .map((e) => e as String)
-      .toList(),
-  emailTemplate: json['emailTemplate'] as String?,
-  customSettings: json['customSettings'] as Map<String, dynamic>?,
-);
-
-Map<String, dynamic> _$NotificationSettingsToJson(
-  NotificationSettings instance,
-) => <String, dynamic>{
-  'emailNotificationsEnabled': instance.emailNotificationsEnabled,
-  'smsNotificationsEnabled': instance.smsNotificationsEnabled,
-  'pushNotificationsEnabled': instance.pushNotificationsEnabled,
-  'enabledNotificationTypes': instance.enabledNotificationTypes,
-  'emailTemplate': instance.emailTemplate,
-  'customSettings': instance.customSettings,
-};

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:hotel_mobile/data/models/promotion.dart';
 import 'package:hotel_mobile/data/services/api_service.dart';
+import 'package:hotel_mobile/data/services/notification_service.dart';
+import 'package:hotel_mobile/data/services/email_notification_service.dart';
 
 class PromotionFormScreen extends StatefulWidget {
   final Promotion? promotion;
@@ -13,6 +15,8 @@ class PromotionFormScreen extends StatefulWidget {
 
 class _PromotionFormScreenState extends State<PromotionFormScreen> {
   final ApiService _apiService = ApiService();
+  final NotificationService _notificationService = NotificationService();
+  final EmailNotificationService _emailService = EmailNotificationService();
   final _formKey = GlobalKey<FormState>();
 
   late final TextEditingController _nameController;
@@ -137,13 +141,46 @@ class _PromotionFormScreenState extends State<PromotionFormScreen> {
           : await _apiService.createPromotion(promotion);
 
       if (response.success) {
+        // Nếu tạo promotion mới (không phải edit), gửi thông báo đến người dùng
+        if (!_isEditing && response.data != null) {
+          try {
+            final createdPromotion = response.data!;
+            
+            // Tạo thông báo trong app
+            await _notificationService.createNotification(
+              title: '🎉 Ưu đãi mới: ${createdPromotion.ten}',
+              content: '${createdPromotion.moTa ?? "Ưu đãi đặc biệt"} - Giảm ${createdPromotion.phanTramGiam}%! Hãy khám phá ngay!',
+              type: 'promotion',
+              imageUrl: createdPromotion.hinhAnh,
+              actionUrl: '/deals',
+              actionText: 'Xem ưu đãi',
+              expiresAt: createdPromotion.ngayKetThuc,
+              sendEmail: true, // Gửi email đến tất cả người dùng
+            );
+
+            // Gửi email thông báo riêng (backup)
+            _emailService.initialize();
+            await _emailService.sendNewPromotionNotificationEmail(
+              promotionTitle: createdPromotion.ten,
+              promotionDescription: createdPromotion.moTa ?? 'Ưu đãi đặc biệt',
+              promotionImageUrl: createdPromotion.hinhAnh,
+              promotionId: createdPromotion.id,
+              discountPercent: createdPromotion.phanTramGiam,
+            );
+          } catch (e) {
+            print('⚠️ Lỗi gửi thông báo ưu đãi mới: $e');
+            // Không hiển thị lỗi cho user vì việc tạo promotion đã thành công
+          }
+        }
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
               _isEditing
                   ? 'Cập nhật khuyến mãi thành công'
-                  : 'Tạo khuyến mãi thành công',
+                  : 'Tạo khuyến mãi thành công. Đã gửi thông báo đến người dùng.',
             ),
+            duration: Duration(seconds: _isEditing ? 2 : 4),
           ),
         );
         Navigator.of(context).pop(true);

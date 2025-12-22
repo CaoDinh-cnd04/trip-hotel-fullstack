@@ -93,21 +93,29 @@ const userProfileController = {
 
       const { name, phone, address } = req.body;
 
+      // Validation: name là bắt buộc
+      if (!name || name.trim().length === 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'Họ và tên không được để trống'
+        });
+      }
+
       const pool = await getPool();
       const request = pool.request();
       
-      // Cập nhật thông tin user
+      // Cập nhật thông tin user (chỉ update các field có giá trị)
+      // ⚠️ SỬA: Sử dụng đúng tên cột `sdt` thay vì `so_dien_thoai`
+      // ⚠️ LƯU Ý: Bảng nguoi_dung không có cột `dia_chi`, bỏ qua address
       const result = await request
         .input('userId', sql.Int, userId)
-        .input('name', sql.NVarChar, name)
-        .input('phone', sql.NVarChar, phone || null)
-        .input('address', sql.NVarChar, address || null)
+        .input('name', sql.NVarChar(255), name.trim())
+        .input('phone', sql.NVarChar(50), phone && phone.trim().length > 0 ? phone.trim() : null)
         .query(`
           UPDATE nguoi_dung 
           SET 
             ho_ten = @name,
-            so_dien_thoai = @phone,
-            dia_chi = @address,
+            sdt = ISNULL(@phone, sdt),
             updated_at = GETDATE()
           WHERE id = @userId
           
@@ -115,8 +123,7 @@ const userProfileController = {
             id,
             ho_ten,
             email,
-            so_dien_thoai,
-            dia_chi,
+            sdt,
             updated_at
           FROM nguoi_dung 
           WHERE id = @userId
@@ -133,13 +140,12 @@ const userProfileController = {
 
       res.json({
         success: true,
-        message: 'Cập nhật thông tin Triphotel thành công',
+        message: 'Cập nhật thông tin thành công',
         data: {
           id: updatedUser.id,
           name: updatedUser.ho_ten || updatedUser.ten || '',
           email: updatedUser.email,
-          phone: updatedUser.so_dien_thoai,
-          address: updatedUser.dia_chi,
+          phone: updatedUser.sdt,
           updatedAt: updatedUser.updated_at
         }
       });
@@ -299,6 +305,105 @@ const userProfileController = {
       });
     } catch (error) {
       console.error('Lỗi cập nhật cài đặt:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Lỗi server: ' + error.message
+      });
+    }
+  },
+
+  // Tích điểm thủ công cho các booking đã thanh toán nhưng chưa tích điểm
+  async addPointsForPaidBookings(req, res) {
+    try {
+      const userId = req.user?.ma_nguoi_dung;
+      if (!userId) {
+        return res.status(401).json({
+          success: false,
+          message: 'Chưa đăng nhập'
+        });
+      }
+
+      const pool = await getPool();
+      const request = pool.request();
+      
+      // Lấy tất cả booking đã thanh toán của user trong 30 ngày gần đây
+      const bookingsResult = await request
+        .input('userId', sql.Int, userId)
+        .query(`
+          SELECT 
+            id,
+            booking_code,
+            user_id,
+            final_price,
+            total_price,
+            payment_status,
+            payment_method,
+            created_at
+          FROM bookings
+          WHERE user_id = @userId
+            AND payment_status = 'paid'
+            AND created_at >= DATEADD(day, -30, GETDATE())
+          ORDER BY created_at DESC
+        `);
+
+      if (bookingsResult.recordset.length === 0) {
+        return res.json({
+          success: true,
+          message: 'Không có booking nào cần tích điểm',
+          data: {
+            processed: 0,
+            total: 0,
+            totalPointsAdded: 0
+          }
+        });
+      }
+
+      const VipService = require('../services/vipService');
+      let totalPointsAdded = 0;
+      let processedCount = 0;
+      const errors = [];
+
+      // Xử lý từng booking
+      for (const booking of bookingsResult.recordset) {
+        try {
+          const finalPrice = booking.final_price || booking.total_price || 0;
+          
+          if (finalPrice > 0) {
+            console.log(`💰 Processing booking ${booking.booking_code}: userId=${booking.user_id}, finalPrice=${finalPrice}`);
+            
+            const vipResult = await VipService.addPointsAfterBooking(
+              booking.user_id,
+              finalPrice
+            );
+            
+            if (vipResult) {
+              totalPointsAdded += vipResult.pointsAdded;
+              processedCount++;
+              console.log(`✅ Added ${vipResult.pointsAdded} points for booking ${booking.booking_code}`);
+            } else {
+              errors.push(`Booking ${booking.booking_code}: Không thể tích điểm (finalPrice=${finalPrice})`);
+            }
+          } else {
+            errors.push(`Booking ${booking.booking_code}: finalPrice = 0`);
+          }
+        } catch (error) {
+          console.error(`❌ Error processing booking ${booking.booking_code}:`, error);
+          errors.push(`Booking ${booking.booking_code}: ${error.message}`);
+        }
+      }
+
+      res.json({
+        success: true,
+        message: `Đã xử lý ${processedCount}/${bookingsResult.recordset.length} booking`,
+        data: {
+          processed: processedCount,
+          total: bookingsResult.recordset.length,
+          totalPointsAdded: totalPointsAdded,
+          errors: errors.length > 0 ? errors : undefined
+        }
+      });
+    } catch (error) {
+      console.error('Lỗi tích điểm thủ công:', error);
       res.status(500).json({
         success: false,
         message: 'Lỗi server: ' + error.message

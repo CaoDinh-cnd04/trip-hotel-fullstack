@@ -7,9 +7,10 @@ import '../../../data/services/backend_auth_service.dart';
 import '../../../data/services/user_profile_service.dart';
 import '../../../core/services/firebase_auth_service.dart';
 import '../../../core/services/language_service.dart';
+import '../../../core/services/storage_service.dart';
 import '../../../data/models/user_role_model.dart'; // ✅ FIX: Import UserRole
 import '../login_screen.dart';
-import '../auth/agoda_style_login_screen.dart';
+import '../auth/triphotel_style_login_screen.dart';
 import 'profile_edit_screen.dart';
 import 'account_security_screen.dart';
 import 'about_us_screen.dart';
@@ -42,6 +43,7 @@ class _TriphotelStyleProfileScreenState extends State<TriphotelStyleProfileScree
   final HotelOwnerService _hotelOwnerService = HotelOwnerService();
   final MessageService _messageService = MessageService();
   final ReviewService _reviewService = ReviewService();
+  final StorageService _storageService = StorageService();
   
   String _userName = 'User';
   String _userEmail = '';
@@ -105,7 +107,7 @@ class _TriphotelStyleProfileScreenState extends State<TriphotelStyleProfileScree
         // Keep default Bronze if API fails
       }
 
-      // Lấy cài đặt user
+      // Lấy cài đặt user từ backend
       final settingsResponse = await _userProfileService.getUserSettings();
       if (settingsResponse.success && settingsResponse.data != null) {
         setState(() {
@@ -113,6 +115,24 @@ class _TriphotelStyleProfileScreenState extends State<TriphotelStyleProfileScree
           _selectedDistance = settingsResponse.data!['distanceUnit'] ?? 'km';
           _selectedPriceDisplay = settingsResponse.data!['priceDisplay'] ?? 'Theo mỗi đêm';
           _notificationsEnabled = settingsResponse.data!['notificationsEnabled'] ?? true;
+        });
+        // Lưu vào SharedPreferences
+        await _storageService.saveBool('notifications_enabled', _notificationsEnabled);
+      } else {
+        // Nếu API fail, load từ SharedPreferences
+        final savedNotifications = await _storageService.getBool('notifications_enabled');
+        if (savedNotifications != null) {
+          setState(() {
+            _notificationsEnabled = savedNotifications;
+          });
+        }
+      }
+      
+      // Load email notification preference từ SharedPreferences
+      final savedEmailNotifications = await _storageService.getBool('email_notifications_enabled');
+      if (savedEmailNotifications != null) {
+        setState(() {
+          _emailNotificationsEnabled = savedEmailNotifications;
         });
       }
 
@@ -179,7 +199,7 @@ class _TriphotelStyleProfileScreenState extends State<TriphotelStyleProfileScree
         if (mounted) {
           Navigator.pushAndRemoveUntil(
             context,
-            MaterialPageRoute(builder: (context) => const AgodaStyleLoginScreen()),
+            MaterialPageRoute(builder: (context) => const TriphotelStyleLoginScreen()),
             (route) => false,
           );
         }
@@ -840,8 +860,36 @@ class _TriphotelStyleProfileScreenState extends State<TriphotelStyleProfileScree
                                 _notificationsEnabled = value;
                               });
                               
-                              // Lưu cài đặt
-                              await _userProfileService.updateUserSettings(notificationsEnabled: value);
+                              // Lưu vào SharedPreferences ngay lập tức
+                              await _storageService.saveBool('notifications_enabled', value);
+                              
+                              // Lưu vào backend
+                              final result = await _userProfileService.updateUserSettings(notificationsEnabled: value);
+                              if (!result.success) {
+                                // Nếu backend fail, revert lại
+                                setState(() {
+                                  _notificationsEnabled = !value;
+                                });
+                                await _storageService.saveBool('notifications_enabled', !value);
+                                if (mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(result.message ?? 'Không thể cập nhật cài đặt'),
+                                      backgroundColor: Colors.red,
+                                    ),
+                                  );
+                                }
+                              } else {
+                                if (mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text('Đã cập nhật cài đặt thông báo'),
+                                      backgroundColor: Colors.green,
+                                      duration: Duration(seconds: 1),
+                                    ),
+                                  );
+                                }
+                              }
                             },
                           ),
                           onTap: null,
@@ -856,7 +904,36 @@ class _TriphotelStyleProfileScreenState extends State<TriphotelStyleProfileScree
                                 _emailNotificationsEnabled = value;
                               });
                               
+                              // Lưu vào SharedPreferences ngay lập tức
+                              await _storageService.saveBool('email_notifications_enabled', value);
+                              
                               // Lưu cài đặt vào backend
+                              final emailResult = await _userProfileService.updateEmailNotificationPreference(value);
+                              if (!emailResult) {
+                                // Nếu backend fail, revert lại
+                                setState(() {
+                                  _emailNotificationsEnabled = !value;
+                                });
+                                await _storageService.saveBool('email_notifications_enabled', !value);
+                                if (mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text('Không thể cập nhật cài đặt email'),
+                                      backgroundColor: Colors.red,
+                                    ),
+                                  );
+                                }
+                              } else {
+                                if (mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text('Đã cập nhật cài đặt email'),
+                                      backgroundColor: Colors.green,
+                                      duration: Duration(seconds: 1),
+                                    ),
+                                  );
+                                }
+                              }
                               await _userProfileService.updateEmailNotificationPreference(value);
                               
                               ScaffoldMessenger.of(context).showSnackBar(

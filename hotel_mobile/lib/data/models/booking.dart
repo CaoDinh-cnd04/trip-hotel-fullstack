@@ -1,3 +1,4 @@
+/// Enum đại diện cho các trạng thái đặt phòng
 enum BookingStatus {
   pending, // Chờ xác nhận
   confirmed, // Đã xác nhận
@@ -6,6 +7,12 @@ enum BookingStatus {
   cancelled, // Đã hủy
 }
 
+/// Model đại diện cho đặt phòng (booking)
+/// 
+/// Chứa thông tin:
+/// - Thông tin đặt phòng: người dùng, phòng, ngày nhận/trả, số khách, tổng tiền
+/// - Trạng thái: pending, confirmed, checkedIn, checkedOut, cancelled
+/// - Thông tin từ bảng liên kết: tên người dùng, email, tên khách sạn, loại phòng
 class Booking {
   final int? id;
   final int nguoiDungId;
@@ -49,6 +56,14 @@ class Booking {
     this.giaPhong,
   });
 
+  /// Tạo đối tượng Booking từ JSON
+  /// 
+  /// [json] - Map chứa dữ liệu JSON từ API
+  /// 
+  /// Xử lý:
+  /// - Parse ngày tháng từ ISO8601 string
+  /// - Parse trạng thái từ string hoặc int
+  /// - Chuyển đổi an toàn các kiểu dữ liệu số
   factory Booking.fromJson(Map<String, dynamic> json) {
     return Booking(
       id: _safeToInt(json['id']) ?? 0,
@@ -76,6 +91,12 @@ class Booking {
     );
   }
 
+  /// Parse trạng thái đặt phòng từ string hoặc int
+  /// 
+  /// [status] - Trạng thái có thể là String hoặc int
+  /// 
+  /// Hỗ trợ cả tiếng Việt và tiếng Anh
+  /// Trả về BookingStatus tương ứng, mặc định là pending
   static BookingStatus _parseBookingStatus(dynamic status) {
     if (status is String) {
       switch (status.toLowerCase()) {
@@ -116,6 +137,9 @@ class Booking {
     return BookingStatus.pending;
   }
 
+  /// Chuyển đổi đối tượng Booking sang JSON
+  /// 
+  /// Trả về Map chứa tất cả các trường của Booking dưới dạng JSON
   Map<String, dynamic> toJson() {
     return {
       'id': id,
@@ -132,6 +156,11 @@ class Booking {
     };
   }
 
+  /// Chuyển đổi BookingStatus enum sang string
+  /// 
+  /// [status] - Trạng thái cần chuyển đổi
+  /// 
+  /// Trả về string tương ứng với trạng thái
   String _bookingStatusToString(BookingStatus status) {
     switch (status) {
       case BookingStatus.pending:
@@ -147,6 +176,11 @@ class Booking {
     }
   }
 
+  /// Tạo bản sao của Booking với các trường được cập nhật
+  /// 
+  /// Cho phép cập nhật từng trường riêng lẻ mà không cần tạo mới toàn bộ object
+  /// 
+  /// Tất cả các tham số đều tùy chọn, nếu không cung cấp sẽ giữ nguyên giá trị cũ
   Booking copyWith({
     int? id,
     int? nguoiDungId,
@@ -189,6 +223,9 @@ class Booking {
     );
   }
 
+  /// Lấy text hiển thị của trạng thái đặt phòng bằng tiếng Việt
+  /// 
+  /// Trả về chuỗi mô tả trạng thái (ví dụ: "Chờ xác nhận", "Đã xác nhận")
   String get statusText {
     switch (trangThai) {
       case BookingStatus.pending:
@@ -204,19 +241,33 @@ class Booking {
     }
   }
 
+  /// Lấy tổng tiền đã được format theo định dạng VNĐ
+  /// 
+  /// Ví dụ: 1000000 -> "1.000.000 VNĐ"
   String get formattedTotalPrice {
     return '${tongTien.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]}.')} VNĐ';
   }
 
+  /// Tính số đêm ở của đặt phòng
+  /// 
+  /// Trả về số ngày chênh lệch giữa ngày trả và ngày nhận
   int get numberOfNights {
     return ngayTraPhong.difference(ngayNhanPhong).inDays;
   }
 
+  /// Kiểm tra xem đặt phòng có thể hủy không
+  /// 
+  /// Trả về true nếu trạng thái là pending hoặc confirmed
   bool get canCancel {
     return trangThai == BookingStatus.pending ||
         trangThai == BookingStatus.confirmed;
   }
 
+  /// Kiểm tra xem có thể check-in không
+  /// 
+  /// Trả về true nếu:
+  /// - Trạng thái là confirmed
+  /// - Thời gian hiện tại đã qua 2 giờ trước ngày nhận phòng
   bool get canCheckIn {
     return trangThai == BookingStatus.confirmed &&
         DateTime.now().isAfter(
@@ -229,6 +280,11 @@ class Booking {
     return 'Booking{id: $id, phong: $soPhong, hotel: $tenKhachSan, status: $statusText}';
   }
 
+  /// Chuyển đổi giá trị sang double một cách an toàn
+  /// 
+  /// [value] - Giá trị có thể là double, int, String, hoặc null
+  /// 
+  /// Trả về double nếu chuyển đổi thành công, null nếu không
   static double? _safeToDouble(dynamic value) {
     if (value == null) return null;
     if (value is double) return value;
@@ -240,6 +296,11 @@ class Booking {
     return null;
   }
 
+  /// Chuyển đổi giá trị sang int một cách an toàn
+  /// 
+  /// [value] - Giá trị có thể là int, double, String, hoặc null
+  /// 
+  /// Trả về int nếu chuyển đổi thành công, null nếu không
   static int? _safeToInt(dynamic value) {
     if (value == null) return null;
     if (value is int) return value;

@@ -68,6 +68,12 @@ router.put('/profile',
     nguoidungController.updateMyProfile
 );
 
+// GET /api/nguoidung/my-stats - Lấy thống kê cá nhân của người dùng hiện tại
+router.get('/my-stats', 
+    authenticateUser,
+    nguoidungController.getMyStats
+);
+
 // PUT /api/nguoidung/change-password - Đổi mật khẩu
 router.put('/change-password', 
     authenticateUser,
@@ -81,18 +87,64 @@ router.put('/email-notification-preference',
     nguoidungController.updateEmailNotificationPreference
 );
 
-// GET /api/nguoidung/:id - Lấy người dùng theo ID
-router.get('/:id', 
-    authenticateUser,
-    validateId,
-    nguoidungController.getUserById
-);
-
 // POST /api/nguoidung/register - Đăng ký người dùng mới
 router.post('/register', 
     upload.single('anh_dai_dien'),
     validateUserRegistration,
     nguoidungController.register
+);
+
+// PUT /api/nguoidung/:id/approve - Phê duyệt người dùng (Admin only) - MUST be before /:id
+router.put('/:id/approve',
+    authenticateUser,
+    requireRole('Admin'),
+    validateId,
+    nguoidungController.approveUser
+);
+
+// PUT /api/nguoidung/:id/block - Chặn người dùng (Admin only) - MUST be before /:id
+router.put('/:id/block',
+    authenticateUser,
+    requireRole('Admin'),
+    validateId,
+    nguoidungController.blockUser
+);
+
+// PUT /api/nguoidung/:id/reset-password - Reset password (Admin only) - MUST be before /:id
+router.put('/:id/reset-password',
+    authenticateUser,
+    requireRole('Admin'),
+    validateId,
+    [
+        body('new_password').isLength({ min: 6 }).withMessage('Mật khẩu mới phải ít nhất 6 ký tự')
+    ],
+    nguoidungController.resetPassword
+);
+
+// PUT /api/nguoidung/:id/role - Update user role (Admin only) - MUST be before /:id
+router.put('/:id/role',
+    authenticateUser,
+    requireRole('Admin'),
+    validateId,
+    [
+        body('chuc_vu').isIn(['User', 'HotelManager', 'Admin']).withMessage('Vai trò không hợp lệ')
+    ],
+    nguoidungController.updateRole
+);
+
+// GET /api/nguoidung/:id/activity-logs - Get user activity logs (Admin only) - MUST be before /:id
+router.get('/:id/activity-logs',
+    authenticateUser,
+    requireRole('Admin'),
+    validateId,
+    nguoidungController.getActivityLogs
+);
+
+// GET /api/nguoidung/:id - Lấy người dùng theo ID - MUST be after specific routes
+router.get('/:id', 
+    authenticateUser,
+    validateId,
+    nguoidungController.getUserById
 );
 
 // PUT /api/nguoidung/:id - Cập nhật người dùng (Admin only)

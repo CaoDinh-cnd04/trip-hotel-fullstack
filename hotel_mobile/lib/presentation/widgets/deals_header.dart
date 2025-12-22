@@ -1,12 +1,22 @@
 import 'package:flutter/material.dart';
+import 'package:hotel_mobile/data/models/promotion.dart';
+import 'package:hotel_mobile/presentation/widgets/promotion_card.dart';
+import 'package:hotel_mobile/presentation/screens/property/property_detail_screen.dart';
+import 'package:hotel_mobile/data/models/hotel.dart';
+import 'package:hotel_mobile/data/services/api_service.dart';
 
 class DealsHeader extends StatelessWidget {
-  const DealsHeader({super.key});
+  final List<Promotion> promotions;
+  
+  const DealsHeader({
+    super.key,
+    required this.promotions,
+  });
 
   void _handleSearch(BuildContext context) {
     showSearch(
       context: context,
-      delegate: PromotionSearchDelegate(),
+      delegate: PromotionSearchDelegate(promotions: promotions),
     );
   }
 
@@ -79,8 +89,150 @@ class DealsHeader extends StatelessWidget {
 
 // Search delegate for promotions
 class PromotionSearchDelegate extends SearchDelegate<String> {
+  final List<Promotion> promotions;
+  
+  PromotionSearchDelegate({required this.promotions});
+  
   @override
   String get searchFieldLabel => 'Tìm ưu đãi...';
+  
+  // Tìm kiếm trong danh sách promotions
+  List<Promotion> _searchPromotions(String query) {
+    if (query.isEmpty) {
+      return [];
+    }
+    
+    final lowerQuery = query.toLowerCase();
+    return promotions.where((promotion) {
+      // Tìm theo tên promotion
+      if (promotion.ten.toLowerCase().contains(lowerQuery)) {
+        return true;
+      }
+      
+      // Tìm theo mô tả
+      if (promotion.moTa?.toLowerCase().contains(lowerQuery) ?? false) {
+        return true;
+      }
+      
+      // Tìm theo tên khách sạn (nếu có)
+      if (promotion.hotelName?.toLowerCase().contains(lowerQuery) ?? false) {
+        return true;
+      }
+      
+      // Tìm theo địa chỉ khách sạn
+      if (promotion.hotelAddress?.toLowerCase().contains(lowerQuery) ?? false) {
+        return true;
+      }
+      
+      // Tìm theo location
+      if (promotion.location?.toLowerCase().contains(lowerQuery) ?? false) {
+        return true;
+      }
+      
+      // Tìm theo phần trăm giảm giá
+      if (lowerQuery.contains('%') || lowerQuery.contains('giảm')) {
+        final percentMatch = RegExp(r'(\d+)').firstMatch(lowerQuery);
+        if (percentMatch != null) {
+          final percent = int.tryParse(percentMatch.group(1) ?? '');
+          if (percent != null && promotion.phanTramGiam >= percent) {
+            return true;
+          }
+        }
+      }
+      
+      // Tìm theo số phần trăm (ví dụ: "20", "28")
+      final numberMatch = RegExp(r'(\d+)').firstMatch(lowerQuery);
+      if (numberMatch != null) {
+        final number = int.tryParse(numberMatch.group(1) ?? '');
+        if (number != null && promotion.phanTramGiam.toInt() == number) {
+          return true;
+        }
+      }
+      
+      return false;
+    }).toList();
+  }
+  
+  String _getTimeLeft(DateTime endDate) {
+    final now = DateTime.now();
+    final difference = endDate.difference(now);
+
+    if (difference.isNegative) {
+      return 'Đã hết hạn';
+    }
+
+    final days = difference.inDays;
+    final hours = difference.inHours % 24;
+
+    if (days > 0) {
+      return 'Còn lại: ${days}d ${hours}h';
+    } else if (hours > 0) {
+      return 'Còn lại: ${hours}h';
+    } else {
+      return 'Sắp hết hạn';
+    }
+  }
+  
+  void _handlePromotionTap(BuildContext context, Promotion promotion) async {
+    // Nếu có khachSanId, fetch hotel details và navigate
+    if (promotion.khachSanId != null) {
+      try {
+        // Show loading
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => const Center(
+            child: CircularProgressIndicator(),
+          ),
+        );
+
+        // Import ApiService để fetch hotel
+        final apiService = ApiService();
+        final hotelResponse = await apiService.getHotelById(promotion.khachSanId!);
+
+        if (context.mounted) {
+          Navigator.pop(context); // Close loading
+
+          if (hotelResponse.success && hotelResponse.data != null) {
+            final hotel = hotelResponse.data!;
+            
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => PropertyDetailScreen(
+                  hotel: hotel,
+                ),
+              ),
+            );
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Không tìm thấy thông tin khách sạn'),
+                backgroundColor: Colors.orange,
+              ),
+            );
+          }
+        }
+      } catch (e) {
+        if (context.mounted) {
+          Navigator.pop(context); // Close loading if still open
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Lỗi: $e'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Ưu đãi này không áp dụng cho khách sạn cụ thể'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+    }
+  }
 
   @override
   List<Widget> buildActions(BuildContext context) {
@@ -145,32 +297,55 @@ class PromotionSearchDelegate extends SearchDelegate<String> {
   }
 
   Widget _buildSearchResults() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.search_off, size: 64, color: Colors.grey[400]),
-          const SizedBox(height: 16),
-          Text(
-            query.isEmpty 
-                ? 'Nhập từ khóa để tìm kiếm'
-                : 'Không tìm thấy ưu đãi: "$query"',
-            style: TextStyle(
-              fontSize: 16,
-              color: Colors.grey[600],
+    if (query.isEmpty) {
+      return _buildSearchSuggestions();
+    }
+    
+    final results = _searchPromotions(query);
+    
+    if (results.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.search_off, size: 64, color: Colors.grey[400]),
+            const SizedBox(height: 16),
+            Text(
+              'Không tìm thấy ưu đãi: "$query"',
+              style: TextStyle(
+                fontSize: 16,
+                color: Colors.grey[600],
+                fontWeight: FontWeight.w500,
+              ),
+              textAlign: TextAlign.center,
             ),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Thử tìm kiếm: Hà Nội, Đà Nẵng, Suite...',
-            style: TextStyle(
-              fontSize: 14,
-              color: Colors.grey[500],
+            const SizedBox(height: 8),
+            Text(
+              'Thử tìm kiếm: Hà Nội, Đà Nẵng, Suite...',
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.grey[500],
+              ),
             ),
+          ],
+        ),
+      );
+    }
+    
+    return ListView.builder(
+      padding: const EdgeInsets.all(16),
+      itemCount: results.length,
+      itemBuilder: (context, index) {
+        final promotion = results[index];
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 16),
+          child: PromotionCard(
+            promotion: promotion,
+            timeLeft: _getTimeLeft(promotion.ngayKetThuc),
+            onTap: () => _handlePromotionTap(context, promotion),
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 }

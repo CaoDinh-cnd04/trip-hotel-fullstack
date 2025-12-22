@@ -17,6 +17,9 @@ class PromotionSelector extends StatefulWidget {
   /// Tổng tiền đơn hàng (để validate promotion)
   final double orderAmount;
   
+  /// Ngày check-in (để kiểm tra điều kiện thời gian)
+  final DateTime? checkInDate;
+  
   /// Callback khi áp dụng promotion thành công
   final Function(Promotion promotion, double discountAmount) onPromotionApplied;
   
@@ -26,6 +29,7 @@ class PromotionSelector extends StatefulWidget {
   const PromotionSelector({
     super.key,
     required this.orderAmount,
+    this.checkInDate,
     required this.onPromotionApplied,
     required this.onPromotionRemoved,
   });
@@ -186,6 +190,7 @@ class _PromotionSelectorState extends State<PromotionSelector> {
           return _PromotionListBottomSheet(
             scrollController: scrollController,
             orderAmount: widget.orderAmount,
+            checkInDate: widget.checkInDate,
             onPromotionSelected: _applyPromotion,
           );
         },
@@ -197,10 +202,11 @@ class _PromotionSelectorState extends State<PromotionSelector> {
   Future<void> _applyPromotion(Promotion promotion) async {
     setState(() => _isLoading = true);
     
-    // Validate promotion với backend
+    // Validate promotion với backend (bao gồm check-in date để kiểm tra điều kiện thời gian)
     final response = await _promotionService.validatePromotion(
       promotionId: promotion.id!,
       orderAmount: widget.orderAmount,
+      checkInDate: widget.checkInDate,
     );
     
     setState(() => _isLoading = false);
@@ -230,12 +236,22 @@ class _PromotionSelectorState extends State<PromotionSelector> {
         );
       }
     } else {
-      // Show error
+      // Show error với lý do cụ thể
+      final errorMessage = response['timeValidationReason'] ?? 
+                          response['message'] ?? 
+                          'Không thể áp dụng ưu đãi này';
+      
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(response['message'] ?? 'Không thể áp dụng ưu đãi này'),
-            backgroundColor: Colors.red,
+            content: Text(errorMessage),
+            backgroundColor: Colors.orange,
+            duration: const Duration(seconds: 4),
+            action: SnackBarAction(
+              label: 'Đóng',
+              textColor: Colors.white,
+              onPressed: () {},
+            ),
           ),
         );
       }
@@ -258,11 +274,13 @@ class _PromotionSelectorState extends State<PromotionSelector> {
 class _PromotionListBottomSheet extends StatefulWidget {
   final ScrollController scrollController;
   final double orderAmount;
+  final DateTime? checkInDate;
   final Function(Promotion) onPromotionSelected;
 
   const _PromotionListBottomSheet({
     required this.scrollController,
     required this.orderAmount,
+    this.checkInDate,
     required this.onPromotionSelected,
   });
 

@@ -279,6 +279,47 @@ const danhgiaController = {
                 error: error.message
             });
         }
+    },
+
+    // Update review status (Admin only - for moderation)
+    async updateReviewStatus(req, res) {
+        try {
+            const { id } = req.params;
+            const { trang_thai } = req.body;
+            
+            if (!trang_thai || !['Đã duyệt', 'Chờ duyệt', 'Từ chối'].includes(trang_thai)) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Trạng thái không hợp lệ. Chỉ chấp nhận: Đã duyệt, Chờ duyệt, Từ chối'
+                });
+            }
+
+            const danhGia = new DanhGia();
+            const review = await danhGia.findById(id);
+            
+            if (!review) {
+                return res.status(404).json({
+                    success: false,
+                    message: 'Không tìm thấy đánh giá'
+                });
+            }
+
+            // Update status
+            await danhGia.update(id, { trang_thai });
+
+            res.status(200).json({
+                success: true,
+                message: `Cập nhật trạng thái đánh giá thành "${trang_thai}"`,
+                data: { id, trang_thai }
+            });
+        } catch (error) {
+            console.error('Error in updateReviewStatus:', error);
+            res.status(500).json({
+                success: false,
+                message: 'Lỗi server khi cập nhật trạng thái đánh giá',
+                error: error.message
+            });
+        }
     }
 };
 

@@ -5,12 +5,16 @@ class PaymentBottomBar extends StatelessWidget {
   final double totalPrice;
   final VoidCallback onPaymentPressed;
   final bool isLoading;
+  final bool requiresDeposit;
+  final double depositAmount;
 
   const PaymentBottomBar({
     super.key,
     required this.totalPrice,
     required this.onPaymentPressed,
     this.isLoading = false,
+    this.requiresDeposit = false,
+    this.depositAmount = 0,
   });
 
   @override
@@ -42,7 +46,7 @@ class PaymentBottomBar extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Tổng thanh toán',
+                          requiresDeposit ? 'Thanh toán cọc' : 'Tổng thanh toán',
                           style: TextStyle(
                             fontSize: 13,
                             color: Colors.grey[600],
@@ -57,6 +61,17 @@ class PaymentBottomBar extends StatelessWidget {
                             color: Colors.orange[700],
                           ),
                         ),
+                        if (requiresDeposit) ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            '(50% tổng giá trị)',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: Colors.grey[600],
+                              fontStyle: FontStyle.italic,
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                   ),

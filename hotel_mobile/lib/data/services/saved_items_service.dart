@@ -54,7 +54,10 @@ class SavedItemsService {
     }
   }
   
-  /// Get saved items from local storage
+  /// Lấy danh sách mục đã lưu từ local storage (SharedPreferences)
+  /// 
+  /// Trả về danh sách SavedItem được lưu trữ cục bộ
+  /// Sử dụng khi người dùng chưa đăng nhập hoặc có lỗi kết nối
   Future<ApiResponse<List<SavedItem>>> _getSavedItemsLocal() async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -177,7 +180,17 @@ class SavedItemsService {
     }
   }
   
-  /// Save to local storage (SharedPreferences) when not logged in
+  /// Lưu mục vào local storage (SharedPreferences) khi chưa đăng nhập
+  /// 
+  /// [itemId] - ID của mục cần lưu
+  /// [type] - Loại mục (hotel, room, v.v.)
+  /// [name] - Tên mục
+  /// [location] - Địa điểm (tùy chọn)
+  /// [price] - Giá (tùy chọn)
+  /// [imageUrl] - URL hình ảnh (tùy chọn)
+  /// [metadata] - Dữ liệu bổ sung (tùy chọn)
+  /// 
+  /// Trả về ApiResponse với kết quả lưu
   Future<ApiResponse<void>> _addToSavedLocal({
     required String itemId,
     required String type,
@@ -315,7 +328,12 @@ class SavedItemsService {
     }
   }
   
-  /// Check if item is saved in local storage
+  /// Kiểm tra xem mục đã được lưu trong local storage chưa
+  /// 
+  /// [itemId] - ID của mục cần kiểm tra
+  /// [type] - Loại mục (hotel, room, v.v.)
+  /// 
+  /// Trả về ApiResponse với true nếu đã lưu, false nếu chưa
   Future<ApiResponse<bool>> _isSavedLocal(String itemId, String type) async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -395,7 +413,12 @@ class SavedItemsService {
     }
   }
   
-  /// Remove from local storage
+  /// Xóa mục khỏi local storage (SharedPreferences)
+  /// 
+  /// [itemId] - ID của mục cần xóa
+  /// [type] - Loại mục (hotel, room, v.v.)
+  /// 
+  /// Trả về ApiResponse với kết quả xóa
   Future<ApiResponse<void>> _removeFromSavedLocal(String itemId, String type) async {
     try {
       final prefs = await SharedPreferences.getInstance();

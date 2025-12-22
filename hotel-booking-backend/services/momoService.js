@@ -14,6 +14,38 @@ const momoConfig = require('../config/momo');
 
 class MoMoService {
   /**
+   * Tạo payment URL từ MoMo (giống VNPay - return object với paymentUrl, qrCodeUrl, deeplink)
+   * 
+   * @param {Object} params - Thông tin thanh toán
+   * @param {string} params.orderId - Mã đơn hàng
+   * @param {number} params.amount - Số tiền (VND)
+   * @param {string} params.orderInfo - Thông tin đơn hàng
+   * @returns {Promise<Object>} Object với {paymentUrl, qrCodeUrl, deeplink}
+   */
+  async createPaymentUrl(params) {
+    const { orderId, amount, orderInfo } = params;
+    
+    // Gọi createPayment để lấy payUrl và qrCodeUrl
+    const result = await this.createPayment({
+      orderId,
+      amount,
+      orderInfo,
+      extraData: '',
+    });
+    
+    // Return object với paymentUrl, qrCodeUrl và deeplink
+    if (result.payUrl) {
+      return {
+        paymentUrl: result.payUrl,
+        qrCodeUrl: result.qrCodeUrl || null,
+        deeplink: result.deeplink || null,
+      };
+    } else {
+      throw new Error('MoMo did not return payment URL');
+    }
+  }
+
+  /**
    * Tạo payment request đến MoMo
    * 
    * @param {Object} params - Thông tin thanh toán
@@ -39,11 +71,14 @@ class MoMoService {
     // Generate requestId (unique)
     const requestId = momoConfig.partnerCode + new Date().getTime();
 
-    // Tạo raw signature theo format của MoMo
+    // Tạo raw signature theo format của MoMo API v2
+    // QUAN TRỌNG: Thứ tự các field phải SẮP XẾP ALPHABETICALLY theo MoMo API documentation
+    // Thứ tự đúng (alphabetically): accessKey, amount, extraData, ipnUrl, orderId, orderInfo, partnerCode, redirectUrl, requestId, requestType
+    // Lưu ý: Dùng redirectUrl (không phải returnUrl) và ipnUrl (không phải notifyUrl) trong signature
     const rawSignature = 
       'accessKey=' + momoConfig.accessKey +
       '&amount=' + amount +
-      '&extraData=' + extraData +
+      '&extraData=' + (extraData || '') +
       '&ipnUrl=' + momoConfig.ipnUrl +
       '&orderId=' + orderId +
       '&orderInfo=' + orderInfo +
@@ -64,7 +99,8 @@ class MoMoService {
     console.log('--------------------SIGNATURE----------------');
     console.log(signature);
 
-    // Request body gửi đến MoMo
+    // Request body gửi đến MoMo - THEO ĐÚNG FORMAT MOMO API v2
+    // Lưu ý: requestType và lang không có trong signature string, chỉ có trong request body
     const requestBody = JSON.stringify({
       partnerCode: momoConfig.partnerCode,
       accessKey: momoConfig.accessKey,
@@ -83,31 +119,90 @@ class MoMoService {
     console.log('--------------------REQUEST BODY----------------');
     console.log(requestBody);
 
-    // Gọi MoMo API
-    try {
-      const response = await this._sendRequest(momoConfig.apiEndpoint, requestBody);
-      
-      console.log('--------------------MOMO RESPONSE----------------');
-      console.log(response);
+    // Gọi MoMo API với retry logic
+    const maxRetries = 2;
+    let lastError = null;
+    
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        console.log(`📤 Sending request to MoMo API (attempt ${attempt}/${maxRetries}):`, momoConfig.apiEndpoint);
+        const response = await this._sendRequest(momoConfig.apiEndpoint, requestBody);
+        
+        console.log('--------------------MOMO RESPONSE----------------');
+        console.log(JSON.stringify(response, null, 2));
 
-      // Check response
-      if (response.resultCode === 0) {
-        // Success - trả về payUrl để redirect user
-        return {
-          success: true,
-          payUrl: response.payUrl,
-          deeplink: response.deeplink,
-          qrCodeUrl: response.qrCodeUrl,
-          requestId: requestId,
-          orderId: orderId,
-        };
-      } else {
-        // Error
-        throw new Error(response.message || `MoMo error: ${response.resultCode}`);
+        // Check response
+        if (response.resultCode === 0) {
+          // Success - trả về payUrl để redirect user
+          console.log('✅ MoMo payment URL created successfully');
+          console.log('   Pay URL:', response.payUrl);
+          console.log('   Deep Link:', response.deeplink);
+          console.log('   QR Code URL:', response.qrCodeUrl);
+          
+          return {
+            success: true,
+            payUrl: response.payUrl,
+            deeplink: response.deeplink,
+            qrCodeUrl: response.qrCodeUrl,
+            requestId: requestId,
+            orderId: orderId,
+          };
+        } else {
+          // Error từ MoMo
+          const errorMessage = response.message || this.getResultMessage(response.resultCode);
+          console.error(`❌ MoMo API Error: resultCode=${response.resultCode}, message=${errorMessage}`);
+          throw new Error(`MoMo error (code ${response.resultCode}): ${errorMessage}`);
+        }
+      } catch (error) {
+        lastError = error;
+        console.error(`❌ Error calling MoMo API (attempt ${attempt}/${maxRetries}):`);
+        console.error('   Error Type:', error.constructor.name);
+        console.error('   Error Message:', error.message);
+        
+        // Nếu là timeout, connection error, hoặc HTTP 5xx error và chưa hết retry, thử lại
+        const isRetryableError = 
+          error.message.includes('timeout') || 
+          error.message.includes('ECONNREFUSED') || 
+          error.message.includes('ENOTFOUND') ||
+          error.message.includes('ECONNRESET') ||
+          error.message.includes('socket hang up') ||
+          error.message.includes('502') ||
+          error.message.includes('503') ||
+          error.message.includes('504') ||
+          error.message.includes('Bad Gateway') ||
+          error.message.includes('Service Unavailable') ||
+          error.message.includes('Gateway Timeout');
+        
+        if (attempt < maxRetries && isRetryableError) {
+          const waitTime = attempt * 2000; // 2s, 4s
+          console.log(`⏳ Retrying in ${waitTime}ms... (MoMo server may be temporarily unavailable)`);
+          await new Promise(resolve => setTimeout(resolve, waitTime));
+          continue;
+        }
+        
+        // Nếu không phải lỗi có thể retry, hoặc đã hết retry, throw error
+        break;
       }
-    } catch (error) {
-      console.error('Error calling MoMo API:', error);
-      throw error;
+    }
+    
+    // Nếu đến đây, tất cả retry đã thất bại
+    console.error('❌ All retry attempts failed');
+    console.error('   Last Error:', lastError?.message);
+    console.error('   Stack:', lastError?.stack);
+    
+    // Cải thiện error message dựa trên loại lỗi
+    if (lastError?.message.includes('timeout')) {
+      throw new Error('MoMo API request timeout sau nhiều lần thử. MoMo server có thể đang quá tải hoặc không phản hồi. Vui lòng thử lại sau hoặc sử dụng phương thức thanh toán khác (VNPay).');
+    } else if (lastError?.message.includes('ECONNREFUSED') || lastError?.message.includes('ENOTFOUND')) {
+      throw new Error('Không thể kết nối đến MoMo API sau nhiều lần thử. Kiểm tra kết nối mạng hoặc API endpoint.');
+    } else if (lastError?.message.includes('ECONNRESET') || lastError?.message.includes('socket hang up')) {
+      throw new Error('Kết nối đến MoMo API bị ngắt. MoMo server có thể đang quá tải. Vui lòng thử lại sau hoặc sử dụng phương thức thanh toán khác (VNPay).');
+    } else if (lastError?.message.includes('502') || lastError?.message.includes('Bad Gateway')) {
+      throw new Error('MoMo payment gateway đang tạm thời không khả dụng (502 Bad Gateway). Vui lòng thử lại sau hoặc sử dụng phương thức thanh toán khác.');
+    } else if (lastError?.message.includes('HTML')) {
+      throw new Error('MoMo API trả về lỗi. Kiểm tra credentials và API endpoint trong file .env.');
+    } else {
+      throw lastError || new Error('Unknown error calling MoMo API');
     }
   }
 
@@ -134,21 +229,27 @@ class MoMoService {
       signature,
     } = data;
 
-    // Tạo raw signature để verify
+    // Tạo raw signature để verify - THEO ĐÚNG THỨ TỰ CỦA MOMO API v2
+    // Thứ tự cho verify: partnerCode, accessKey, requestId, amount, orderId, orderInfo, returnUrl, notifyUrl, extraData
+    // Nhưng trong response có thêm các field: message, orderType, payType, responseTime, resultCode, transId
+    // Cần kiểm tra documentation để biết thứ tự chính xác cho verify
+    // Tạm thời dùng thứ tự: partnerCode, accessKey, requestId, amount, orderId, orderInfo, returnUrl, notifyUrl, extraData, message, orderType, payType, responseTime, resultCode, transId
     const rawSignature =
-      'accessKey=' + momoConfig.accessKey +
-      '&amount=' + amount +
-      '&extraData=' + extraData +
-      '&message=' + message +
-      '&orderId=' + orderId +
-      '&orderInfo=' + orderInfo +
-      '&orderType=' + orderType +
-      '&partnerCode=' + partnerCode +
-      '&payType=' + payType +
-      '&requestId=' + requestId +
-      '&responseTime=' + responseTime +
-      '&resultCode=' + resultCode +
-      '&transId=' + transId;
+      'partnerCode=' + (partnerCode || momoConfig.partnerCode) +
+      '&accessKey=' + momoConfig.accessKey +
+      '&requestId=' + (requestId || '') +
+      '&amount=' + (amount || '') +
+      '&orderId=' + (orderId || '') +
+      '&orderInfo=' + (orderInfo || '') +
+      '&returnUrl=' + momoConfig.returnUrl +
+      '&notifyUrl=' + momoConfig.ipnUrl +
+      '&extraData=' + (extraData || '') +
+      '&message=' + (message || '') +
+      '&orderType=' + (orderType || '') +
+      '&payType=' + (payType || '') +
+      '&responseTime=' + (responseTime || '') +
+      '&resultCode=' + (resultCode || '') +
+      '&transId=' + (transId || '');
 
     console.log('--------------------VERIFY RAW SIGNATURE----------------');
     console.log(rawSignature);
@@ -176,12 +277,13 @@ class MoMoService {
   async queryTransaction(params) {
     const { orderId, requestId } = params;
 
-    // Tạo raw signature
+    // Tạo raw signature cho query transaction - THEO ĐÚNG THỨ TỰ MOMO API v2
+    // Thứ tự: partnerCode, accessKey, requestId, orderId
     const rawSignature =
-      'accessKey=' + momoConfig.accessKey +
-      '&orderId=' + orderId +
-      '&partnerCode=' + momoConfig.partnerCode +
-      '&requestId=' + requestId;
+      'partnerCode=' + momoConfig.partnerCode +
+      '&accessKey=' + momoConfig.accessKey +
+      '&requestId=' + requestId +
+      '&orderId=' + orderId;
 
     const signature = crypto
       .createHmac('sha256', momoConfig.secretKey)
@@ -228,24 +330,87 @@ class MoMoService {
         headers: {
           'Content-Type': 'application/json',
           'Content-Length': Buffer.byteLength(body),
+          'Connection': 'keep-alive', // Giữ kết nối để tăng tốc độ
         },
+        timeout: 60000, // 60 seconds timeout
       };
 
       const req = https.request(options, (res) => {
         let data = '';
+
+        // Log response status và headers
+        console.log('--------------------MOMO API RESPONSE----------------');
+        console.log('Status Code:', res.statusCode);
+        console.log('Status Message:', res.statusMessage);
+        console.log('Headers:', JSON.stringify(res.headers, null, 2));
+
+        // Kiểm tra HTTP status code
+        if (res.statusCode < 200 || res.statusCode >= 300) {
+          console.error(`❌ MoMo API returned error status: ${res.statusCode} ${res.statusMessage}`);
+          
+          // Log upstream status nếu có (từ APISIX gateway)
+          if (res.headers['x-apisix-upstream-status']) {
+            console.error(`   Upstream Status: ${res.headers['x-apisix-upstream-status']}`);
+            console.error('   💡 This indicates MoMo backend servers are not responding');
+          }
+        }
 
         res.on('data', (chunk) => {
           data += chunk;
         });
 
         res.on('end', () => {
+          console.log('Response Body (raw):');
+          console.log(data);
+          console.log('Response Body Length:', data.length);
+          
+          // Kiểm tra nếu response rỗng
+          if (!data || data.trim().length === 0) {
+            console.error('❌ MoMo returned empty response');
+            reject(new Error(`MoMo returned empty response. Status: ${res.statusCode}`));
+            return;
+          }
+
+          // Kiểm tra nếu response là HTML (thường là error page)
+          if (data.trim().startsWith('<!DOCTYPE') || data.trim().startsWith('<html')) {
+            console.error('❌ MoMo returned HTML instead of JSON (likely an error page)');
+            console.error('HTML Response (first 500 chars):', data.substring(0, 500));
+            reject(new Error(`MoMo returned HTML error page. Status: ${res.statusCode}. Check MoMo API endpoint and credentials.`));
+            return;
+          }
+
           try {
             const jsonResponse = JSON.parse(data);
+            console.log('✅ Successfully parsed JSON response:');
+            console.log(JSON.stringify(jsonResponse, null, 2));
+            
+            // Kiểm tra nếu có error trong JSON response
+            if (jsonResponse.resultCode && jsonResponse.resultCode !== 0) {
+              const errorMessage = jsonResponse.message || this.getResultMessage(jsonResponse.resultCode);
+              console.error(`❌ MoMo API Error: resultCode=${jsonResponse.resultCode}, message=${errorMessage}`);
+            }
+            
             resolve(jsonResponse);
           } catch (e) {
-            reject(new Error('Invalid JSON response from MoMo'));
+            console.error('❌ Failed to parse JSON response:');
+            console.error('Parse Error:', e.message);
+            console.error('Response Data:', data);
+            reject(new Error(`Invalid JSON response from MoMo. Status: ${res.statusCode}. Response: ${data.substring(0, 200)}`));
           }
         });
+      });
+
+      // Handle request errors (network errors, timeouts, etc.)
+      req.on('error', (error) => {
+        console.error('❌ Request error:', error);
+        reject(error);
+      });
+
+      // Set timeout (60 seconds - tăng từ 30s để tránh timeout quá nhanh)
+      req.setTimeout(60000, () => {
+        console.error('⏱️ Request timeout after 60 seconds');
+        req.destroy();
+        reject(new Error('MoMo API request timeout after 60 seconds. MoMo server có thể đang quá tải hoặc không phản hồi.'));
       });
 
       req.on('error', (error) => {

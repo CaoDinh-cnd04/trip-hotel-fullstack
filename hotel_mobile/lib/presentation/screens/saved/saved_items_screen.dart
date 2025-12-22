@@ -7,6 +7,7 @@ import '../../../data/services/saved_items_service.dart';
 import '../../../data/services/api_service.dart';
 import '../../widgets/improved_image_widget.dart';
 import '../property/property_detail_screen.dart';
+import '../hotel/hotel_list_screen.dart';
 
 class SavedItemsScreen extends StatefulWidget {
   const SavedItemsScreen({Key? key}) : super(key: key);
@@ -252,7 +253,16 @@ class _SavedItemsScreenState extends State<SavedItemsScreen> {
   Widget _buildEmptyWidget() {
     return EmptySavedItemsWidget(
       onExplore: () {
-        Navigator.pushNamed(context, '/home');
+        // Navigate to HotelListScreen để có giao diện đồng nhất với màn hình khám phá khách sạn
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => const HotelListScreen(
+              location: 'Tất cả',
+              title: 'Khám phá khách sạn',
+            ),
+          ),
+        );
       },
     );
   }

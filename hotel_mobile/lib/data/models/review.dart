@@ -1,3 +1,9 @@
+/// Model đại diện cho đánh giá/nhận xét khách sạn
+/// 
+/// Chứa thông tin:
+/// - Thông tin booking: bookingId, hotelId, hotelName, hotelImage
+/// - Thông tin đặt phòng: location, roomType, checkInDate, checkOutDate, nights
+/// - Thông tin đánh giá: isReviewed, rating, content, reviewedAt
 class Review {
   final String id;
   final String bookingId;
@@ -31,6 +37,11 @@ class Review {
     this.reviewedAt,
   });
 
+  /// Tạo đối tượng Review từ JSON
+  /// 
+  /// [json] - Map chứa dữ liệu JSON từ API
+  /// 
+  /// Parse các trường từ snake_case sang camelCase
   factory Review.fromJson(Map<String, dynamic> json) {
     return Review(
       id: json['id']?.toString() ?? '',
@@ -50,6 +61,9 @@ class Review {
     );
   }
 
+  /// Chuyển đổi đối tượng Review sang JSON
+  /// 
+  /// Trả về Map chứa tất cả các trường dưới dạng JSON (snake_case)
   Map<String, dynamic> toJson() {
     return {
       'id': id,

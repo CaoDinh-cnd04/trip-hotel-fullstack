@@ -117,7 +117,16 @@ class MessageService {
     }
   }
 
-  /// Create offline conversation - works even if manager is not online
+  /// Tạo cuộc trò chuyện offline - hoạt động ngay cả khi manager không online
+  /// 
+  /// [currentUser] - User hiện tại (Firebase User)
+  /// [hotelManagerId] - ID của hotel manager (backend ID)
+  /// [hotelManagerName] - Tên hotel manager
+  /// [hotelManagerEmail] - Email hotel manager
+  /// [hotelName] - Tên khách sạn
+  /// [bookingId] - ID đặt phòng
+  /// 
+  /// Tự động gửi tin nhắn chào mừng và gửi email thông báo cho manager
   Future<void> _createOfflineConversation({
     required User currentUser,
     required String hotelManagerId,
@@ -219,7 +228,17 @@ Tôi có một số câu hỏi về đặt phòng.
     }
   }
 
-  /// Send email notification via backend API
+  /// Gửi email thông báo cho manager qua backend API
+  /// 
+  /// [hotelManagerId] - ID của hotel manager
+  /// [hotelManagerEmail] - Email của hotel manager
+  /// [userName] - Tên người dùng
+  /// [userEmail] - Email người dùng
+  /// [hotelName] - Tên khách sạn
+  /// [bookingId] - ID đặt phòng
+  /// [messageContent] - Nội dung tin nhắn
+  /// 
+  /// Lưu ý: Lỗi gửi email sẽ không làm gián đoạn quá trình
   Future<void> _sendEmailNotification({
     required String hotelManagerId,
     required String hotelManagerEmail,
@@ -264,14 +283,24 @@ Tôi có một số câu hỏi về đặt phòng.
     }
   }
 
-  /// Generate unique conversation ID from two user IDs
+  /// Tạo ID cuộc trò chuyện duy nhất từ 2 user ID
+  /// 
+  /// [userId1] - ID của user thứ nhất
+  /// [userId2] - ID của user thứ hai
+  /// 
+  /// Trả về ID được sắp xếp theo thứ tự để đảm bảo tính nhất quán
   String _getConversationId(String userId1, String userId2) {
     // Sort IDs to ensure consistency regardless of order
     final ids = [userId1, userId2]..sort();
     return '${ids[0]}_${ids[1]}';
   }
 
-  // Get Firebase UID from backend user ID
+  /// Lấy Firebase UID từ backend user ID
+  /// 
+  /// [backendUserId] - ID của user trong backend database
+  /// 
+  /// Trả về Firebase UID nếu tìm thấy, null nếu không tìm thấy
+  /// Tìm trong collection 'user_mapping' hoặc 'users'
   Future<String?> _getFirebaseUidFromBackendId(String backendUserId) async {
     try {
       // Try user_mapping collection first
@@ -302,7 +331,11 @@ Tôi có một số câu hỏi về đặt phòng.
     }
   }
 
-  // Convert offline placeholder or backend ID to Firebase UID
+  /// Chuyển đổi offline placeholder hoặc backend ID sang Firebase UID
+  /// 
+  /// [userId] - ID có thể là Firebase UID, offline placeholder, hoặc backend ID
+  /// 
+  /// Trả về Firebase UID nếu có thể, nếu không trả về ID ban đầu
   Future<String> _normalizeUserId(String userId) async {
     // If it's already a Firebase UID (doesn't start with 'offline_' and is not a number), return as is
     if (!userId.startsWith('offline_') && userId.length > 20) {
@@ -341,7 +374,21 @@ Tôi có một số câu hỏi về đặt phòng.
     return userId;
   }
 
-  // Send a message
+  /// Gửi tin nhắn
+  /// 
+  /// [receiverId] - ID người nhận (bắt buộc)
+  /// [receiverName] - Tên người nhận (bắt buộc)
+  /// [receiverEmail] - Email người nhận (bắt buộc)
+  /// [receiverRole] - Vai trò người nhận (bắt buộc)
+  /// [content] - Nội dung tin nhắn (bắt buộc)
+  /// [type] - Loại tin nhắn (text/image, mặc định: text)
+  /// [imageUrl] - URL hình ảnh (tùy chọn)
+  /// [metadata] - Dữ liệu bổ sung (tùy chọn)
+  /// [replyToMessageId] - ID tin nhắn đang trả lời (tùy chọn)
+  /// [replyToContent] - Nội dung tin nhắn đang trả lời (tùy chọn)
+  /// 
+  /// Trả về MessageModel của tin nhắn đã được gửi
+  /// Tự động đồng bộ lên SQL Server (non-blocking)
   Future<MessageModel> sendMessage({
     required String receiverId,
     required String receiverName,
@@ -873,6 +920,7 @@ Tôi có một số câu hỏi về đặt phòng.
   }
 
   // Get conversations for current user
+  // ✅ FIX: Query with both real Firebase UID and offline UID (like web)
   Stream<List<ChatConversation>> getConversations() {
     final currentUser = _auth.currentUser;
     if (currentUser == null) {
@@ -880,38 +928,90 @@ Tôi có một số câu hỏi về đặt phòng.
       return Stream.value([]);
     }
 
-    print('✅ getConversations: Querying for user ${currentUser.uid}');
+    // Get backend user ID for offline UID fallback
+    final backendAuthService = BackendAuthService();
+    final backendUser = backendAuthService.currentUser;
+    final backendUserId = backendUser?.id;
+    final offlineUid = backendUserId != null ? 'offline_$backendUserId' : null;
+    final realFirebaseUid = currentUser.uid;
+
+    print('✅ getConversations: Querying for user $realFirebaseUid');
+    if (offlineUid != null && offlineUid != realFirebaseUid) {
+      print('🔍 Also checking for offline UID: $offlineUid');
+    }
     
-    // Temporarily removed orderBy to avoid Firestore index requirement
-    // Sort on client-side instead
+    // Query conversations with real Firebase UID (main query)
     return _firestore
         .collection(_conversationsCollection)
-        .where('participants', arrayContains: currentUser.uid)
+        .where('participants', arrayContains: realFirebaseUid)
         .snapshots()
         .handleError((error) {
           print('❌ getConversations error: $error');
-          return Stream.value([]); // Return empty on error
+          return Stream.value(<QuerySnapshot>[]); // Return empty on error
         })
-        .map((snapshot) {
-      print('📊 getConversations: Found ${snapshot.docs.length} conversations');
-      final conversations = snapshot.docs
-          .map((doc) {
+        .asyncMap((mainSnapshot) async {
+          // If offline UID exists and is different, also query for it
+          if (offlineUid != null && offlineUid != realFirebaseUid) {
             try {
-              return ChatConversation.fromFirestore(doc);
+              final offlineSnapshot = await _firestore
+                  .collection(_conversationsCollection)
+                  .where('participants', arrayContains: offlineUid)
+                  .get();
+              
+              // Combine and deduplicate conversations
+              final allDocs = <String, DocumentSnapshot>{};
+              for (var doc in mainSnapshot.docs) {
+                allDocs[doc.id] = doc;
+              }
+              for (var doc in offlineSnapshot.docs) {
+                allDocs[doc.id] = doc; // Will overwrite if duplicate, which is fine
+              }
+              
+              print('📊 getConversations: Found ${allDocs.length} unique conversations (${mainSnapshot.docs.length} from main, ${offlineSnapshot.docs.length} from offline)');
+              
+              final conversations = allDocs.values
+                  .map((doc) {
+                    try {
+                      return ChatConversation.fromFirestore(doc);
+                    } catch (e) {
+                      print('⚠️ Error parsing conversation ${doc.id}: $e');
+                      print('📋 Conversation data: ${doc.data()}');
+                      return null;
+                    }
+                  })
+                  .whereType<ChatConversation>()
+                  .toList();
+              
+              // Sort by lastActivity on client-side
+              conversations.sort((a, b) => b.lastActivity.compareTo(a.lastActivity));
+              
+              return conversations;
             } catch (e) {
-              print('⚠️ Error parsing conversation ${doc.id}: $e');
-              print('📋 Conversation data: ${doc.data()}');
-              return null;
+              print('⚠️ Error querying offline conversations: $e');
+              // Fall through to main query only
             }
-          })
-          .whereType<ChatConversation>() // Filter out nulls
-          .toList();
-      
-      // Sort by lastActivity on client-side
-      conversations.sort((a, b) => b.lastActivity.compareTo(a.lastActivity));
-      
-      return conversations;
-    });
+          }
+          
+          // Main query only (or fallback if offline query failed)
+          print('📊 getConversations: Found ${mainSnapshot.docs.length} conversations');
+          final conversations = mainSnapshot.docs
+              .map((doc) {
+                try {
+                  return ChatConversation.fromFirestore(doc);
+                } catch (e) {
+                  print('⚠️ Error parsing conversation ${doc.id}: $e');
+                  print('📋 Conversation data: ${doc.data()}');
+                  return null;
+                }
+              })
+              .whereType<ChatConversation>()
+              .toList();
+          
+          // Sort by lastActivity on client-side
+          conversations.sort((a, b) => b.lastActivity.compareTo(a.lastActivity));
+          
+          return conversations;
+        });
   }
 
   // ✅ NEW: Get total unread messages count across all conversations

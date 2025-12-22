@@ -25,7 +25,8 @@ exports.getAllUsers = async (req, res) => {
       whereClause = conditions.join(' AND ');
     }
     
-    const result = await NguoiDung.findAll({
+    const nguoiDung = new NguoiDung();
+    const result = await nguoiDung.findAll({
       page: parseInt(page),
       limit: parseInt(limit),
       where: whereClause,
@@ -67,7 +68,8 @@ exports.grantAdminRole = async (req, res) => {
     }
     
     // Kiểm tra user tồn tại
-    const user = await NguoiDung.findById(userId);
+    const nguoiDung = new NguoiDung();
+    const user = await nguoiDung.findById(userId);
     if (!user) {
       return res.status(404).json({
         success: false,
@@ -84,9 +86,10 @@ exports.grantAdminRole = async (req, res) => {
     }
     
     // Cập nhật role
-    const updatedUser = await NguoiDung.update(userId, {
+    await nguoiDung.update(userId, {
       chuc_vu: 'Admin'
     });
+    const updatedUser = await nguoiDung.findById(userId);
     
     // Remove password from response
     const { mat_khau, ...userResponse } = updatedUser;
@@ -123,7 +126,8 @@ exports.revokeAdminRole = async (req, res) => {
     }
     
     // Kiểm tra user tồn tại
-    const user = await NguoiDung.findById(userId);
+    const nguoiDung = new NguoiDung();
+    const user = await nguoiDung.findById(userId);
     if (!user) {
       return res.status(404).json({
         success: false,
@@ -140,9 +144,10 @@ exports.revokeAdminRole = async (req, res) => {
     }
     
     // Cập nhật role về User
-    const updatedUser = await NguoiDung.update(userId, {
+    await nguoiDung.update(userId, {
       chuc_vu: 'User'
     });
+    const updatedUser = await nguoiDung.findById(userId);
     
     // Remove password from response
     const { mat_khau, ...userResponse } = updatedUser;
@@ -189,7 +194,8 @@ exports.updateUserRole = async (req, res) => {
     }
     
     // Kiểm tra user tồn tại
-    const user = await NguoiDung.findById(userId);
+    const nguoiDung = new NguoiDung();
+    const user = await nguoiDung.findById(userId);
     if (!user) {
       return res.status(404).json({
         success: false,
@@ -198,9 +204,10 @@ exports.updateUserRole = async (req, res) => {
     }
     
     // Cập nhật role
-    const updatedUser = await NguoiDung.update(userId, {
+    await nguoiDung.update(userId, {
       chuc_vu: chuc_vu
     });
+    const updatedUser = await nguoiDung.findById(userId);
     
     // Remove password from response
     const { mat_khau, ...userResponse } = updatedUser;
@@ -227,7 +234,8 @@ exports.getUserDetail = async (req, res) => {
   try {
     const { userId } = req.params;
     
-    const user = await NguoiDung.findById(userId);
+    const nguoiDung = new NguoiDung();
+    const user = await nguoiDung.findById(userId);
     if (!user) {
       return res.status(404).json({
         success: false,
@@ -266,7 +274,8 @@ exports.toggleUserStatus = async (req, res) => {
       });
     }
     
-    const user = await NguoiDung.findById(userId);
+    const nguoiDung = new NguoiDung();
+    const user = await nguoiDung.findById(userId);
     if (!user) {
       return res.status(404).json({
         success: false,
@@ -276,9 +285,10 @@ exports.toggleUserStatus = async (req, res) => {
     
     // Toggle status
     const newStatus = user.trang_thai === 1 ? 0 : 1;
-    const updatedUser = await NguoiDung.update(userId, {
+    await nguoiDung.update(userId, {
       trang_thai: newStatus
     });
+    const updatedUser = await nguoiDung.findById(userId);
     
     // Remove password from response
     const { mat_khau, ...userResponse } = updatedUser;

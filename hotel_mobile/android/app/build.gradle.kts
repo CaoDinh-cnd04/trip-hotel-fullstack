@@ -9,7 +9,7 @@ plugins {
 
 android {
     namespace = "com.example.hotel_mobile"
-    compileSdk = flutter.compileSdkVersion
+    compileSdk = 36  // Android 16 (API level 36) - required by dependencies
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
@@ -28,8 +28,8 @@ android {
         applicationId = "com.example.hotel_mobile"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
-        minSdk = flutter.minSdkVersion
-        targetSdk = flutter.targetSdkVersion
+        minSdk = flutter.minSdkVersion  // Android 5.0 (API level 21)
+        targetSdk = 36  // Android 16 (API level 36) - required by dependencies
         versionCode = flutter.versionCode
         versionName = flutter.versionName
         

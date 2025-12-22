@@ -21,9 +21,12 @@ class ThongBao extends BaseModel {
       whereConditions.push('tb.hien_thi = CAST(1 AS BIT)');
       
       // Filter by target audience (qualify column with table alias to avoid ambiguity)
+      // Include hotel_manager and admin in the query
       whereConditions.push(`(
         tb.doi_tuong_nhan = 'all' OR 
         tb.doi_tuong_nhan = 'user' OR 
+        tb.doi_tuong_nhan = 'hotel_manager' OR
+        tb.doi_tuong_nhan = 'admin' OR
         (tb.doi_tuong_nhan = 'specific_user' AND tb.nguoi_dung_id = ${userId})
       )`);
 
@@ -95,6 +98,7 @@ class ThongBao extends BaseModel {
         WHERE 
           tb.hien_thi = CAST(1 AS BIT) AND
           (tb.doi_tuong_nhan = 'all' OR tb.doi_tuong_nhan = 'user' OR 
+           tb.doi_tuong_nhan = 'hotel_manager' OR tb.doi_tuong_nhan = 'admin' OR
            (tb.doi_tuong_nhan = 'specific_user' AND tb.nguoi_dung_id = @userId)) AND
           (tb.ngay_het_han IS NULL OR tb.ngay_het_han > GETDATE()) AND
           tdd.id IS NULL
@@ -112,6 +116,7 @@ class ThongBao extends BaseModel {
         WHERE 
           tb.hien_thi = CAST(1 AS BIT) AND
           (tb.doi_tuong_nhan = 'all' OR tb.doi_tuong_nhan = 'user' OR 
+           tb.doi_tuong_nhan = 'hotel_manager' OR tb.doi_tuong_nhan = 'admin' OR
            (tb.doi_tuong_nhan = 'specific_user' AND tb.nguoi_dung_id = @userId)) AND
           (tb.ngay_het_han IS NULL OR tb.ngay_het_han > GETDATE())
       `;
@@ -164,32 +169,40 @@ class ThongBao extends BaseModel {
       const NguoiDung = require('./nguoidung');
 
       // Determine target users based on doi_tuong_nhan
+      // Note: Treat NULL nhan_thong_bao_email as enabled (default behavior)
       switch (notification.doi_tuong_nhan) {
         case 'all':
           query = `
             SELECT * FROM nguoi_dung 
-            WHERE trang_thai = CAST(1 AS BIT) AND nhan_thong_bao_email = CAST(1 AS BIT)
+            WHERE trang_thai = CAST(1 AS BIT) 
+            AND (nhan_thong_bao_email IS NULL OR nhan_thong_bao_email = CAST(1 AS BIT))
           `;
           break;
         
         case 'user':
           query = `
             SELECT * FROM nguoi_dung 
-            WHERE chuc_vu = 'User' AND trang_thai = CAST(1 AS BIT) AND nhan_thong_bao_email = CAST(1 AS BIT)
+            WHERE chuc_vu = 'User' 
+            AND trang_thai = CAST(1 AS BIT) 
+            AND (nhan_thong_bao_email IS NULL OR nhan_thong_bao_email = CAST(1 AS BIT))
           `;
           break;
         
         case 'hotel_manager':
           query = `
             SELECT * FROM nguoi_dung 
-            WHERE chuc_vu = 'HotelManager' AND trang_thai = CAST(1 AS BIT) AND nhan_thong_bao_email = CAST(1 AS BIT)
+            WHERE chuc_vu = 'HotelManager' 
+            AND trang_thai = CAST(1 AS BIT) 
+            AND (nhan_thong_bao_email IS NULL OR nhan_thong_bao_email = CAST(1 AS BIT))
           `;
           break;
         
         case 'admin':
           query = `
             SELECT * FROM nguoi_dung 
-            WHERE chuc_vu = 'Admin' AND trang_thai = CAST(1 AS BIT) AND nhan_thong_bao_email = CAST(1 AS BIT)
+            WHERE chuc_vu = 'Admin' 
+            AND trang_thai = CAST(1 AS BIT) 
+            AND (nhan_thong_bao_email IS NULL OR nhan_thong_bao_email = CAST(1 AS BIT))
           `;
           break;
         
@@ -197,7 +210,9 @@ class ThongBao extends BaseModel {
           if (notification.nguoi_dung_id) {
             query = `
               SELECT * FROM nguoi_dung 
-              WHERE id = ${notification.nguoi_dung_id} AND trang_thai = CAST(1 AS BIT) AND nhan_thong_bao_email = CAST(1 AS BIT)
+              WHERE id = ${notification.nguoi_dung_id} 
+              AND trang_thai = CAST(1 AS BIT) 
+              AND (nhan_thong_bao_email IS NULL OR nhan_thong_bao_email = CAST(1 AS BIT))
             `;
           } else {
             return [];
@@ -208,10 +223,45 @@ class ThongBao extends BaseModel {
           return [];
       }
 
+      console.log(`🔍 Executing query for target audience: ${notification.doi_tuong_nhan}`);
+      console.log(`📝 Query: ${query.substring(0, 100)}...`);
+      
       const result = await this.executeQuery(query);
-      return result.recordset;
+      const users = result.recordset || [];
+      
+      console.log(`✅ Found ${users.length} users for email notification`);
+      if (users.length > 0) {
+        console.log(`📋 Sample user:`, {
+          id: users[0].id,
+          email: users[0].email,
+          ho_ten: users[0].ho_ten,
+          chuc_vu: users[0].chuc_vu,
+          trang_thai: users[0].trang_thai,
+          nhan_thong_bao_email: users[0].nhan_thong_bao_email
+        });
+      } else {
+        console.log(`⚠️  No users found. Checking why...`);
+        // Debug query to see total users
+        try {
+          const debugQuery = `
+            SELECT 
+              COUNT(*) as total_users,
+              SUM(CASE WHEN trang_thai = CAST(1 AS BIT) THEN 1 ELSE 0 END) as active_users,
+              SUM(CASE WHEN nhan_thong_bao_email = CAST(1 AS BIT) THEN 1 ELSE 0 END) as email_enabled_users,
+              SUM(CASE WHEN chuc_vu = '${notification.doi_tuong_nhan}' THEN 1 ELSE 0 END) as target_role_users
+            FROM nguoi_dung
+          `;
+          const debugResult = await this.executeQuery(debugQuery);
+          console.log(`📊 User stats:`, debugResult.recordset[0]);
+        } catch (debugError) {
+          console.error('Error getting debug stats:', debugError);
+        }
+      }
+      
+      return users;
     } catch (error) {
-      console.error('Get users for email notification error:', error);
+      console.error('❌ Get users for email notification error:', error);
+      console.error('❌ Error stack:', error.stack);
       return [];
     }
   }

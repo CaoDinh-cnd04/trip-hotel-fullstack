@@ -1,5 +1,14 @@
 import 'package:flutter/material.dart';
 
+/// Class chứa bảng màu của ứng dụng
+/// 
+/// Định nghĩa tất cả các màu sắc được sử dụng trong toàn bộ ứng dụng:
+/// - Primary colors: Màu chính (xanh dương)
+/// - Secondary colors: Màu phụ (cam)
+/// - Neutral colors: Màu trung tính (trắng, đen, xám)
+/// - Status colors: Màu trạng thái (thành công, lỗi, cảnh báo, thông tin)
+/// - Text colors: Màu chữ (primary, secondary, hint)
+/// - Background colors: Màu nền (background, surface, card)
 class AppColors {
   // Primary Colors
   static const Color primary = Color(0xFF2196F3);
@@ -35,7 +44,24 @@ class AppColors {
   static const Color cardBackground = Color(0xFFFFFFFF);
 }
 
+/// Class chứa theme configuration của ứng dụng
+/// 
+/// Định nghĩa Material Design theme với các cấu hình:
+/// - Colors: Màu sắc từ AppColors
+/// - Typography: Font styles cho các loại text
+/// - Components: AppBar, Card, Button, Input decoration themes
+/// 
+/// Hiện tại chỉ có light theme, có thể mở rộng thêm dark theme sau
 class AppTheme {
+  /// Lấy light theme configuration
+  /// 
+  /// Trả về ThemeData với các cấu hình:
+  /// - Primary color: Blue
+  /// - AppBar: White background, no elevation
+  /// - Cards: White với rounded corners và shadow
+  /// - Buttons: Primary color với rounded corners
+  /// - Inputs: Filled với border radius
+  /// - Text: Sử dụng AppColors.textPrimary/textSecondary
   static ThemeData get lightTheme {
     return ThemeData(
       useMaterial3: true,

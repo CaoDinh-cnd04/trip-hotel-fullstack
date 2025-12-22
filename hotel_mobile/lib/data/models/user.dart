@@ -1,5 +1,11 @@
 import '../../core/utils/image_url_helper.dart';
 
+/// Model đại diện cho người dùng
+/// 
+/// Chứa thông tin:
+/// - Thông tin cá nhân: họ tên, email, số điện thoại, ngày sinh, giới tính
+/// - Thông tin địa chỉ: địa chỉ, avatar
+/// - Thông tin hệ thống: chức vụ (vai trò), trạng thái
 class User {
   final int? id;
   final String? hoTen;
@@ -29,6 +35,11 @@ class User {
     this.updatedAt,
   });
 
+  /// Tạo đối tượng User từ JSON
+  /// 
+  /// [json] - Map chứa dữ liệu JSON từ API
+  /// 
+  /// Trả về đối tượng User với các trường được parse từ JSON
   factory User.fromJson(Map<String, dynamic> json) {
     return User(
       id: json['id'],
@@ -50,6 +61,9 @@ class User {
     );
   }
 
+  /// Chuyển đổi đối tượng User sang JSON
+  /// 
+  /// Trả về Map chứa tất cả các trường của User dưới dạng JSON
   Map<String, dynamic> toJson() {
     return {
       'id': id,
@@ -67,6 +81,11 @@ class User {
     };
   }
 
+  /// Tạo bản sao của User với các trường được cập nhật
+  /// 
+  /// Cho phép cập nhật từng trường riêng lẻ mà không cần tạo mới toàn bộ object
+  /// 
+  /// Tất cả các tham số đều tùy chọn, nếu không cung cấp sẽ giữ nguyên giá trị cũ
   User copyWith({
     int? id,
     String? hoTen,
@@ -97,7 +116,10 @@ class User {
     );
   }
 
-  /// Get full avatar URL
+  /// Lấy URL đầy đủ của avatar
+  /// 
+  /// Sử dụng ImageUrlHelper để tạo URL từ đường dẫn avatar
+  /// Trả về URL mặc định nếu không có avatar
   String get fullAvatarUrl {
     return ImageUrlHelper.getUserAvatarUrl(anhDaiDien);
   }

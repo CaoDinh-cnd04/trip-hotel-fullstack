@@ -779,6 +779,7 @@ class _BookingScreenState extends State<BookingScreen> {
       );
 
       if (result.success) {
+        // ✅ Reload room availability sau khi quay lại từ payment screen
         // Navigate to payment screen
         if (_selectedRoom != null) {
           Navigator.push(
@@ -792,9 +793,14 @@ class _BookingScreenState extends State<BookingScreen> {
                 guestCount: _adults,
                 nights: _checkOutDate!.difference(_checkInDate!).inDays,
                 roomPrice: _selectedRoom!.giaPhong ?? 500000,
+                roomCount: _rooms,
               ),
             ),
-          );
+          ).then((_) {
+            // Reload room availability sau khi quay lại (có thể đã đặt phòng thành công)
+            print('🔄 Reloading room availability after returning from payment...');
+            _loadAvailableRooms();
+          });
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(

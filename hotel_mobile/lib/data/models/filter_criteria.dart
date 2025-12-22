@@ -1,3 +1,10 @@
+/// Model đại diện cho tiêu chí lọc khách sạn
+/// 
+/// Chứa thông tin:
+/// - Giá: minPrice, maxPrice
+/// - Hạng sao: selectedStarRatings
+/// - Tiện nghi: selectedAmenities
+/// - Loại hình: selectedAccommodationTypes
 class FilterCriteria {
   double minPrice;
   double maxPrice;
@@ -13,6 +20,11 @@ class FilterCriteria {
     this.selectedAccommodationTypes = const [],
   });
 
+  /// Tạo bản sao của FilterCriteria với các trường được cập nhật
+  /// 
+  /// Cho phép cập nhật từng trường riêng lẻ mà không cần tạo mới toàn bộ object
+  /// 
+  /// Tất cả các tham số đều tùy chọn, nếu không cung cấp sẽ giữ nguyên giá trị cũ
   FilterCriteria copyWith({
     double? minPrice,
     double? maxPrice,
@@ -32,6 +44,11 @@ class FilterCriteria {
     );
   }
 
+  /// Xóa tất cả các bộ lọc, đặt về giá trị mặc định
+  /// 
+  /// - minPrice = 0.0
+  /// - maxPrice = 10000000.0 (10 triệu)
+  /// - Tất cả các danh sách được clear
   void clear() {
     minPrice = 0.0;
     maxPrice = 10000000.0;
@@ -40,6 +57,11 @@ class FilterCriteria {
     selectedAccommodationTypes.clear();
   }
 
+  /// Kiểm tra xem có bộ lọc nào đang được áp dụng không
+  /// 
+  /// Trả về true nếu:
+  /// - minPrice > 0 HOẶC maxPrice < 10000000 HOẶC
+  /// - Có ít nhất một trong các danh sách không rỗng (starRatings, amenities, accommodationTypes)
   bool get hasActiveFilters {
     return minPrice > 0.0 ||
         maxPrice < 10000000.0 ||
@@ -48,6 +70,11 @@ class FilterCriteria {
         selectedAccommodationTypes.isNotEmpty;
   }
 
+  /// Ước tính số lượng kết quả sau khi áp dụng bộ lọc
+  /// 
+  /// Lưu ý: Đây là ước tính mock, trong thực tế sẽ gọi API để lấy số lượng chính xác
+  /// 
+  /// Trả về số lượng kết quả ước tính (5-150)
   int get estimatedResultCount {
     // Mock calculation - trong thực tế sẽ gọi API để lấy số lượng thực tế
     if (!hasActiveFilters) return 150;
@@ -66,7 +93,9 @@ class FilterCriteria {
   }
 }
 
-// Danh sách các tiện ích phổ biến
+/// Class chứa danh sách các tiện ích phổ biến của khách sạn
+/// 
+/// Sử dụng để hiển thị trong filter UI
 class CommonAmenities {
   static const List<String> all = [
     'WiFi miễn phí',
@@ -88,7 +117,9 @@ class CommonAmenities {
   ];
 }
 
-// Danh sách loại hình chỗ ở
+/// Class chứa danh sách loại hình chỗ ở
+/// 
+/// Sử dụng để hiển thị trong filter UI
 class AccommodationTypes {
   static const List<String> all = [
     'Khách sạn',

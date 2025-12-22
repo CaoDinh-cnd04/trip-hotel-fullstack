@@ -3,11 +3,22 @@ import 'package:flutter/material.dart';
 import '../data/services/auth_service.dart';
 import '../data/services/backend_auth_service.dart';
 import 'screens/main_navigation_screen.dart';
-import 'screens/auth/agoda_style_login_screen.dart';
+import 'screens/auth/triphotel_style_login_screen.dart';
 import 'screens/admin/admin_main_screen.dart';
 import 'screens/hotel_manager/hotel_manager_main_screen.dart';
 import '../../data/models/user_role_model.dart';
 
+/// Widget wrapper chính để điều hướng dựa trên vai trò người dùng
+/// 
+/// Chức năng:
+/// - Kiểm tra trạng thái đăng nhập khi khởi động
+/// - Phân biệt vai trò: Admin, Hotel Manager, hoặc User thường
+/// - Hiển thị giao diện phù hợp với từng vai trò:
+///   - Admin → AdminMainScreen
+///   - Hotel Manager → HotelManagerMainScreen
+///   - User thường → MainNavigationScreen
+/// 
+/// Khác với AuthWrapper: MainWrapper có khả năng phân biệt vai trò và điều hướng phức tạp hơn
 class MainWrapper extends StatefulWidget {
   const MainWrapper({Key? key}) : super(key: key);
 
@@ -16,21 +27,32 @@ class MainWrapper extends StatefulWidget {
 }
 
 class _MainWrapperState extends State<MainWrapper> {
+  /// Service để kiểm tra trạng thái xác thực Firebase
   final AuthService _authService = AuthService();
+  
+  /// Service để kiểm tra trạng thái xác thực backend và vai trò
   final BackendAuthService _backendAuthService = BackendAuthService();
+  
+  /// Trạng thái đang tải (đang kiểm tra xác thực và vai trò)
   bool _isLoading = true;
+  
+  /// Trạng thái đã xác thực hay chưa
   bool _isAuthenticated = false;
+  
+  /// Trạng thái có phải admin không
   bool _isAdmin = false;
+  
+  /// Trạng thái có phải hotel manager không
   bool _isHotelManager = false;
 
   @override
   void initState() {
     super.initState();
+    // Khởi tạo trạng thái xác thực
     _initializeAuthState();
     
-    // Listen for auth state changes - removed since AuthService doesn't have authStateChanges
-
-    // Periodic check for auth state changes (fallback)
+    // Kiểm tra định kỳ trạng thái xác thực mỗi 2 giây (fallback)
+    // Dừng timer khi đã xác nhận là admin để tránh kiểm tra không cần thiết
     Timer.periodic(const Duration(seconds: 2), (timer) {
       if (mounted) {
         _checkAuthState();
@@ -43,12 +65,30 @@ class _MainWrapperState extends State<MainWrapper> {
     });
   }
 
+  /// Khởi tạo trạng thái xác thực khi widget được tạo
+  /// 
+  /// Quy trình:
+  /// 1. Khôi phục dữ liệu người dùng từ local storage
+  /// 2. Kiểm tra trạng thái đăng nhập và vai trò người dùng
   Future<void> _initializeAuthState() async {
     // Force restore user data from storage first
     await _backendAuthService.restoreUserData();
     await _checkAuthState();
   }
 
+  /// Kiểm tra trạng thái đăng nhập và vai trò của người dùng
+  /// 
+  /// Quy trình:
+  /// 1. Kiểm tra xác thực từ AuthService và BackendAuthService
+  /// 2. Xác định vai trò: Admin, Hotel Manager, hoặc User thường
+  ///    - Ưu tiên: Kiểm tra từ UserRoleModel (backendUserRole)
+  ///    - Fallback: Kiểm tra từ User.chucVu nếu không có UserRoleModel
+  /// 3. Cập nhật trạng thái UI dựa trên vai trò
+  /// 4. Hiển thị giao diện tương ứng
+  /// 
+  /// Hỗ trợ nhiều format cho Hotel Manager:
+  /// - "hotelmanager", "hotel_manager", "hotel manager", "manager"
+  /// - Hoặc bất kỳ chuỗi nào chứa cả "hotel" và "manager"
   Future<void> _checkAuthState() async {
     try {
       // Check if user is authenticated and session is valid
@@ -147,11 +187,21 @@ class _MainWrapperState extends State<MainWrapper> {
     }
   }
 
-  // Method to refresh auth state when user logs in/out
+  /// Làm mới trạng thái xác thực khi người dùng đăng nhập/đăng xuất
+  /// 
+  /// Được gọi từ các màn hình con khi có thay đổi về trạng thái đăng nhập
+  /// Ví dụ: Sau khi đăng nhập thành công, hoặc khi đăng xuất
   Future<void> refreshAuthState() async {
     await _checkAuthState();
   }
 
+  /// Xây dựng giao diện dựa trên trạng thái xác thực và vai trò người dùng
+  /// 
+  /// Trả về:
+  /// - Loading screen nếu đang kiểm tra (_isLoading = true)
+  /// - AdminMainScreen nếu là admin (_isAdmin = true)
+  /// - HotelManagerMainScreen nếu là hotel manager (_isHotelManager = true)
+  /// - MainNavigationScreen nếu là user thường hoặc chưa đăng nhập
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {

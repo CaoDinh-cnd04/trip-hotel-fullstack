@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../data/services/hotel_manager_service.dart';
 import '../../../data/services/backend_auth_service.dart';
 import '../../../data/models/hotel_manager_models.dart';
+import 'hotel_management_screen.dart';
 
 class ProfileManagementScreen extends StatefulWidget {
   final HotelManagerService hotelManagerService;
@@ -376,17 +377,18 @@ class _ProfileManagementScreenState extends State<ProfileManagementScreen> {
   }
 
   void _showEditHotelDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => _HotelEditDialog(
-        hotelManagerService: widget.hotelManagerService,
-        hotelInfo: _hotelInfo!,
-        onHotelUpdated: () {
-          _loadHotelInfo();
-          Navigator.of(context).pop();
-        },
+    // Navigate to full hotel management screen instead of dialog
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => HotelManagementScreen(
+          hotelManagerService: widget.hotelManagerService,
+        ),
       ),
-    );
+    ).then((_) {
+      // Reload hotel info when returning
+      _loadHotelInfo();
+    });
   }
 }
 

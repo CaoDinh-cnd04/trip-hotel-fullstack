@@ -6,11 +6,13 @@ import 'promotion_card.dart';
 class PromoCarousel extends StatefulWidget {
   final List<Promotion> promotions;
   final Function(Promotion) onPromotionTap;
+  final Function(Promotion)? onPromotionApply;
 
   const PromoCarousel({
     super.key,
     required this.promotions,
     required this.onPromotionTap,
+    this.onPromotionApply,
   });
 
   @override
@@ -128,6 +130,9 @@ class _PromoCarouselState extends State<PromoCarousel> {
                     promotion: promotion,
                     timeLeft: _getTimeLeft(promotion.ngayKetThuc),
                     onTap: () => widget.onPromotionTap(promotion),
+                    onApply: widget.onPromotionApply != null
+                        ? () => widget.onPromotionApply!(promotion)
+                        : null,
                   ),
                 ),
               );

@@ -74,23 +74,57 @@ class Booking {
       const booking = result.recordset[0];
 
       // ✅ Cộng VIP points sau khi booking thành công và đã thanh toán
-      if (bookingData.paymentStatus === 'paid' && bookingData.userId) {
+      // Lấy userId từ nhiều nguồn để đảm bảo luôn có giá trị
+      let userId = bookingData.userId;
+      if (!userId && booking) {
+        userId = booking.user_id;
+      }
+      if (!userId && bookingData.user_id) {
+        userId = bookingData.user_id;
+      }
+      
+      // Lấy finalPrice từ nhiều nguồn
+      let finalPrice = bookingData.finalPrice;
+      if (!finalPrice || finalPrice <= 0) {
+        finalPrice = bookingData.totalPrice;
+      }
+      if (!finalPrice || finalPrice <= 0) {
+        finalPrice = booking?.final_price;
+      }
+      if (!finalPrice || finalPrice <= 0) {
+        finalPrice = booking?.total_price;
+      }
+      if (!finalPrice || finalPrice <= 0) {
+        finalPrice = 0;
+      }
+      
+      console.log(`🔍 VIP Points Check: paymentStatus=${bookingData.paymentStatus}, userId=${userId}, finalPrice=${finalPrice}`);
+      
+      if (bookingData.paymentStatus === 'paid' && userId) {
         try {
           const VipService = require('../services/vipService');
+          console.log(`💰 Attempting to add VIP points: userId=${userId}, finalPrice=${finalPrice}`);
+          
           const vipResult = await VipService.addPointsAfterBooking(
-            bookingData.userId,
-            bookingData.finalPrice || bookingData.totalPrice || 0
+            userId,
+            finalPrice
           );
+          
           if (vipResult) {
             console.log(`✅ VIP points added: +${vipResult.pointsAdded} points. Total: ${vipResult.newTotalPoints}. Level: ${vipResult.newLevel}`);
             if (vipResult.leveledUp) {
-              console.log(`🎉 User ${bookingData.userId} leveled up from ${vipResult.previousLevel} to ${vipResult.newLevel}!`);
+              console.log(`🎉 User ${userId} leveled up from ${vipResult.previousLevel} to ${vipResult.newLevel}!`);
             }
+          } else {
+            console.warn(`⚠️ VIP points not added: vipResult is null for userId=${userId}, finalPrice=${finalPrice}`);
           }
         } catch (vipError) {
-          console.error('⚠️ Error adding VIP points (non-critical):', vipError.message);
+          console.error('⚠️ Error adding VIP points (non-critical):', vipError);
+          console.error('⚠️ Stack trace:', vipError.stack);
           // Không throw error vì booking đã tạo thành công
         }
+      } else {
+        console.warn(`⚠️ VIP points skipped: paymentStatus=${bookingData.paymentStatus}, userId=${userId}`);
       }
 
       return booking;
@@ -108,27 +142,63 @@ class Booking {
       const pool = getPool();
       const { status, limit = 50, offset = 0 } = options;
 
+      // ⚠️ SỬA LỖI: Query trực tiếp từ bảng bookings thay vì view
+      // View có thể có filter hoặc join thiếu dữ liệu
+      // Đảm bảo hiển thị TẤT CẢ bookings, kể cả pending
       let query = `
-        SELECT * FROM vw_bookings_with_cancellation
-        WHERE user_id = @user_id
+        SELECT 
+          b.*,
+          ks.ten as hotel_name,
+          ks.hinh_anh as hotel_image,
+          ks.dia_chi as hotel_address,
+          CASE 
+            WHEN b.booking_status = 'pending' AND b.cancellation_allowed = 1 
+              AND DATEDIFF(hour, GETDATE(), b.check_in_date) >= 24 
+            THEN 1 
+            ELSE 0 
+          END as can_cancel,
+          b.cancelled_at,
+          b.refund_status,
+          b.refund_reason
+        FROM bookings b
+        LEFT JOIN khach_san ks ON b.hotel_id = ks.id
+        WHERE b.user_id = @user_id
       `;
 
-      if (status) {
-        query += ` AND booking_status = @status`;
+      // ⚠️ QUAN TRỌNG: Không filter theo status nếu không có yêu cầu
+      // Hoặc nếu status = 'all' hoặc null, hiển thị tất cả
+      if (status && status !== 'all' && status !== '') {
+        query += ` AND b.booking_status = @status`;
       }
 
-      query += ` ORDER BY created_at DESC OFFSET @offset ROWS FETCH NEXT @limit ROWS ONLY`;
+      query += ` ORDER BY b.created_at DESC OFFSET @offset ROWS FETCH NEXT @limit ROWS ONLY`;
 
       const request = pool.request()
         .input('user_id', sql.Int, userId)
         .input('limit', sql.Int, limit)
         .input('offset', sql.Int, offset);
 
-      if (status) {
+      if (status && status !== 'all' && status !== '') {
         request.input('status', sql.NVarChar(50), status);
       }
 
       const result = await request.query(query);
+      
+      // Log để debug
+      console.log('📋 Query result:', {
+        userId,
+        status,
+        limit,
+        offset,
+        found: result.recordset.length,
+        sample: result.recordset.length > 0 ? {
+          id: result.recordset[0].id,
+          booking_code: result.recordset[0].booking_code,
+          booking_status: result.recordset[0].booking_status,
+          payment_method: result.recordset[0].payment_method,
+        } : null,
+      });
+      
       return result.recordset;
     } catch (error) {
       console.error('❌ Error getting user bookings:', error);

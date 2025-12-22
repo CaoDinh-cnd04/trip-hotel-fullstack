@@ -1,16 +1,12 @@
 import 'package:flutter/material.dart';
 import '../../../data/models/room_availability.dart';
 import '../../../data/services/room_availability_service.dart';
-import '../../widgets/room_availability_badge.dart';
 
 /// Demo screen để xem các widget availability
 class RoomAvailabilityDemoScreen extends StatefulWidget {
   final String? hotelId;
 
-  const RoomAvailabilityDemoScreen({
-    Key? key,
-    this.hotelId,
-  }) : super(key: key);
+  const RoomAvailabilityDemoScreen({Key? key, this.hotelId}) : super(key: key);
 
   @override
   State<RoomAvailabilityDemoScreen> createState() =>
@@ -21,11 +17,11 @@ class _RoomAvailabilityDemoScreenState
     extends State<RoomAvailabilityDemoScreen> {
   final RoomAvailabilityService _availabilityService =
       RoomAvailabilityService();
-  
+
   List<RoomAvailability> _rooms = [];
   bool _isLoading = false;
   String? _error;
-  
+
   DateTime _checkinDate = DateTime.now().add(const Duration(days: 1));
   DateTime _checkoutDate = DateTime.now().add(const Duration(days: 3));
 
@@ -146,16 +142,18 @@ class _RoomAvailabilityDemoScreenState
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: warnings
-              .map((w) => Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 4),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.circle, size: 6, color: Colors.orange),
-                        const SizedBox(width: 8),
-                        Expanded(child: Text(w)),
-                      ],
-                    ),
-                  ))
+              .map(
+                (w) => Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.circle, size: 6, color: Colors.orange),
+                      const SizedBox(width: 8),
+                      Expanded(child: Text(w)),
+                    ],
+                  ),
+                ),
+              )
               .toList(),
         ),
         actions: [
@@ -178,15 +176,17 @@ class _RoomAvailabilityDemoScreenState
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
-            onPressed: widget.hotelId != null ? _loadAvailability : _loadMockData,
+            onPressed: widget.hotelId != null
+                ? _loadAvailability
+                : _loadMockData,
           ),
         ],
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _error != null
-              ? _buildErrorWidget()
-              : _buildRoomsList(),
+          ? _buildErrorWidget()
+          : _buildRoomsList(),
     );
   }
 
@@ -209,7 +209,9 @@ class _RoomAvailabilityDemoScreenState
           ),
           const SizedBox(height: 16),
           ElevatedButton(
-            onPressed: widget.hotelId != null ? _loadAvailability : _loadMockData,
+            onPressed: widget.hotelId != null
+                ? _loadAvailability
+                : _loadMockData,
             child: const Text('Thử lại'),
           ),
         ],
@@ -321,10 +323,7 @@ class _RoomAvailabilityDemoScreenState
             const SizedBox(height: 4),
             Text(
               '${date.day}/${date.month}/${date.year}',
-              style: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-              ),
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
           ],
         ),
@@ -357,10 +356,7 @@ class _RoomAvailabilityDemoScreenState
             color: color,
           ),
         ),
-        Text(
-          label,
-          style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-        ),
+        Text(label, style: TextStyle(fontSize: 12, color: Colors.grey[600])),
       ],
     );
   }
@@ -407,12 +403,135 @@ class _RoomAvailabilityDemoScreenState
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text('Đặt phòng ${room.tenLoaiPhong}'),
-        action: SnackBarAction(
-          label: 'Xem',
-          onPressed: () {},
+        action: SnackBarAction(label: 'Xem', onPressed: () {}),
+      ),
+    );
+  }
+}
+
+/// Widget hiển thị thông tin phòng và tình trạng có sẵn
+class RoomAvailabilityCard extends StatelessWidget {
+  final RoomAvailability availability;
+  final VoidCallback? onTap;
+
+  const RoomAvailabilityCard({Key? key, required this.availability, this.onTap})
+    : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      elevation: 2,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(8),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Text(
+                      availability.tenLoaiPhong,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  _buildAvailabilityBadge(),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Số phòng còn lại: ${availability.availableRooms}',
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Giá: ${availability.giaCoban.toStringAsFixed(0)} VNĐ/đêm',
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: Colors.green[700],
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Xây dựng badge hiển thị trạng thái phòng
+  Widget _buildAvailabilityBadge() {
+    Color badgeColor;
+    String badgeText;
+
+    if (availability.isSoldOut) {
+      badgeColor = Colors.red;
+      badgeText = 'Hết phòng';
+    } else if (availability.isLowAvailability) {
+      badgeColor = Colors.orange;
+      badgeText = 'Sắp hết';
+    } else {
+      badgeColor = Colors.green;
+      badgeText = 'Còn phòng';
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: badgeColor,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Text(
+        badgeText,
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 12,
+          fontWeight: FontWeight.w500,
         ),
       ),
     );
   }
 }
 
+/// Alert dialog hiển thị cảnh báo khi phòng sắp hết
+class LowAvailabilityAlert {
+  /// Hiển thị dialog cảnh báo phòng sắp hết
+  static Future<bool?> show(BuildContext context, RoomAvailability room) {
+    return showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('⚠️ Phòng sắp hết!'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '${room.tenLoaiPhong} chỉ còn lại ${room.availableRooms} phòng.',
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Bạn có muốn đặt ngay để không bỏ lỡ cơ hội?',
+                style: TextStyle(fontWeight: FontWeight.w500),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Để sau'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('Đặt ngay'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}

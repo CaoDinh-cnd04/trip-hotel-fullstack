@@ -1,8 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:hotel_mobile/data/models/room.dart';
+import 'package:hotel_mobile/data/services/applied_promotion_service.dart';
 import 'package:intl/intl.dart';
 import 'room_availability_badge.dart';
 
+/// Widget hiển thị danh sách phòng để người dùng lựa chọn
+/// Thiết kế theo phong cách Agoda: layout ngang (hình ảnh bên trái, thông tin bên phải)
+/// 
+/// Tham số:
+/// - rooms: Danh sách các phòng cần hiển thị
+/// - onRoomSelected: Callback được gọi khi người dùng chọn phòng
+/// - checkInDate: Ngày nhận phòng (optional)
+/// - checkOutDate: Ngày trả phòng (optional)
+/// - guestCount: Số lượng khách
 class RoomSelectionSection extends StatefulWidget {
   final List<Room> rooms;
   final Function(Room) onRoomSelected;
@@ -24,9 +34,27 @@ class RoomSelectionSection extends StatefulWidget {
 }
 
 class _RoomSelectionSectionState extends State<RoomSelectionSection> {
-  final Map<String, bool> _expandedStates = {}; // Use room type as key instead of index
+  /// Map lưu trạng thái expand/collapse của từng loại phòng
+  /// Key: tenLoaiPhong (loại phòng)
+  /// Value: true nếu đang expand, false nếu đang collapse
+  final Map<String, bool> _expandedStates = {};
+  
+  /// Format tiền tệ theo định dạng Việt Nam (₫)
+  /// Ví dụ: 1000000 -> 1.000.000 ₫
   final currencyFormat = NumberFormat.currency(locale: 'vi_VN', symbol: '₫', decimalDigits: 0);
+  
+  /// Service để lấy promotion đang được áp dụng
+  final AppliedPromotionService _promotionService = AppliedPromotionService();
 
+  /// Lấy giá sau khi áp dụng promotion
+  double _getPriceWithPromotion(double originalPrice, Room room) {
+    return _promotionService.calculateDiscountedPrice(originalPrice, hotelId: room.khachSanId);
+  }
+
+  /// Tính số đêm từ check-in và check-out date
+  /// 
+  /// Trả về: Số đêm (int) hoặc null nếu không có đủ thông tin
+  /// Ví dụ: Check-in 01/01, check-out 03/01 -> 2 đêm
   int? get _numberOfNights {
     if (widget.checkInDate != null && widget.checkOutDate != null) {
       return widget.checkOutDate!.difference(widget.checkInDate!).inDays;
@@ -34,28 +62,55 @@ class _RoomSelectionSectionState extends State<RoomSelectionSection> {
     return null;
   }
 
-  // Nhóm phòng theo loại và trả về danh sách phòng đại diện với số lượng
+  /// ============================================
+  /// HÀM: _getGroupedRooms
+  /// ============================================
+  /// Nhóm các phòng theo loại phòng (tenLoaiPhong)
+  /// 
+  /// Logic:
+  /// 1. Nhóm tất cả phòng theo tenLoaiPhong
+  /// 2. Lấy 1 phòng đầu tiên làm đại diện cho mỗi nhóm
+  /// 3. Tính số phòng còn lại trong nhóm (trừ phòng đại diện)
+  /// 
+  /// Trả về: List<MapEntry<Room, int>>
+  /// - Room: Phòng đại diện cho nhóm
+  /// - int: Số phòng còn lại trong nhóm (ví dụ: nếu có 5 phòng, int = 4)
+  /// 
+  /// Ví dụ: Có 3 phòng "Deluxe" và 2 phòng "Standard"
+  /// -> Trả về: [MapEntry(Deluxe_room1, 2), MapEntry(Standard_room1, 1)]
   List<MapEntry<Room, int>> _getGroupedRooms() {
-    // Nhóm phòng theo tenLoaiPhong
+    // Bước 1: Tạo Map để nhóm phòng theo loại
     final Map<String, List<Room>> grouped = {};
+    
+    // Bước 2: Duyệt qua tất cả phòng và nhóm chúng
     for (var room in widget.rooms) {
-      final roomType = room.tenLoaiPhong ?? 'Phòng không tên';
+      final roomType = room.tenLoaiPhong ?? 'Phòng không tên'; // Nếu không có tên thì dùng mặc định
       if (!grouped.containsKey(roomType)) {
-        grouped[roomType] = [];
+        grouped[roomType] = []; // Tạo list mới nếu chưa có
       }
-      grouped[roomType]!.add(room);
+      grouped[roomType]!.add(room); // Thêm phòng vào nhóm
     }
 
-    // Lấy 1 phòng đầu tiên làm đại diện cho mỗi nhóm
+    // Bước 3: Lấy 1 phòng đầu tiên làm đại diện cho mỗi nhóm
+    // và tính số phòng còn lại
     return grouped.entries.map((entry) {
-      final representativeRoom = entry.value.first;
+      final representativeRoom = entry.value.first; // Phòng đầu tiên làm đại diện
       final remainingCount = entry.value.length - 1; // Số phòng còn lại (trừ phòng đại diện)
       return MapEntry(representativeRoom, remainingCount);
     }).toList();
   }
 
+  /// ============================================
+  /// HÀM BUILD CHÍNH
+  /// ============================================
+  /// Xây dựng giao diện danh sách phòng với layout ngang (Agoda style)
+  /// 
+  /// Cấu trúc:
+  /// 1. Section header: Tiêu đề và số lượng phòng
+  /// 2. Danh sách phòng: Mỗi phòng hiển thị layout ngang (hình bên trái, info bên phải)
   @override
   Widget build(BuildContext context) {
+    // Kiểm tra nếu không có phòng nào
     if (widget.rooms.isEmpty) {
       return Container(
         padding: const EdgeInsets.all(24),
@@ -68,128 +123,104 @@ class _RoomSelectionSectionState extends State<RoomSelectionSection> {
       );
     }
 
+    // Nhóm phòng theo loại và lấy phòng đại diện
     final groupedRooms = _getGroupedRooms();
-    final totalRooms = widget.rooms.length;
+    final totalRooms = widget.rooms.length; // Tổng số phòng (không nhóm)
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [
-            Colors.white,
-            Colors.grey[50]!,
-          ],
-        ),
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+      color: const Color(0xFFF5F5F5),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Section header với design hiện đại và số lượng phòng
+          /// ============================================
+          /// PHẦN 1: SECTION HEADER
+          /// ============================================
+          /// Hiển thị tiêu đề và thông tin tổng quan về phòng
+          /// Layout: Icon bên trái, text ở giữa, badge số đêm bên phải
           Container(
-            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+            padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
             decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  Colors.indigo[50]!,
-                  Colors.purple[50]!,
-                ],
-                begin: Alignment.centerLeft,
-                end: Alignment.centerRight,
-              ),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: Colors.indigo[200]!,
-                width: 1.5,
-              ),
+              color: Colors.white, // Nền trắng
+              borderRadius: BorderRadius.circular(12), // Bo góc 12px
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.04), // Đổ bóng nhẹ
+                  blurRadius: 8,
+                  offset: const Offset(0, 2), // Đổ bóng xuống dưới 2px
+                ),
+              ],
             ),
             child: Row(
               children: [
+                /// Icon container: Container xám nhẹ 48x48 với icon giường
                 Container(
-                  padding: const EdgeInsets.all(8),
+                  width: 48,
+                  height: 48,
                   decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
-                        Colors.indigo[400]!,
-                        Colors.purple[400]!,
-                      ],
-                    ),
+                    color: const Color(0xFFF5F5F5), // Nền xám nhẹ
                     borderRadius: BorderRadius.circular(10),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.indigo.withOpacity(0.3),
-                        blurRadius: 6,
-                        offset: const Offset(0, 3),
-                      ),
-                    ],
                   ),
                   child: const Icon(
-                    Icons.bed,
-                    color: Colors.white,
-                    size: 20,
+                    Icons.bed_outlined, // Icon giường
+                    color: Color(0xFF1A1A1A),
+                    size: 24,
                   ),
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: 16), // Khoảng cách giữa icon và text
+                
+                /// Phần text: Tiêu đề và mô tả
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      // Tiêu đề chính
                       const Text(
                         'Lựa chọn phòng và giá',
                         style: TextStyle(
-                          fontSize: 22,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.black87,
-                          letterSpacing: -0.5,
+                          fontSize: 20,
+                          fontWeight: FontWeight.w700, // Font đậm
+                          color: Color(0xFF1A1A1A),
+                          letterSpacing: -0.5, // Chữ gần nhau hơn
                         ),
                       ),
                       const SizedBox(height: 4),
+                      // Mô tả: Số loại phòng và tổng số phòng
                       Text(
                         'Đang hiển thị ${groupedRooms.length} loại phòng (Tổng ${totalRooms} phòng)',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey[600],
-                          fontWeight: FontWeight.w500,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          color: Color(0xFF999999), // Màu xám nhẹ
+                          fontWeight: FontWeight.w400,
                         ),
                       ),
                     ],
                   ),
                 ),
+                
+                /// Badge số đêm: Hiển thị số đêm đã chọn (nếu có)
                 if (_numberOfNights != null)
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                     decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          Colors.orange[400]!,
-                          Colors.orange[600]!,
-                        ],
-                      ),
-                      borderRadius: BorderRadius.circular(12),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.orange.withOpacity(0.3),
-                          blurRadius: 6,
-                          offset: const Offset(0, 3),
-                        ),
-                      ],
+                      color: const Color(0xFF1A1A1A), // Màu đen
+                      borderRadius: BorderRadius.circular(8),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         const Icon(
-                          Icons.bedtime,
+                          Icons.bedtime_outlined, // Icon ban đêm
                           color: Colors.white,
                           size: 16,
                         ),
-                        const SizedBox(width: 4),
+                        const SizedBox(width: 6),
                         Text(
-                          '$_numberOfNights đêm',
+                          '$_numberOfNights đêm', // Ví dụ: "2 đêm"
                           style: const TextStyle(
                             fontSize: 13,
                             color: Colors.white,
-                            fontWeight: FontWeight.bold,
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
                       ],
@@ -198,15 +229,26 @@ class _RoomSelectionSectionState extends State<RoomSelectionSection> {
               ],
             ),
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 20),
 
-          // Rooms list - chỉ hiển thị 1 phòng đại diện cho mỗi loại
+          /// ============================================
+          /// PHẦN 2: DANH SÁCH PHÒNG
+          /// ============================================
+          /// Hiển thị danh sách phòng với layout ngang (Agoda style)
+          /// Mỗi phòng được nhóm theo loại, chỉ hiển thị 1 phòng đại diện cho mỗi loại
+          /// 
+          /// Logic:
+          /// - Sử dụng spread operator (...) để thêm các widget vào children list
+          /// - Mỗi phòng được bọc trong Padding để có khoảng cách
+          /// - remainingCount: Số phòng còn lại cùng loại (hiển thị badge "Còn X phòng")
           ...groupedRooms.map((roomEntry) {
-            final room = roomEntry.key;
-            final remainingCount = roomEntry.value;
+            final room = roomEntry.key; // Phòng đại diện
+            final remainingCount = roomEntry.value; // Số phòng còn lại
             final roomType = room.tenLoaiPhong ?? 'Phòng không tên';
+            
+            // Trả về card phòng với padding phía dưới
             return Padding(
-              padding: const EdgeInsets.only(bottom: 16),
+              padding: const EdgeInsets.only(bottom: 16), // Khoảng cách giữa các card
               child: _buildRoomCard(room, roomType, remainingCount),
             );
           }),
@@ -215,157 +257,172 @@ class _RoomSelectionSectionState extends State<RoomSelectionSection> {
     );
   }
 
+  /// ============================================
+  /// HÀM: _buildRoomCard
+  /// ============================================
+  /// Xây dựng card hiển thị thông tin phòng với layout dọc
+  /// 
+  /// Layout: Hình ảnh ở trên (full width), thông tin ở dưới
+  /// 
+  /// Tham số:
+  /// - room: Đối tượng Room cần hiển thị
+  /// - roomType: Loại phòng (dùng làm key cho expanded state)
+  /// - remainingCount: Số phòng còn lại cùng loại (hiển thị badge)
+  /// 
+  /// Trả về: Container với Column layout dọc
   Widget _buildRoomCard(Room room, String roomType, int remainingCount) {
-    final roomImages = room.hinhAnhPhong ?? [];
-    final isExpanded = _expandedStates[roomType] ?? false;
+    final roomImages = room.hinhAnhPhong ?? []; // Lấy danh sách hình ảnh
+    final isExpanded = _expandedStates[roomType] ?? false; // Kiểm tra trạng thái expand/collapse
 
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: isExpanded ? Colors.blue[300]! : Colors.grey[300]!,
-          width: isExpanded ? 2 : 1,
-        ),
+        color: Colors.white, // Nền trắng
+        borderRadius: BorderRadius.circular(16), // Bo góc 16px
         boxShadow: [
           BoxShadow(
-            color: isExpanded 
-                ? Colors.blue.withOpacity(0.15)
-                : Colors.black.withOpacity(0.08),
-            blurRadius: isExpanded ? 20 : 12,
-            offset: const Offset(0, 6),
+            color: Colors.black.withValues(alpha: 0.06), // Đổ bóng nhẹ
+            blurRadius: 10,
+            offset: const Offset(0, 2),
           ),
         ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          // Room Image
-          if (roomImages.isNotEmpty)
-            ClipRRect(
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(16),
-                topRight: Radius.circular(16),
-              ),
-              child: Stack(
-                children: [
-                  Container(
-                    height: 180,
-                    width: double.infinity,
-                    child: Image.network(
-                      roomImages.first,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) {
-                        return Container(
-                          color: Colors.grey[300],
-                          child: const Icon(
-                            Icons.bed,
-                            size: 50,
-                            color: Colors.grey,
-                          ),
-                        );
-                      },
+          /// ============================================
+          /// PHẦN 1: HÌNH ẢNH PHÒNG (Ở TRÊN)
+          /// ============================================
+          /// Hiển thị hình ảnh đầu tiên của phòng
+          /// Kích thước: full width, chiều cao 220px
+          roomImages.isNotEmpty
+              ? Container(
+                  width: double.infinity, // Chiều rộng full
+                  height: 220, // Chiều cao cố định
+                  decoration: BoxDecoration(
+                    borderRadius: const BorderRadius.only(
+                      topLeft: Radius.circular(16),
+                      topRight: Radius.circular(16),
+                    ),
+                    color: const Color(0xFFE8E8E8),
+                  ),
+                  child: ClipRRect(
+                    borderRadius: const BorderRadius.only(
+                      topLeft: Radius.circular(16),
+                      topRight: Radius.circular(16),
+                    ),
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        Image.network(
+                          roomImages.first,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) {
+                            return Container(
+                              color: const Color(0xFFE8E8E8),
+                              child: const Icon(
+                                Icons.bed,
+                                size: 50,
+                                color: Color(0xFF999999),
+                              ),
+                            );
+                          },
+                        ),
+                        // Badge trạng thái phòng
+                        Positioned(
+                          top: 12,
+                          right: 12,
+                          child: RoomAvailabilityBadge(room: room),
+                        ),
+                      ],
                     ),
                   ),
-                  // Availability badge ở góc trên bên phải
-                  Positioned(
-                    top: 12,
-                    right: 12,
-                    child: RoomAvailabilityBadge(room: room),
+                )
+              : Container(
+                  width: double.infinity,
+                  height: 220,
+                  decoration: const BoxDecoration(
+                    borderRadius: BorderRadius.only(
+                      topLeft: Radius.circular(16),
+                      topRight: Radius.circular(16),
+                    ),
+                    color: Color(0xFFE8E8E8),
                   ),
-                ],
-              ),
-            ),
+                  child: const Center(
+                    child: Icon(
+                      Icons.bed,
+                      size: 50,
+                      color: Color(0xFF999999),
+                    ),
+                  ),
+                ),
 
-          // Room Info với design hiện đại
+          /// ============================================
+          /// PHẦN 2: THÔNG TIN PHÒNG (Ở DƯỚI)
+          /// ============================================
+          /// Padding và Column chứa tất cả thông tin
           Padding(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.all(16), // Padding 16px
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
-                // Room name với gradient effect
+                /// ============================================
+                /// THÔNG TIN 1: TÊN PHÒNG VÀ BADGE
+                /// ============================================
                 Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Expanded(
-                      child: ShaderMask(
-                        shaderCallback: (bounds) => LinearGradient(
-                          colors: [Colors.indigo[800]!, Colors.purple[800]!],
-                        ).createShader(bounds),
-                        child: Text(
-                          room.tenLoaiPhong ?? 'Phòng không tên',
-                          style: const TextStyle(
-                            fontSize: 22,
-                            fontWeight: FontWeight.w800,
-                            color: Colors.white,
-                            letterSpacing: -0.3,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            room.tenLoaiPhong ?? 'Phòng không tên',
+                            style: const TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF1A1A1A),
+                              letterSpacing: -0.5,
+                            ),
                           ),
-                        ),
+                          // Hiển thị badge số lượng phòng với màu sắc theo số lượng
+                          if (remainingCount >= 0) ...[
+                            const SizedBox(height: 8),
+                            _buildAvailabilityBadge(remainingCount),
+                          ],
+                        ],
                       ),
                     ),
-                    // Badge hiển thị số lượng phòng còn lại
-                    if (remainingCount > 0)
-                      Container(
-                        margin: const EdgeInsets.only(left: 12),
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [
-                              Colors.green[400]!,
-                              Colors.teal[400]!,
-                            ],
-                          ),
-                          borderRadius: BorderRadius.circular(12),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.green.withOpacity(0.3),
-                              blurRadius: 6,
-                              offset: const Offset(0, 3),
-                            ),
-                          ],
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(
-                              Icons.bed_outlined,
-                              color: Colors.white,
-                              size: 14,
-                            ),
-                            const SizedBox(width: 4),
-                            Text(
-                              'Còn $remainingCount phòng',
-                              style: const TextStyle(
-                                fontSize: 11,
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
                   ],
                 ),
                 const SizedBox(height: 12),
 
-                // Guest capacity với icon đẹp hơn
+                /// ============================================
+                /// THÔNG TIN 2: SỨC CHỨA
+                /// ============================================
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   decoration: BoxDecoration(
-                    color: Colors.blue[50],
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: Colors.blue[200]!),
+                    color: const Color(0xFFF5F5F5),
+                    borderRadius: BorderRadius.circular(8),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.people_rounded, size: 16, color: Colors.blue[700]),
-                      const SizedBox(width: 6),
+                      const Icon(
+                        Icons.people_outline,
+                        size: 16,
+                        color: Color(0xFF1A1A1A),
+                      ),
+                      const SizedBox(width: 8),
                       Text(
                         'Tối đa ${room.sucChua ?? 1} khách',
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontSize: 13,
-                          color: Colors.blue[900],
-                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF1A1A1A),
+                          fontWeight: FontWeight.w500,
                         ),
                       ),
                     ],
@@ -373,131 +430,112 @@ class _RoomSelectionSectionState extends State<RoomSelectionSection> {
                 ),
                 const SizedBox(height: 12),
 
-                // Description
+                /// ============================================
+                /// THÔNG TIN 3: MÔ TẢ
+                /// ============================================
                 if (room.moTa != null && room.moTa!.isNotEmpty)
                   Text(
                     room.moTa!,
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontSize: 14,
-                      color: Colors.grey[700],
+                      color: Color(0xFF666666),
                       height: 1.5,
-                      fontWeight: FontWeight.w500,
+                      fontWeight: FontWeight.w400,
                     ),
                     maxLines: isExpanded ? null : 2,
                     overflow: isExpanded ? null : TextOverflow.ellipsis,
                   ),
                 const SizedBox(height: 16),
 
-                // Price với design hiện đại
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
-                        Colors.blue[50]!,
-                        Colors.cyan[50]!,
-                      ],
-                    ),
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: Colors.blue[200]!),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Column(
+                /// ============================================
+                /// THÔNG TIN 4: GIÁ VÀ NÚT EXPAND
+                /// ============================================
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Expanded(
+                      child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
+                          const Text(
                             'Giá mỗi đêm',
                             style: TextStyle(
-                              fontSize: 11,
-                              color: Colors.grey[600],
-                              fontWeight: FontWeight.w600,
-                              letterSpacing: 0.5,
+                              fontSize: 12,
+                              color: Color(0xFF999999),
+                              fontWeight: FontWeight.w400,
                             ),
                           ),
                           const SizedBox(height: 4),
-                          Text(
-                            '${currencyFormat.format(room.giaPhong ?? 0)}',
-                            style: TextStyle(
-                              fontSize: 24,
-                              fontWeight: FontWeight.w900,
-                              color: Colors.blue[800],
-                              letterSpacing: -0.5,
-                            ),
-                          ),
+                          _buildPriceWithPromotion(room),
                         ],
                       ),
-                      // Expand/Collapse button với gradient
-                      Container(
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [
-                              Colors.blue[400]!,
-                              Colors.cyan[400]!,
-                            ],
-                          ),
-                          shape: BoxShape.circle,
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.blue.withOpacity(0.3),
-                              blurRadius: 8,
-                              offset: const Offset(0, 4),
-                            ),
-                          ],
-                        ),
-                        child: Material(
-                          color: Colors.transparent,
-                          child: InkWell(
-                            onTap: () {
-                              setState(() {
-                                _expandedStates[roomType] = !isExpanded;
-                              });
-                            },
-                            borderRadius: BorderRadius.circular(24),
-                            child: Container(
-                              padding: const EdgeInsets.all(12),
-                              child: Icon(
-                                isExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
-                                color: Colors.white,
-                                size: 24,
-                              ),
+                    ),
+                    Container(
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF003580),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          onTap: () {
+                            setState(() {
+                              _expandedStates[roomType] = !isExpanded;
+                            });
+                          },
+                          borderRadius: BorderRadius.circular(8),
+                          child: Container(
+                            padding: const EdgeInsets.all(10),
+                            child: Icon(
+                              isExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
+                              color: Colors.white,
+                              size: 20,
                             ),
                           ),
                         ),
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
 
-                // Expanded content
+                /// ============================================
+                /// PHẦN MỞ RỘNG (EXPANDED CONTENT)
+                /// ============================================
                 if (isExpanded) ...[
-                  const SizedBox(height: 16),
-                  const Divider(height: 1),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 20),
+                  Container(
+                    height: 1,
+                    color: const Color(0xFFE8E8E8),
+                  ),
+                  const SizedBox(height: 20),
 
-                  // Room images carousel
+                  /// Gallery hình ảnh: Hiển thị tất cả hình ảnh của phòng (nếu có > 1 hình)
                   if (roomImages.length > 1) ...[
                     SizedBox(
-                      height: 120,
+                      height: 120, // Chiều cao cố định
                       child: ListView.builder(
-                        scrollDirection: Axis.horizontal,
-                        itemCount: roomImages.length,
+                        scrollDirection: Axis.horizontal, // Cuộn ngang
+                        itemCount: roomImages.length, // Số lượng hình
                         itemBuilder: (context, imgIndex) {
                           return Container(
-                            width: 160,
-                            margin: const EdgeInsets.only(right: 12),
+                            width: 160, // Chiều rộng mỗi hình
+                            margin: const EdgeInsets.only(right: 12), // Khoảng cách giữa các hình
                             decoration: BoxDecoration(
                               borderRadius: BorderRadius.circular(8),
-                              color: Colors.grey[200],
+                              color: const Color(0xFFE8E8E8), // Nền xám khi load
                             ),
                             child: ClipRRect(
                               borderRadius: BorderRadius.circular(8),
                               child: Image.network(
                                 roomImages[imgIndex],
-                                fit: BoxFit.cover,
+                                fit: BoxFit.cover, // Phủ kín container
                                 errorBuilder: (context, error, stackTrace) {
-                                  return const Icon(Icons.image_not_supported, color: Colors.grey);
+                                  // Icon thay thế nếu lỗi
+                                  return const Icon(
+                                    Icons.image_not_supported,
+                                    color: Color(0xFF999999),
+                                  );
                                 },
                               ),
                             ),
@@ -505,60 +543,63 @@ class _RoomSelectionSectionState extends State<RoomSelectionSection> {
                         },
                       ),
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 20),
                   ],
 
-                  // Room features
+                  /// Tiện ích phòng: Danh sách các tiện ích (WiFi, điều hòa, TV, etc.)
                   const Text(
                     'Tiện ích phòng',
                     style: TextStyle(
-                      fontSize: 15,
+                      fontSize: 16,
                       fontWeight: FontWeight.w600,
-                      color: Colors.black87,
+                      color: Color(0xFF1A1A1A),
                     ),
                   ),
                   const SizedBox(height: 12),
+                  // Wrap để tự động xuống dòng khi hết chỗ
                   Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
+                    spacing: 8, // Khoảng cách ngang
+                    runSpacing: 8, // Khoảng cách dọc
                     children: [
                       _buildFeatureChip(Icons.bed, 'Giường đôi'),
                       _buildFeatureChip(Icons.wifi, 'WiFi miễn phí'),
-                      _buildFeatureChip(Icons.air, 'Điều hòa'),
+                      _buildFeatureChip(Icons.ac_unit, 'Điều hòa'),
                       _buildFeatureChip(Icons.tv, 'TV'),
                       _buildFeatureChip(Icons.local_parking, 'Bãi đỗ xe'),
                       _buildFeatureChip(Icons.restaurant, 'Nhà hàng'),
                     ],
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 20),
 
-                  // Pricing options
+                  /// Tùy chọn giá: Hiển thị các gói giá khác nhau
                   const Text(
                     'Tùy chọn giá',
                     style: TextStyle(
-                      fontSize: 15,
+                      fontSize: 16,
                       fontWeight: FontWeight.w600,
-                      color: Colors.black87,
+                      color: Color(0xFF1A1A1A),
                     ),
                   ),
                   const SizedBox(height: 12),
 
+                  // Option 1: Không hoàn tiền (giá gốc)
                   _buildPricingOption(
                     'Không hoàn tiền',
-                    room.giaPhong ?? 0,
+                    _getPriceWithPromotion(room.giaPhong ?? 0, room),
                     'Giá tốt nhất • Không thể hủy',
-                    false,
+                    false, // Không được khuyến nghị
                     room,
-                    0,
+                    0, // Index option
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 12),
+                  // Option 2: Kèm bữa sáng (giá cao hơn 200k)
                   _buildPricingOption(
                     'Kèm bữa sáng',
-                    (room.giaPhong ?? 0) + 200000,
+                    _getPriceWithPromotion((room.giaPhong ?? 0) + 200000, room), // Giá + 200k
                     'Hủy miễn phí • Bao gồm bữa sáng',
-                    true,
+                    true, // Được khuyến nghị
                     room,
-                    1,
+                    1, // Index option
                   ),
                 ],
               ],
@@ -573,20 +614,23 @@ class _RoomSelectionSectionState extends State<RoomSelectionSection> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: Colors.grey[50],
+        color: const Color(0xFFF8F8F8),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.grey[300]!),
+        border: Border.all(
+          color: const Color(0xFFE8E8E8),
+          width: 1,
+        ),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 16, color: Colors.grey[700]),
-          const SizedBox(width: 6),
+          Icon(icon, size: 16, color: const Color(0xFF1A1A1A)),
+          const SizedBox(width: 8),
           Text(
             label,
-            style: TextStyle(
+            style: const TextStyle(
               fontSize: 13,
-              color: Colors.grey[700],
+              color: Color(0xFF1A1A1A),
               fontWeight: FontWeight.w500,
             ),
           ),
@@ -595,6 +639,21 @@ class _RoomSelectionSectionState extends State<RoomSelectionSection> {
     );
   }
 
+  /// ============================================
+  /// HÀM: _buildPricingOption
+  /// ============================================
+  /// Xây dựng card hiển thị một tùy chọn giá (ví dụ: "Không hoàn tiền", "Kèm bữa sáng")
+  /// 
+  /// Tham số:
+  /// - title: Tên tùy chọn (ví dụ: "Không hoàn tiền")
+  /// - price: Giá của tùy chọn này
+  /// - description: Mô tả ngắn (ví dụ: "Giá tốt nhất • Không thể hủy")
+  /// - recommended: true nếu được khuyến nghị (hiển thị badge)
+  /// - room: Đối tượng Room
+  /// - optionIndex: Index của option (0, 1, ...)
+  /// 
+  /// Trả về: Container card với thông tin giá và nút "Chọn"
+  /// Nếu recommended = true: border đen dày hơn, có badge "Khuyến nghị"
   Widget _buildPricingOption(
     String title,
     double price,
@@ -604,34 +663,49 @@ class _RoomSelectionSectionState extends State<RoomSelectionSection> {
     int optionIndex,
   ) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: recommended ? Colors.blue[50] : Colors.white,
+        color: Colors.white,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: recommended ? Colors.blue[300]! : Colors.grey[300]!,
+          // Border đen dày nếu được khuyến nghị, xám mỏng nếu không
+          color: recommended ? const Color(0xFF1A1A1A) : const Color(0xFFE8E8E8),
           width: recommended ? 2 : 1,
         ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04), // Đổ bóng nhẹ
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          /// Dòng 1: Title và badge "Khuyến nghị"
+          /// Sử dụng Expanded để tránh overflow khi title dài
           Row(
             children: [
-              Text(
-                title,
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  color: recommended ? Colors.blue[700] : Colors.black87,
+              Expanded(
+                child: Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF1A1A1A),
+                  ),
+                  maxLines: 2, // Tối đa 2 dòng
+                  overflow: TextOverflow.ellipsis, // Hiển thị ... nếu quá dài
                 ),
               ),
+              // Badge "Khuyến nghị" (chỉ hiển thị nếu recommended = true)
               if (recommended) ...[
                 const SizedBox(width: 8),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
-                    color: Colors.blue[700],
+                    color: const Color(0xFF1A1A1A), // Nền đen
                     borderRadius: BorderRadius.circular(4),
                   ),
                   child: const Text(
@@ -639,54 +713,277 @@ class _RoomSelectionSectionState extends State<RoomSelectionSection> {
                     style: TextStyle(
                       color: Colors.white,
                       fontSize: 11,
-                      fontWeight: FontWeight.bold,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
                 ),
               ],
             ],
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 8),
+          /// Dòng 2: Mô tả (ví dụ: "Giá tốt nhất • Không thể hủy")
+          /// Sử dụng Flexible để tránh overflow
           Text(
             description,
-            style: TextStyle(
+            style: const TextStyle(
               fontSize: 13,
-              color: Colors.grey[600],
+              color: Color(0xFF666666), // Màu xám
+              fontWeight: FontWeight.w400,
             ),
+            maxLines: 2, // Tối đa 2 dòng
+            overflow: TextOverflow.ellipsis, // Hiển thị ... nếu quá dài
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 16),
+          /// Dòng 3: Giá và nút "Chọn"
+          /// Sử dụng Expanded để tránh overflow khi giá dài
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            mainAxisAlignment: MainAxisAlignment.spaceBetween, // Giá bên trái, nút bên phải
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              Text(
-                '${currencyFormat.format(price)}/đêm',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.blue[700],
-                ),
+              // Giá phòng với promotion - Expanded để tránh overflow
+              Expanded(
+                child: _buildPriceWithPromotionForOption(price, room),
               ),
-              ElevatedButton(
-                onPressed: () {
-                  widget.onRoomSelected(room);
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.blue[700],
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
+              const SizedBox(width: 12), // Khoảng cách giữa giá và nút
+              // Nút "Chọn": Màu đen, khi click sẽ gọi onRoomSelected
+              SizedBox(
+                height: 40,
+                child: ElevatedButton(
+                  onPressed: () {
+                    // Gọi callback để xử lý khi người dùng chọn phòng
+                    widget.onRoomSelected(room);
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF1A1A1A), // Màu đen
+                    foregroundColor: Colors.white,
+                    elevation: 0, // Không đổ bóng
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
                   ),
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                ),
-                child: const Text(
-                  'Chọn',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
+                  child: const Text(
+                    'Chọn',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
               ),
             ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Hiển thị giá với promotion cho room card (collapsed view)
+  Widget _buildPriceWithPromotion(Room room) {
+    final originalPrice = room.giaPhong ?? 0;
+    final promotion = _promotionService.getAppliedPromotion(hotelId: room.khachSanId);
+    
+    if (promotion != null && originalPrice > 0) {
+      final discountedPrice = _promotionService.calculateDiscountedPrice(originalPrice, hotelId: room.khachSanId);
+      
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Giá gốc (gạch ngang)
+          Text(
+            currencyFormat.format(originalPrice),
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w500,
+              color: Colors.grey[400],
+              decoration: TextDecoration.lineThrough,
+              letterSpacing: -0.5,
+            ),
+          ),
+          const SizedBox(height: 4),
+          // Giá đã giảm
+          Row(
+            children: [
+              Text(
+                currencyFormat.format(discountedPrice),
+                style: const TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF003580),
+                  letterSpacing: -0.5,
+                ),
+              ),
+              const SizedBox(width: 8),
+              // Badge promotion
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.green[50],
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: Colors.green[300]!),
+                ),
+                child: Text(
+                  '-${promotion.phanTramGiam.toInt()}%',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.green[700],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      );
+    }
+    
+    // Không có promotion, hiển thị giá bình thường
+    return Text(
+      currencyFormat.format(originalPrice),
+      style: const TextStyle(
+        fontSize: 24,
+        fontWeight: FontWeight.w700,
+        color: Color(0xFF003580),
+        letterSpacing: -0.5,
+      ),
+    );
+  }
+
+  /// Hiển thị giá với promotion cho pricing option (expanded view)
+  Widget _buildPriceWithPromotionForOption(double price, Room room) {
+    final promotion = _promotionService.getAppliedPromotion(hotelId: room.khachSanId);
+    
+    if (promotion != null && price > 0) {
+      final discountedPrice = _promotionService.calculateDiscountedPrice(price, hotelId: room.khachSanId);
+      
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Giá gốc (gạch ngang)
+          Text(
+            '${currencyFormat.format(price)}/đêm',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w500,
+              color: Colors.grey[400],
+              decoration: TextDecoration.lineThrough,
+              letterSpacing: -0.5,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          const SizedBox(height: 4),
+          // Giá đã giảm
+          Row(
+            children: [
+              Flexible(
+                child: Text(
+                  '${currencyFormat.format(discountedPrice)}/đêm',
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF1A1A1A),
+                    letterSpacing: -0.5,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              const SizedBox(width: 6),
+              // Badge promotion nhỏ
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Colors.green[50],
+                  borderRadius: BorderRadius.circular(4),
+                  border: Border.all(color: Colors.green[300]!),
+                ),
+                child: Text(
+                  '-${promotion.phanTramGiam.toInt()}%',
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.green[700],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      );
+    }
+    
+    // Không có promotion, hiển thị giá bình thường
+    return Text(
+      '${currencyFormat.format(price)}/đêm',
+      style: const TextStyle(
+        fontSize: 20,
+        fontWeight: FontWeight.w700,
+        color: Color(0xFF1A1A1A),
+        letterSpacing: -0.5,
+      ),
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+    );
+  }
+
+  /// Xây dựng badge hiển thị số lượng phòng với màu sắc
+  /// - Xanh: > 2 phòng (Còn trống)
+  /// - Cam: 1-2 phòng (Gần hết phòng)
+  /// - Đỏ: 0 phòng (Hết phòng)
+  Widget _buildAvailabilityBadge(int availableCount) {
+    Color badgeColor;
+    Color textColor;
+    String text;
+    IconData icon;
+    
+    if (availableCount <= 0) {
+      // Hết phòng - màu đỏ
+      badgeColor = Colors.red[50]!;
+      textColor = Colors.red[700]!;
+      text = 'Hết phòng';
+      icon = Icons.close;
+    } else if (availableCount <= 2) {
+      // Gần hết phòng - màu cam
+      badgeColor = Colors.orange[50]!;
+      textColor = Colors.orange[700]!;
+      text = 'Gần hết phòng ($availableCount)';
+      icon = Icons.warning;
+    } else {
+      // Còn nhiều phòng - màu xanh
+      badgeColor = const Color(0xFFE8F5E9);
+      textColor = const Color(0xFF2E7D32);
+      text = 'Còn $availableCount phòng';
+      icon = Icons.bed_outlined;
+    }
+    
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: badgeColor,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: textColor,
+          width: 1,
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            icon,
+            color: textColor,
+            size: 14,
+          ),
+          const SizedBox(width: 6),
+          Text(
+            text,
+            style: TextStyle(
+              fontSize: 12,
+              color: textColor,
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ],
       ),

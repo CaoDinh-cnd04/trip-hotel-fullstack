@@ -38,6 +38,10 @@ class AppConstants {
   static const String bookingEndpoint = '/api/phieudatphong';
   static const String promotionsEndpoint = '/api/khuyenmai';
   static const String notificationsEndpoint = '/api/notifications';
+  static const String activitiesEndpoint = '/api/hoat-dong';
+  
+  // Payment Endpoints (sử dụng PaymentConfig thay vì định nghĩa ở đây)
+  // Xem: lib/core/config/payment_config.dart
 
   // Storage Keys
   static const String tokenKey = 'auth_token';

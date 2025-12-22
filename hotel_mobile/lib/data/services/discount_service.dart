@@ -2,6 +2,12 @@ import 'package:dio/dio.dart';
 import '../../core/constants/app_constants.dart';
 import 'backend_auth_service.dart';
 
+/// Service xử lý mã giảm giá
+/// 
+/// Chức năng:
+/// - Validate mã giảm giá
+/// - Lấy danh sách mã giảm giá có sẵn
+/// - Kiểm tra điều kiện áp dụng (số tiền tối thiểu, khách sạn, địa điểm)
 class DiscountService {
   static final DiscountService _instance = DiscountService._internal();
   factory DiscountService() => _instance;
@@ -32,18 +38,17 @@ class DiscountService {
     ));
   }
 
-  /// Validate mã giảm giá
+  /// Xác thực mã giảm giá
   /// 
-  /// Parameters:
-  /// - code: Mã giảm giá cần validate
-  /// - orderAmount: Tổng số tiền đơn hàng
-  /// - hotelId: ID khách sạn (không bắt buộc - mã giảm giá áp dụng cho tất cả)
-  /// - locationId: ID địa điểm (không bắt buộc - mã giảm giá áp dụng cho tất cả)
+  /// [code] - Mã giảm giá cần xác thực (bắt buộc)
+  /// [orderAmount] - Tổng số tiền đơn hàng (bắt buộc)
+  /// [hotelId] - ID khách sạn (tùy chọn - mã giảm giá có thể áp dụng cho tất cả)
+  /// [locationId] - ID địa điểm (tùy chọn - mã giảm giá có thể áp dụng cho tất cả)
   /// 
-  /// Returns:
+  /// Trả về Map chứa:
   /// - success: true/false
-  /// - message: Thông báo
-  /// - data: {code, discountAmount, ...} nếu hợp lệ
+  /// - message: Thông báo kết quả
+  /// - code, discountAmount, discountType, discountValue, description (nếu hợp lệ)
   Future<Map<String, dynamic>> validateDiscountCode({
     required String code,
     required double orderAmount,
@@ -118,7 +123,10 @@ class DiscountService {
     }
   }
 
-  /// Lấy danh sách mã giảm giá có sẵn
+  /// Lấy danh sách mã giảm giá có sẵn cho người dùng
+  /// 
+  /// Trả về danh sách các mã giảm giá đang hoạt động
+  /// Mỗi item chứa: code, description, discountType, discountValue, conditions, v.v.
   Future<List<Map<String, dynamic>>> getAvailableDiscounts() async {
     try {
       print('📝 Getting available discount codes');
@@ -134,6 +142,87 @@ class DiscountService {
     } catch (e) {
       print('❌ Error getting available discounts: $e');
       return [];
+    }
+  }
+
+  /// Tìm mã giảm giá có giá trị cao nhất cho đơn hàng
+  /// 
+  /// [orderAmount] - Tổng số tiền đơn hàng
+  /// [hotelId] - ID khách sạn (tùy chọn)
+  /// [locationId] - ID địa điểm (tùy chọn)
+  /// 
+  /// Trả về Map chứa code và discountAmount của mã có giá trị cao nhất,
+  /// hoặc null nếu không có mã nào hợp lệ
+  Future<Map<String, dynamic>?> findBestDiscountCode({
+    required double orderAmount,
+    int? hotelId,
+    int? locationId,
+  }) async {
+    try {
+      print('🔍 Finding best discount code for order: $orderAmount');
+      
+      // Lấy danh sách mã giảm giá có sẵn
+      final availableDiscounts = await getAvailableDiscounts();
+      
+      if (availableDiscounts.isEmpty) {
+        print('ℹ️ No available discount codes');
+        return null;
+      }
+      
+      print('📋 Found ${availableDiscounts.length} available discount codes');
+      
+      // Validate từng mã và tính discount amount
+      Map<String, dynamic>? bestDiscount;
+      double maxDiscountAmount = 0;
+      
+      for (final discount in availableDiscounts) {
+        final code = discount['code'] as String?;
+        if (code == null || code.isEmpty) continue;
+        
+        try {
+          // Validate mã giảm giá
+          final validationResult = await validateDiscountCode(
+            code: code,
+            orderAmount: orderAmount,
+            hotelId: hotelId,
+            locationId: locationId,
+          );
+          
+          if (validationResult['success'] == true) {
+            final discountAmount = (validationResult['discountAmount'] ?? 0).toDouble();
+            
+            print('   ✅ Code $code: ${discountAmount.toStringAsFixed(0)}₫');
+            
+            // Chọn mã có discount amount cao nhất
+            if (discountAmount > maxDiscountAmount) {
+              maxDiscountAmount = discountAmount;
+              bestDiscount = {
+                'code': code,
+                'discountAmount': discountAmount,
+                'discountType': validationResult['discountType'],
+                'discountValue': validationResult['discountValue'],
+                'description': validationResult['description'],
+              };
+            }
+          } else {
+            print('   ❌ Code $code: ${validationResult['message']}');
+          }
+        } catch (e) {
+          print('   ⚠️ Error validating code $code: $e');
+          continue;
+        }
+      }
+      
+      if (bestDiscount != null) {
+        print('🏆 Best discount code: ${bestDiscount['code']} - ${bestDiscount['discountAmount']}₫');
+      } else {
+        print('ℹ️ No valid discount code found for this order');
+      }
+      
+      return bestDiscount;
+    } catch (e) {
+      print('❌ Error finding best discount code: $e');
+      return null;
     }
   }
 }

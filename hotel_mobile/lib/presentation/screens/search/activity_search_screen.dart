@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../activity/activity_list_screen.dart';
 
 class ActivitySearchScreen extends StatefulWidget {
   const ActivitySearchScreen({super.key});
@@ -152,7 +153,10 @@ class _ActivitySearchScreenState extends State<ActivitySearchScreen> {
                     ),
                   ),
                 ),
-                const Icon(Icons.send, color: Colors.blue),
+                GestureDetector(
+                  onTap: _performSearch,
+                  child: const Icon(Icons.send, color: Colors.blue),
+                ),
               ],
             ),
           ),
@@ -296,21 +300,164 @@ class _ActivitySearchScreenState extends State<ActivitySearchScreen> {
   }
 
   Widget _buildGuestField() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        color: Colors.grey[100],
-        borderRadius: BorderRadius.circular(12),
+    return GestureDetector(
+      onTap: _selectGuests,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          color: Colors.grey[100],
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.person, color: Colors.grey, size: 20),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                '$_adults người lớn $_children trẻ em',
+                style: const TextStyle(fontSize: 14),
+              ),
+            ),
+            const Icon(Icons.arrow_forward_ios, color: Colors.grey, size: 16),
+          ],
+        ),
       ),
-      child: Row(
-        children: [
-          const Icon(Icons.person, color: Colors.grey, size: 20),
-          const SizedBox(width: 12),
-          Text(
-            '$_adults người lớn $_children trẻ em',
-            style: const TextStyle(fontSize: 14),
-          ),
-        ],
+    );
+  }
+
+  void _selectGuests() {
+    showModalBottomSheet(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setModalState) {
+          int tempAdults = _adults;
+          int tempChildren = _children;
+
+          return Container(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Chọn số người',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 24),
+                // Adults
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'Người lớn',
+                      style: TextStyle(fontSize: 16),
+                    ),
+                    Row(
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.remove_circle_outline),
+                          onPressed: tempAdults > 1
+                              ? () {
+                                  setModalState(() {
+                                    tempAdults--;
+                                  });
+                                }
+                              : null,
+                        ),
+                        Text(
+                          '$tempAdults',
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.add_circle_outline),
+                          onPressed: () {
+                            setModalState(() {
+                              tempAdults++;
+                            });
+                          },
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                // Children
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'Trẻ em',
+                      style: TextStyle(fontSize: 16),
+                    ),
+                    Row(
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.remove_circle_outline),
+                          onPressed: tempChildren > 0
+                              ? () {
+                                  setModalState(() {
+                                    tempChildren--;
+                                  });
+                                }
+                              : null,
+                        ),
+                        Text(
+                          '$tempChildren',
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.add_circle_outline),
+                          onPressed: () {
+                            setModalState(() {
+                              tempChildren++;
+                            });
+                          },
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 24),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () {
+                      setState(() {
+                        _adults = tempAdults;
+                        _children = tempChildren;
+                      });
+                      Navigator.pop(context);
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.orange,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: const Text(
+                      'Xác nhận',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
       ),
     );
   }
@@ -359,61 +506,73 @@ class _ActivitySearchScreenState extends State<ActivitySearchScreen> {
   }
 
   Widget _buildActivityCard() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
-            spreadRadius: 1,
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+    return GestureDetector(
+      onTap: () {
+        // Navigate to activity list when tapping popular activity
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => const ActivityListScreen(),
           ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 60,
-            height: 60,
-            decoration: BoxDecoration(
-              color: Colors.orange[50],
-              borderRadius: BorderRadius.circular(8),
+        );
+      },
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.grey.withOpacity(0.1),
+              spreadRadius: 1,
+              blurRadius: 8,
+              offset: const Offset(0, 2),
             ),
-            child: const Center(
-              child: Icon(
-                Icons.attractions,
-                color: Colors.orange,
-                size: 30,
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 60,
+              height: 60,
+              decoration: BoxDecoration(
+                color: Colors.orange[50],
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Center(
+                child: Icon(
+                  Icons.attractions,
+                  color: Colors.orange,
+                  size: 30,
+                ),
               ),
             ),
-          ),
-          const SizedBox(width: 16),
-          const Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Tour Vũng Tàu 1 ngày',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
+            const SizedBox(width: 16),
+            const Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Tour Vũng Tàu 1 ngày',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
-                ),
-                SizedBox(height: 4),
-                Text(
-                  'Khám phá những điểm đến hấp dẫn',
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.grey,
+                  SizedBox(height: 4),
+                  Text(
+                    'Khám phá những điểm đến hấp dẫn',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.grey,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-        ],
+            const Icon(Icons.arrow_forward_ios, color: Colors.grey, size: 16),
+          ],
+        ),
       ),
     );
   }
@@ -558,10 +717,19 @@ class _ActivitySearchScreenState extends State<ActivitySearchScreen> {
   }
 
   void _performSearch() {
-    // TODO: Implement search functionality
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Đang tìm kiếm hoạt động...'),
+    // Navigate to activity list screen with search parameters
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ActivityListScreen(
+          searchQuery: _searchController.text.trim().isEmpty 
+              ? null 
+              : _searchController.text.trim(),
+          location: 'Vũng Tàu', // Default location
+          date: _activityDate,
+          adults: _adults,
+          children: _children,
+        ),
       ),
     );
   }

@@ -1,5 +1,13 @@
 import 'user.dart';
 
+/// Model đại diện cho response từ API
+/// 
+/// Generic class để xử lý các response có cấu trúc thống nhất:
+/// - success: Trạng thái thành công/thất bại
+/// - message: Thông báo từ server
+/// - data: Dữ liệu trả về (có thể là bất kỳ kiểu nào)
+/// - pagination: Thông tin phân trang (nếu có)
+/// - errors: Danh sách lỗi (nếu có)
 class ApiResponse<T> {
   final bool success;
   final String message;
@@ -15,6 +23,12 @@ class ApiResponse<T> {
     this.errors,
   });
 
+  /// Tạo đối tượng ApiResponse từ JSON
+  /// 
+  /// [json] - Map chứa dữ liệu JSON từ API
+  /// [fromJsonT] - Hàm chuyển đổi data từ JSON sang type T (tùy chọn)
+  /// 
+  /// Nếu fromJsonT được cung cấp, sẽ sử dụng để parse data
   factory ApiResponse.fromJson(
     Map<String, dynamic> json,
     T Function(dynamic)? fromJsonT,
@@ -41,6 +55,9 @@ class ApiResponse<T> {
   }
 }
 
+/// Model đại diện cho request đăng nhập
+/// 
+/// Chứa email và mật khẩu để gửi lên API
 class LoginRequest {
   final String email;
   final String password;
@@ -52,6 +69,9 @@ class LoginRequest {
   }
 }
 
+/// Model đại diện cho request đăng ký tài khoản
+/// 
+/// Chứa thông tin: họ tên, email, mật khẩu, số điện thoại, ngày sinh, giới tính
 class RegisterRequest {
   final String hoTen;
   final String email;
@@ -81,6 +101,13 @@ class RegisterRequest {
   }
 }
 
+/// Model đại diện cho response từ API authentication
+/// 
+/// Chứa:
+/// - success: Trạng thái thành công/thất bại
+/// - message: Thông báo
+/// - token: JWT token (nếu đăng nhập thành công)
+/// - user: Thông tin user (nếu đăng nhập thành công)
 class AuthResponse {
   final bool success;
   final String message;

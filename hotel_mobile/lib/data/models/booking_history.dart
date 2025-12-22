@@ -1,3 +1,11 @@
+/// Model đại diện cho lịch sử đặt phòng
+/// 
+/// Chứa thông tin:
+/// - Thông tin khách sạn: hotelId, hotelName, hotelImage, location
+/// - Thông tin đặt phòng: checkInDate, checkOutDate, nights, rooms, adults, children
+/// - Thông tin thanh toán: totalAmount
+/// - Trạng thái: status (pending/confirmed/cancelled/completed), canCancel, cancellationReason
+/// - Thời gian: createdAt, updatedAt
 class BookingHistory {
   final String id;
   final String hotelId;
@@ -37,6 +45,12 @@ class BookingHistory {
     required this.canCancel,
   });
 
+  /// Tạo đối tượng BookingHistory từ JSON
+  /// 
+  /// [json] - Map chứa dữ liệu JSON từ API
+  /// 
+  /// Parse các trường từ snake_case sang camelCase
+  /// Xử lý parse DateTime và boolean
   factory BookingHistory.fromJson(Map<String, dynamic> json) {
     return BookingHistory(
       id: json['id']?.toString() ?? '',
@@ -59,6 +73,9 @@ class BookingHistory {
     );
   }
 
+  /// Chuyển đổi đối tượng BookingHistory sang JSON
+  /// 
+  /// Trả về Map chứa tất cả các trường dưới dạng JSON (snake_case)
   Map<String, dynamic> toJson() {
     return {
       'id': id,
@@ -81,6 +98,9 @@ class BookingHistory {
     };
   }
 
+  /// Lấy text hiển thị trạng thái đặt phòng bằng tiếng Việt
+  /// 
+  /// Trả về: "Chờ xác nhận", "Đã xác nhận", "Đã hủy", "Hoàn thành", hoặc "Không xác định"
   String get statusText {
     switch (status.toLowerCase()) {
       case 'pending':
@@ -96,6 +116,9 @@ class BookingHistory {
     }
   }
 
+  /// Lấy màu hiển thị cho trạng thái đặt phòng
+  /// 
+  /// Trả về tên màu: "orange" (pending), "green" (confirmed), "red" (cancelled), "blue" (completed), "grey" (default)
   String get statusColor {
     switch (status.toLowerCase()) {
       case 'pending':

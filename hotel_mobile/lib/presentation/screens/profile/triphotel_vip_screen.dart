@@ -25,6 +25,27 @@ class _TriphotelVipScreenState extends State<TriphotelVipScreen> {
   void initState() {
     super.initState();
     _loadVipInfo();
+    // Tự động tích điểm cho các booking đã thanh toán nhưng chưa tích điểm
+    _addPointsForPaidBookings();
+  }
+
+  /// Tích điểm thủ công cho các booking đã thanh toán
+  Future<void> _addPointsForPaidBookings() async {
+    try {
+      final result = await _userProfileService.addPointsForPaidBookings();
+      if (result.success && result.data != null) {
+        final processed = result.data!['processed'] ?? 0;
+        final totalPoints = result.data!['totalPointsAdded'] ?? 0;
+        if (processed > 0 && totalPoints > 0) {
+          print('✅ Đã tích điểm thủ công: $processed booking, $totalPoints points');
+          // Reload VIP info sau khi tích điểm
+          _loadVipInfo();
+        }
+      }
+    } catch (e) {
+      print('⚠️ Lỗi tích điểm thủ công: $e');
+      // Không hiển thị lỗi cho user, chỉ log
+    }
   }
 
   Future<void> _loadVipInfo() async {
@@ -58,7 +79,11 @@ class _TriphotelVipScreenState extends State<TriphotelVipScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final vipLevel = _vipInfo?['vipLevel'] ?? 'Bronze';
+    final levelColor = _getLevelColor(vipLevel);
+    
     return Scaffold(
+      backgroundColor: _getLevelBackgroundColor(vipLevel),
       appBar: AppBar(
         title: const Text(
           'TriphotelVIP',
@@ -67,9 +92,10 @@ class _TriphotelVipScreenState extends State<TriphotelVipScreen> {
             fontSize: 20,
           ),
         ),
-        backgroundColor: const Color(0xFF8B4513),
+        backgroundColor: levelColor,
         foregroundColor: Colors.white,
         elevation: 0,
+        iconTheme: const IconThemeData(color: Colors.white),
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
@@ -97,6 +123,7 @@ class _TriphotelVipScreenState extends State<TriphotelVipScreen> {
                           _buildProgressCard(),
                           _buildLevelsOverview(),
                           _buildBenefitsSection(),
+                          const SizedBox(height: 20), // Padding bottom
                         ],
                       ),
                     )
@@ -179,6 +206,7 @@ class _TriphotelVipScreenState extends State<TriphotelVipScreen> {
     final vipPoints = _vipInfo!['vipPoints'] ?? 0;
     final nextLevelPoints = _vipInfo!['nextLevelPoints'];
     final progress = _vipInfo!['progressToNextLevel'] ?? 0;
+    final levelColor = _getLevelColor(vipLevel);
 
     if (nextLevelPoints == null) {
       // Đã đạt hạng cao nhất
@@ -186,11 +214,19 @@ class _TriphotelVipScreenState extends State<TriphotelVipScreen> {
         margin: const EdgeInsets.all(16),
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          color: Colors.white,
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              levelColor.withOpacity(0.1),
+              levelColor.withOpacity(0.05),
+            ],
+          ),
           borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: levelColor.withOpacity(0.3), width: 2),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.1),
+              color: levelColor.withOpacity(0.2),
               blurRadius: 10,
               offset: const Offset(0, 4),
             ),
@@ -198,13 +234,14 @@ class _TriphotelVipScreenState extends State<TriphotelVipScreen> {
         ),
         child: Column(
           children: [
-            const Icon(Icons.emoji_events, size: 48, color: Colors.amber),
+            Icon(Icons.emoji_events, size: 48, color: levelColor),
             const SizedBox(height: 12),
-            const Text(
+            Text(
               'Bạn đã đạt hạng cao nhất!',
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
+                color: levelColor,
               ),
             ),
             const SizedBox(height: 8),
@@ -224,15 +261,25 @@ class _TriphotelVipScreenState extends State<TriphotelVipScreen> {
     final currentLevelMin = _getLevelMinPoints(vipLevel);
     final pointsNeeded = nextLevelPoints - vipPoints;
 
+    final nextLevelColor = _getLevelColor(_getNextLevel(vipLevel));
+    
     return Container(
       margin: const EdgeInsets.all(16),
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Colors.white,
+            nextLevelColor.withOpacity(0.05),
+          ],
+        ),
         borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: nextLevelColor.withOpacity(0.2), width: 1.5),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.1),
+            color: nextLevelColor.withOpacity(0.15),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -246,28 +293,37 @@ class _TriphotelVipScreenState extends State<TriphotelVipScreen> {
             children: [
               Text(
                 'Tiến độ đến ${_getLevelName(_getNextLevel(vipLevel))}',
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              Text(
-                '${progress}%',
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
-                  color: Colors.blue[700],
+                  color: nextLevelColor,
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: nextLevelColor.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  '${progress}%',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: nextLevelColor,
+                  ),
                 ),
               ),
             ],
           ),
           const SizedBox(height: 12),
-          LinearProgressIndicator(
-            value: progress / 100,
-            minHeight: 8,
-            backgroundColor: Colors.grey[200],
-            valueColor: AlwaysStoppedAnimation<Color>(
-              _getLevelColor(_getNextLevel(vipLevel)),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: LinearProgressIndicator(
+              value: progress / 100,
+              minHeight: 10,
+              backgroundColor: Colors.grey[200],
+              valueColor: AlwaysStoppedAnimation<Color>(nextLevelColor),
             ),
           ),
           const SizedBox(height: 12),
@@ -281,12 +337,19 @@ class _TriphotelVipScreenState extends State<TriphotelVipScreen> {
                   color: Colors.grey[600],
                 ),
               ),
-              Text(
-                'Còn ${_formatPoints(pointsNeeded)} điểm',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.blue[700],
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: nextLevelColor.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  'Còn ${_formatPoints(pointsNeeded)} điểm',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: nextLevelColor,
+                  ),
                 ),
               ),
             ],
@@ -297,16 +360,27 @@ class _TriphotelVipScreenState extends State<TriphotelVipScreen> {
   }
 
   Widget _buildLevelsOverview() {
+    final vipLevel = _vipInfo!['vipLevel'] ?? 'Bronze';
+    final levelColor = _getLevelColor(vipLevel);
+    
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Colors.white,
+            levelColor.withOpacity(0.03),
+          ],
+        ),
         borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: levelColor.withOpacity(0.1), width: 1),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 5,
+            color: levelColor.withOpacity(0.1),
+            blurRadius: 8,
             offset: const Offset(0, 2),
           ),
         ],
@@ -417,17 +491,26 @@ class _TriphotelVipScreenState extends State<TriphotelVipScreen> {
   Widget _buildBenefitsSection() {
     final benefits = _vipInfo!['benefits'] as List<dynamic>? ?? [];
     final vipLevel = _vipInfo!['vipLevel'] ?? 'Bronze';
+    final levelColor = _getLevelColor(vipLevel);
 
     return Container(
       margin: const EdgeInsets.all(16),
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Colors.white,
+            levelColor.withOpacity(0.05),
+          ],
+        ),
         borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: levelColor.withOpacity(0.2), width: 1.5),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 5,
+            color: levelColor.withOpacity(0.15),
+            blurRadius: 8,
             offset: const Offset(0, 2),
           ),
         ],
@@ -437,13 +520,21 @@ class _TriphotelVipScreenState extends State<TriphotelVipScreen> {
         children: [
           Row(
             children: [
-              Icon(Icons.card_giftcard, color: _getLevelColor(vipLevel)),
-              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: levelColor.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(Icons.card_giftcard, color: levelColor, size: 24),
+              ),
+              const SizedBox(width: 12),
               Text(
                 'Quyền lợi ${_getLevelName(vipLevel)}',
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
+                  color: levelColor,
                 ),
               ),
             ],
@@ -456,28 +547,39 @@ class _TriphotelVipScreenState extends State<TriphotelVipScreen> {
   }
 
   Widget _buildBenefitItem(String benefit) {
+    final vipLevel = _vipInfo!['vipLevel'] ?? 'Bronze';
+    final levelColor = _getLevelColor(vipLevel);
+    
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            margin: const EdgeInsets.only(top: 4),
-            width: 6,
-            height: 6,
-            decoration: const BoxDecoration(
-              color: Colors.blue,
+            margin: const EdgeInsets.only(top: 6),
+            width: 8,
+            height: 8,
+            decoration: BoxDecoration(
+              color: levelColor,
               shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: levelColor.withOpacity(0.3),
+                  blurRadius: 4,
+                  offset: const Offset(0, 2),
+                ),
+              ],
             ),
           ),
           const SizedBox(width: 12),
           Expanded(
             child: Text(
               benefit,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 14,
-                color: Colors.black87,
-                height: 1.4,
+                color: Colors.grey[800],
+                height: 1.5,
+                fontWeight: FontWeight.w500,
               ),
             ),
           ),
@@ -567,5 +669,20 @@ class _TriphotelVipScreenState extends State<TriphotelVipScreen> {
     }
     return points.toString();
   }
+
+  /// Lấy màu nền cho màn hình theo level
+  Color _getLevelBackgroundColor(String level) {
+    switch (level) {
+      case 'Diamond':
+        return Colors.cyan[50]!;
+      case 'Gold':
+        return Colors.amber[50]!;
+      case 'Silver':
+        return Colors.grey[100]!;
+      default:
+        return const Color(0xFFF5E6D3); // Light brown
+    }
+  }
 }
+
 

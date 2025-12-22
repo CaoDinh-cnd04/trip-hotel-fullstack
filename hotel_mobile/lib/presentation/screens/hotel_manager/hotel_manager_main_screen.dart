@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import '../../../data/services/backend_auth_service.dart';
 import '../../../data/services/hotel_manager_service.dart';
 import '../../../data/models/user_role_model.dart';
@@ -441,54 +442,96 @@ class _HotelManagerDashboardState extends State<HotelManagerDashboard> {
                 const SizedBox(height: 20),
               ],
               
-              // KPI Cards
+              // KPI Cards - Row 1 (giống web)
               Text(
-                'Thống kê tổng quan',
+                'Bảng điều khiển',
                 style: TextStyle(
-                  fontSize: 18,
+                  fontSize: 20,
                   fontWeight: FontWeight.bold,
-                  color: Colors.grey[800],
+                  color: Colors.grey[900],
                 ),
               ),
               
               const SizedBox(height: 16),
               
-              if (_kpiData != null)
+              if (_kpiData != null) ...[
+                // Row 1: Tổng số phòng, Phòng đang trống / đã đặt, Booking hôm nay, Booking đang diễn ra
                 GridView.count(
                   shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(),
                   crossAxisCount: 2,
-                  mainAxisSpacing: 16,
-                  crossAxisSpacing: 16,
-              
-                  childAspectRatio: 1.2,
+                  mainAxisSpacing: 12,
+                  crossAxisSpacing: 12,
+                  childAspectRatio: 1.3,
                   children: [
                     _buildKpiCard(
-                      'Tổng phòng',
+                      'Tổng số phòng',
                       '${_kpiData!.totalRooms}',
+                      'Phòng',
                       Icons.bed,
-                      Colors.blue,
+                      Colors.blue[600]!,
                     ),
-                    _buildKpiCard(
-                      'Phòng trống',
+                    _buildKpiCardWithTwoValues(
+                      'Phòng đang trống / đã đặt',
                       '${_kpiData!.availableRooms}',
-                      Icons.bed_outlined,
-                      Colors.green,
+                      'Trống',
+                      '${_kpiData!.occupiedRooms}',
+                      'Đã đặt',
+                      Colors.green[600]!,
+                      Colors.blue[600]!,
                     ),
                     _buildKpiCard(
-                      'Đặt phòng',
-                      '${_kpiData!.totalBookings}',
-                      Icons.book_online,
-                      Colors.orange,
+                      'Booking hôm nay',
+                      '${_kpiData!.todayBookings}',
+                      'Đơn',
+                      Icons.calendar_today,
+                      Colors.blue[600]!,
                     ),
                     _buildKpiCard(
-                      'Doanh thu',
-                      '${_formatCurrency(_kpiData!.totalRevenue)}',
-                      Icons.attach_money,
-                      Colors.purple,
+                      'Booking đang diễn ra',
+                      '${_kpiData!.ongoingBookings}',
+                      'Đơn',
+                      Icons.event_available,
+                      Colors.orange[600]!,
                     ),
                   ],
                 ),
+                
+                const SizedBox(height: 16),
+                
+                // Row 2: Doanh thu hôm nay, Doanh thu tháng, Tỷ lệ lấp đầy phòng
+                GridView.count(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  crossAxisCount: 2,
+                  mainAxisSpacing: 12,
+                  crossAxisSpacing: 12,
+                  childAspectRatio: 1.3,
+                  children: [
+                    _buildKpiCard(
+                      'Doanh thu hôm nay',
+                      _formatPrice(_kpiData!.todayRevenue),
+                      'VND',
+                      Icons.trending_up,
+                      Colors.green[600]!,
+                    ),
+                    _buildKpiCard(
+                      'Doanh thu tháng',
+                      _formatPrice(_kpiData!.monthlyRevenue),
+                      'VND',
+                      Icons.calendar_month,
+                      Colors.blue[600]!,
+                    ),
+                    _buildKpiCardWithTrend(
+                      'Tỷ lệ lấp đầy phòng',
+                      '${_kpiData!.occupancyRate.toStringAsFixed(1)}%',
+                      'Tỷ lệ phòng đã đặt',
+                      _kpiData!.occupancyRate >= 70,
+                      Colors.purple[600]!,
+                    ),
+                  ],
+                ),
+              ],
               
               const SizedBox(height: 20),
               
@@ -605,21 +648,35 @@ class _HotelManagerDashboardState extends State<HotelManagerDashboard> {
     }
   }
 
-  Widget _buildKpiCard(String title, String value, IconData icon, Color color) {
+  String _formatPrice(double price) {
+    // Format như web: 1.234.567
+    if (price == 0) return '0';
+    final formatter = NumberFormat('#,###', 'vi_VN');
+    return formatter.format(price.toInt());
+  }
+
+  Widget _buildKpiCard(String title, String value, String subtitle, IconData icon, Color color) {
     return Card(
-      elevation: 4,
+      elevation: 2,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: Colors.grey[200]!),
       ),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              icon,
-              color: color,
-              size: 32,
+            Text(
+              title,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: Colors.grey[600],
+              ),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
             ),
             const SizedBox(height: 8),
             Text(
@@ -632,12 +689,166 @@ class _HotelManagerDashboardState extends State<HotelManagerDashboard> {
             ),
             const SizedBox(height: 4),
             Text(
+              subtitle,
+              style: TextStyle(
+                fontSize: 11,
+                color: Colors.grey[400],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildKpiCardWithTwoValues(
+    String title,
+    String value1,
+    String label1,
+    String value2,
+    String label2,
+    Color color1,
+    Color color2,
+  ) {
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: Colors.grey[200]!),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
               title,
               style: TextStyle(
                 fontSize: 12,
+                fontWeight: FontWeight.w600,
                 color: Colors.grey[600],
               ),
-              textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        value1,
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: color1,
+                        ),
+                      ),
+                      Text(
+                        label1,
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: Colors.grey[400],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Text(
+                  '/',
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: Colors.grey[300],
+                  ),
+                ),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        value2,
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: color2,
+                        ),
+                      ),
+                      Text(
+                        label2,
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: Colors.grey[400],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildKpiCardWithTrend(
+    String title,
+    String value,
+    String subtitle,
+    bool isPositive,
+    Color color,
+  ) {
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: Colors.grey[200]!),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              title,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: Colors.grey[600],
+              ),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Text(
+                  value,
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: color,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Icon(
+                  isPositive ? Icons.trending_up : Icons.trending_down,
+                  color: isPositive ? Colors.green[500] : Colors.red[500],
+                  size: 20,
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Text(
+              subtitle,
+              style: TextStyle(
+                fontSize: 11,
+                color: Colors.grey[400],
+              ),
             ),
           ],
         ),

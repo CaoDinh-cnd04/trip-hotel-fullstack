@@ -99,36 +99,67 @@ class EmailService {
   }
 
   async sendBulkNotificationEmails(users, notification) {
+    console.log(`📧 sendBulkNotificationEmails called with ${users.length} users`);
+    console.log(`📧 Email service enabled: ${this.config.enabled}`);
+    console.log(`📧 Transporter available: ${!!this.transporter}`);
+    
     if (!this.config.enabled || !this.transporter) {
       console.log(`📧 [OFFLINE] Would send email to ${users.length} users`);
+      console.log(`💡 Email service status: enabled=${this.config.enabled}, transporter=${!!this.transporter}`);
       return {
         total: users.length,
         success: 0,
         failed: 0,
-        offline: true
+        offline: true,
+        message: 'Email service is disabled or not configured'
       };
     }
 
     const results = {
       total: users.length,
       success: 0,
-      failed: 0
+      failed: 0,
+      errors: []
     };
 
-    for (const user of users) {
-      const sent = await this.sendNotificationEmail(user.email, notification);
-      if (sent) {
-        results.success++;
-      } else {
+    console.log(`📧 Starting to send ${users.length} emails...`);
+    
+    for (let i = 0; i < users.length; i++) {
+      const user = users[i];
+      console.log(`📧 [${i + 1}/${users.length}] Sending to: ${user.email}`);
+      
+      try {
+        const sent = await this.sendNotificationEmail(user.email, notification);
+        if (sent) {
+          results.success++;
+          console.log(`✅ [${i + 1}/${users.length}] Email sent successfully to ${user.email}`);
+        } else {
+          results.failed++;
+          results.errors.push({ email: user.email, error: 'Send returned false' });
+          console.log(`❌ [${i + 1}/${users.length}] Failed to send to ${user.email}`);
+        }
+      } catch (error) {
         results.failed++;
+        results.errors.push({ email: user.email, error: error.message });
+        console.error(`❌ [${i + 1}/${users.length}] Error sending to ${user.email}:`, error.message);
       }
       
       // Delay to avoid rate limiting
-      await this.delay(100);
+      if (i < users.length - 1) {
+        await this.delay(100);
+      }
     }
 
-    console.log(`📧 Bulk email results: ${results.success}/${results.total} sent`);
-    return results;
+    console.log(`📧 Bulk email results: ${results.success}/${results.total} sent successfully`);
+    if (results.failed > 0) {
+      console.log(`⚠️  Failed emails: ${results.failed}`);
+      console.log(`📋 Errors:`, results.errors);
+    }
+    
+    return {
+      ...results,
+      success: results.success > 0
+    };
   }
 
   async sendOTPEmail(to, otpCode, expiresIn = 5) {

@@ -157,14 +157,20 @@ class _ModernConversationListScreenState extends State<ModernConversationListScr
     if (currentUser == null) return const SizedBox.shrink();
 
     final otherUserId = conversation.getOtherParticipant(currentUser.uid);
+    // ✅ FIX: Lấy tên từ participantNames hoặc metadata (giống web)
     String otherUserName = conversation.getOtherParticipantName(currentUser.uid);
+    if (otherUserName == 'Unknown' || otherUserName.isEmpty) {
+      // Fallback to metadata (like web does)
+      otherUserName = conversation.customerNameFromMetadata ?? 'Khách hàng';
+    }
     final otherUserRole = conversation.getOtherParticipantRole(currentUser.uid);
     final unreadCount = conversation.getUnreadCount(currentUser.uid);
     final lastMessage = conversation.lastMessage;
+    final bookingInfo = conversation.bookingInfo; // ✅ NEW: Get booking info
     
     // ✅ FIX: Luôn fetch nếu tên là "Unknown" hoặc empty (bất kể role)
     // Vì có thể role đã đúng nhưng tên chưa được load từ Firestore
-    if (otherUserName == 'Unknown' || otherUserName.isEmpty) {
+    if (otherUserName == 'Unknown' || otherUserName.isEmpty || otherUserName == 'Khách hàng') {
       print('🔍 Triggering fetch for participant: $otherUserId (current name: "$otherUserName", role: "$otherUserRole")');
       _fetchAndUpdateParticipantInfo(conversation.id, otherUserId, currentUser.uid);
     } else if (otherUserRole.isEmpty || otherUserRole == 'user') {
@@ -363,6 +369,28 @@ class _ModernConversationListScreenState extends State<ModernConversationListScr
                       ),
                     ],
                   ),
+                  // ✅ NEW: Show booking info if available (like web)
+                  if (bookingInfo != null && bookingInfo!['room_name'] != null) ...[
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Icon(Icons.bed, size: 12, color: Colors.grey[600]),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(
+                            bookingInfo!['room_name'] ?? '',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey[600],
+                              fontStyle: FontStyle.italic,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ],
               ),
             ),

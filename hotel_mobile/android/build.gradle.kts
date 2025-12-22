@@ -6,6 +6,10 @@ allprojects {
     repositories {
         google()
         mavenCentral()
+        // Add fallback repositories for better reliability
+        maven { url = uri("https://repo1.maven.org/maven2/") }
+        maven { url = uri("https://jcenter.bintray.com") }
+        gradlePluginPortal()
     }
 }
 

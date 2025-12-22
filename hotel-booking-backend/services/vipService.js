@@ -77,11 +77,24 @@ class VipService {
    */
   static async addPointsAfterBooking(userId, finalPrice) {
     try {
+      console.log(`🔍 addPointsAfterBooking called: userId=${userId}, finalPrice=${finalPrice}`);
+      
+      if (!userId || userId <= 0) {
+        console.error(`❌ Invalid userId: ${userId}`);
+        return null;
+      }
+      
+      if (!finalPrice || finalPrice <= 0) {
+        console.error(`❌ Invalid finalPrice: ${finalPrice}`);
+        return null;
+      }
+      
       const pool = await getPool();
       const request = pool.request();
       
       // Tính points được cộng
       const pointsToAdd = this.calculatePoints(finalPrice);
+      console.log(`💰 Points to add: ${pointsToAdd} (from price: ${finalPrice})`);
       
       if (pointsToAdd <= 0) {
         console.log(`⚠️ No points to add for booking (price: ${finalPrice})`);
@@ -101,6 +114,8 @@ class VipService {
         console.error(`❌ User not found: ${userId}`);
         return null;
       }
+      
+      console.log(`📊 Current VIP info: points=${currentVipResult.recordset[0].vip_points}, level=${currentVipResult.recordset[0].vip_level}`);
 
       const currentVipPoints = currentVipResult.recordset[0].vip_points || 0;
       const newTotalPoints = currentVipPoints + pointsToAdd;

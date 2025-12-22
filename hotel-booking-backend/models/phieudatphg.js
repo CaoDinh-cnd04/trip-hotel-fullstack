@@ -233,17 +233,82 @@ class PhieuDatPhong extends BaseModel {
     // Get booking statistics for admin dashboard
     async getStats() {
         try {
-            // Return dummy stats (no data yet)
+            // Calculate revenue from room price * nights (since tong_tien column may not exist)
+            // Revenue calculation: System gets 15% of total amount, Hotel gets 75% of total amount
+            // Use JOIN to get room price and calculate total from price * nights
+            const query = `
+                SELECT 
+                    COUNT(*) as totalBookings,
+                    SUM(CASE WHEN pdp.trang_thai IN (N'Đã checkout', N'Hoàn thành', N'Đã thanh toán', N'completed', N'checked_out') THEN 1 ELSE 0 END) as completedBookings,
+                    SUM(CASE WHEN pdp.trang_thai IN (N'Đang chờ', N'Pending', N'pending') THEN 1 ELSE 0 END) as pendingBookings,
+                    SUM(CASE WHEN pdp.trang_thai IN (N'Đã hủy', N'Cancelled', N'cancelled') THEN 1 ELSE 0 END) as cancelledBookings,
+                    -- Calculate revenue: calculate from room price * nights
+                    SUM(CASE WHEN pdp.trang_thai IN (N'Đã xác nhận', N'Đã checkout', N'Đã thanh toán', N'Hoàn thành', N'confirmed', N'completed', N'checked_out') 
+                        THEN COALESCE(
+                            p.gia_tien * CASE 
+                                WHEN pdp.ngay_checkin IS NOT NULL AND pdp.ngay_checkout IS NOT NULL 
+                                    AND DATEDIFF(day, pdp.ngay_checkin, pdp.ngay_checkout) > 0 
+                                THEN DATEDIFF(day, pdp.ngay_checkin, pdp.ngay_checkout) 
+                                ELSE 1 
+                            END,
+                            0
+                        ) * 0.15 
+                        ELSE 0 END) as totalRevenue,
+                    SUM(CASE WHEN pdp.trang_thai IN (N'Đã xác nhận', N'Đã checkout', N'Đã thanh toán', N'Hoàn thành', N'confirmed', N'completed', N'checked_out') 
+                        THEN COALESCE(
+                            p.gia_tien * CASE 
+                                WHEN pdp.ngay_checkin IS NOT NULL AND pdp.ngay_checkout IS NOT NULL 
+                                    AND DATEDIFF(day, pdp.ngay_checkin, pdp.ngay_checkout) > 0 
+                                THEN DATEDIFF(day, pdp.ngay_checkin, pdp.ngay_checkout) 
+                                ELSE 1 
+                            END,
+                            0
+                        ) * 0.75 
+                        ELSE 0 END) as hotelRevenue,
+                    SUM(CASE WHEN pdp.trang_thai IN (N'Đã xác nhận', N'Đã checkout', N'Đã thanh toán', N'Hoàn thành', N'confirmed', N'completed', N'checked_out') 
+                             AND (COALESCE(pdp.ngay_dat, pdp.created_at) >= DATEADD(month, -1, GETDATE())) 
+                        THEN COALESCE(
+                            p.gia_tien * CASE 
+                                WHEN pdp.ngay_checkin IS NOT NULL AND pdp.ngay_checkout IS NOT NULL 
+                                    AND DATEDIFF(day, pdp.ngay_checkin, pdp.ngay_checkout) > 0 
+                                THEN DATEDIFF(day, pdp.ngay_checkin, pdp.ngay_checkout) 
+                                ELSE 1 
+                            END,
+                            0
+                        ) * 0.15 
+                        ELSE 0 END) as monthlyRevenue
+                FROM ${this.tableName} pdp
+                LEFT JOIN dbo.phong p ON pdp.phong_id = p.id
+            `;
+            
+            const result = await this.executeQuery(query);
+            const stats = result.recordset[0] || {};
+            
+            // Calculate status distribution
+            const statusQuery = `
+                SELECT 
+                    trang_thai as status,
+                    COUNT(*) as count
+                FROM ${this.tableName}
+                GROUP BY trang_thai
+            `;
+            const statusResult = await this.executeQuery(statusQuery);
+            const statusDistribution = statusResult.recordset || [];
+            
             return {
-                totalBookings: 0,
-                completedBookings: 0,
-                pendingBookings: 0,
-                cancelledBookings: 0,
-                totalRevenue: 0,
-                monthlyRevenue: 0,
-                statusDistribution: [],
-                monthlyGrowth: 0,
-                revenueGrowth: 0
+                totalBookings: parseInt(stats.totalBookings) || 0,
+                completedBookings: parseInt(stats.completedBookings) || 0,
+                pendingBookings: parseInt(stats.pendingBookings) || 0,
+                cancelledBookings: parseInt(stats.cancelledBookings) || 0,
+                totalRevenue: parseFloat(stats.totalRevenue) || 0, // System revenue (15% of booking total)
+                hotelRevenue: parseFloat(stats.hotelRevenue) || 0, // Hotel revenue (75% of booking total)
+                monthlyRevenue: parseFloat(stats.monthlyRevenue) || 0, // System monthly revenue (15%)
+                statusDistribution: statusDistribution.map(s => ({
+                    status: s.status,
+                    count: parseInt(s.count) || 0
+                })),
+                monthlyGrowth: 0, // TODO: Calculate growth
+                revenueGrowth: 0 // TODO: Calculate growth
             };
         } catch (error) {
             console.error('Get booking stats error:', error);

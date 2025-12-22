@@ -213,9 +213,10 @@ exports.verifyOTP = async (req, res) => {
     }
 
     // Kiểm tra user đã tồn tại chưa (bất kể trạng thái)
+    const nguoiDung = new NguoiDung();
     let user;
     try {
-      user = await NguoiDung.findByEmailAny(email);
+      user = await nguoiDung.findByEmailAny(email);
     } catch (dbError) {
       console.error('❌ Error finding user:', dbError);
       return res.status(500).json({
@@ -230,7 +231,7 @@ exports.verifyOTP = async (req, res) => {
       if (user.trang_thai === 0 || user.trang_thai === false) {
         // User bị vô hiệu hóa → Kích hoạt lại
         try {
-          await NguoiDung.update(user.id, { trang_thai: 1 });
+          await nguoiDung.update(user.id, { trang_thai: 1 });
           user.trang_thai = 1;
           console.log('✅ Inactive user reactivated via OTP:', user.id);
         } catch (updateError) {
@@ -259,11 +260,13 @@ exports.verifyOTP = async (req, res) => {
           ngay_sinh: userData.ngay_sinh ? new Date(userData.ngay_sinh) : null,
           chuc_vu: 'User',
           trang_thai: 1,
+          nhan_thong_bao_email: 1, // Default to enabled for email notifications
           ngay_dang_ky: new Date(),
           anh_dai_dien: '/images/users/default.jpg'
         };
 
-        user = await NguoiDung.create(newUser);
+        const userId = await nguoiDung.create(newUser);
+        user = await nguoiDung.findById(userId);
         console.log('✅ New user created via OTP:', user.id);
       } catch (createError) {
         console.error('❌ Error creating user:', createError);
@@ -308,6 +311,20 @@ exports.verifyOTP = async (req, res) => {
     
     console.log('🔍 OTP Login - Final roleData:', JSON.stringify(roleData, null, 2));
 
+    // Tạo Firebase custom token cho OTP users
+    let firebaseCustomToken = null;
+    try {
+      const { createCustomToken } = require('../services/firebaseAdmin');
+      firebaseCustomToken = await createCustomToken(user.id, user.email, {
+        role: roleData.role,
+        hotel_id: roleData.hotel_id
+      });
+      console.log('✅ Firebase custom token created for OTP user');
+    } catch (firebaseError) {
+      console.warn('⚠️ Failed to create Firebase custom token (non-critical):', firebaseError.message);
+      // Continue without custom token - frontend will handle it
+    }
+
     // Gửi email chào mừng cho user mới (async, không cần đợi)
     const isNewUser = user.ngay_dang_ky && (new Date() - user.ngay_dang_ky < 60000);
     if (isNewUser) {
@@ -332,7 +349,8 @@ exports.verifyOTP = async (req, res) => {
         ngay_dang_ky: user.ngay_dang_ky
       },
       token: token,
-      role: roleData
+      role: roleData,
+      firebase_custom_token: firebaseCustomToken // Firebase custom token for Firestore access
     });
 
   } catch (error) {

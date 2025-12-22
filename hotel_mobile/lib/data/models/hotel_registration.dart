@@ -1,5 +1,12 @@
 import 'dart:io';
 
+/// Model đại diện cho thông tin đăng ký khách sạn (dùng khi submit form)
+/// 
+/// Chứa thông tin:
+/// - Thông tin khách sạn: hotelName, address, province, district, starRating
+/// - Liên hệ: phone, email, website
+/// - Mô tả: description
+/// - Hình ảnh: images (List<File>)
 class HotelRegistration {
   final String hotelName;
   final String address;
@@ -25,6 +32,10 @@ class HotelRegistration {
     required this.images,
   });
 
+  /// Chuyển đổi đối tượng HotelRegistration sang JSON
+  /// 
+  /// Trả về Map chứa tất cả các trường dưới dạng JSON (snake_case)
+  /// Lưu ý: images chỉ trả về số lượng, không trả về File objects
   Map<String, dynamic> toJson() {
     return {
       'hotel_name': hotelName,

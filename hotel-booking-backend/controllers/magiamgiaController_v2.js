@@ -196,11 +196,26 @@ const magiamgiaController = {
     async getMaGiamGiaById(req, res) {
         try {
             const { id } = req.params;
-            const maGiamGia = new MaGiamGia();
             
-            const result = await maGiamGia.findById(id);
+            if (!id || id.trim() === '') {
+                return res.status(400).json({
+                    success: false,
+                    message: 'ID không được để trống'
+                });
+            }
             
-            if (!result) {
+            console.log(`📋 Getting discount code by ID: ${id}`);
+            const { getPool } = require('../config/db');
+            const sql = require('mssql');
+            const pool = await getPool();
+            
+            // id là string (FLASH20, NEWUSER, etc.)
+            const query = `SELECT * FROM dbo.ma_giam_gia WHERE id = @id`;
+            const result = await pool.request()
+                .input('id', sql.NVarChar(50), id.trim())
+                .query(query);
+            
+            if (!result.recordset || result.recordset.length === 0) {
                 return res.status(404).json({
                     success: false,
                     message: 'Không tìm thấy mã giảm giá'
@@ -210,14 +225,14 @@ const magiamgiaController = {
             res.status(200).json({
                 success: true,
                 message: 'Lấy thông tin mã giảm giá thành công',
-                data: result
+                data: result.recordset[0]
             });
         } catch (error) {
-            console.error('Error in getMaGiamGiaById:', error);
+            console.error('❌ Error in getMaGiamGiaById:', error);
             res.status(500).json({
                 success: false,
                 message: 'Lỗi server khi lấy thông tin mã giảm giá',
-                error: error.message
+                error: process.env.NODE_ENV === 'development' ? error.message : undefined
             });
         }
     },
@@ -320,6 +335,7 @@ const magiamgiaController = {
         try {
             const errors = validationResult(req);
             if (!errors.isEmpty()) {
+                console.error('❌ Validation errors:', errors.array());
                 return res.status(400).json({
                     success: false,
                     message: 'Dữ liệu không hợp lệ',
@@ -327,35 +343,100 @@ const magiamgiaController = {
                 });
             }
 
-            const maGiamGia = new MaGiamGia();
+            console.log('📝 Creating discount code with data:', req.body);
+            const { getPool } = require('../config/db');
+            const sql = require('mssql');
+            const pool = await getPool();
+            
+            // Map từ frontend sang database
+            // id = ma_giam_gia (string)
+            // ten = ten_ma_giam_gia
+            // loai = loai_giam_gia (Phần trăm / Số tiền cố định)
+            // gia_tri = gia_tri_giam
+            // giam_toi_da = gia_tri_giam_toi_da
+            // so_luong = so_luong_gioi_han
+            // trang_thai = trang_thai (BIT)
+            
+            const id = req.body.ma_giam_gia || req.body.id
+            if (!id) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Mã giảm giá (id) không được để trống'
+                });
+            }
             
             // Kiểm tra mã đã tồn tại chưa
-            const existingVoucher = await maGiamGia.findByField('ma_giam_gia', req.body.ma_giam_gia);
-            if (existingVoucher) {
+            const checkQuery = `SELECT id FROM dbo.ma_giam_gia WHERE id = @id`;
+            const checkResult = await pool.request()
+                .input('id', sql.NVarChar(50), id.trim().toUpperCase())
+                .query(checkQuery);
+            
+            if (checkResult.recordset && checkResult.recordset.length > 0) {
                 return res.status(400).json({
                     success: false,
                     message: 'Mã giảm giá đã tồn tại'
                 });
             }
-
-            const newMaGiamGia = await maGiamGia.create({
-                ...req.body,
-                ngay_tao: new Date(),
-                trang_thai: 1,
-                so_luong_con_lai: req.body.so_luong_ban_dau || req.body.so_luong_con_lai
-            });
+            
+            // Map loai_giam_gia sang loai
+            let loai = 'Phần trăm'
+            if (req.body.loai_giam_gia === 'fixed_amount' || req.body.loai_giam_gia === 'so_tien_co_dinh') {
+                loai = 'Số tiền cố định'
+            }
+            
+            // Insert query
+            const insertQuery = `
+                INSERT INTO dbo.ma_giam_gia (
+                    id, ten, loai, gia_tri, giam_toi_da, 
+                    ngay_bat_dau, ngay_ket_thuc, 
+                    dieu_kien, gia_tri_don_hang_toi_thieu, 
+                    so_luong, so_luong_da_dung, trang_thai
+                )
+                VALUES (
+                    @id, @ten, @loai, @gia_tri, @giam_toi_da,
+                    @ngay_bat_dau, @ngay_ket_thuc,
+                    @dieu_kien, @gia_tri_don_hang_toi_thieu,
+                    @so_luong, 0, CAST(@trang_thai AS BIT)
+                )
+            `;
+            
+            const request = pool.request()
+                .input('id', sql.NVarChar(50), id.trim().toUpperCase())
+                .input('ten', sql.NVarChar(200), req.body.ten_ma_giam_gia || req.body.ten || '')
+                .input('loai', sql.NVarChar(50), loai)
+                .input('gia_tri', sql.Decimal(18, 2), parseFloat(req.body.gia_tri_giam) || 0)
+                .input('giam_toi_da', sql.Decimal(18, 2), req.body.gia_tri_giam_toi_da ? parseFloat(req.body.gia_tri_giam_toi_da) : null)
+                .input('ngay_bat_dau', sql.DateTime2, new Date(req.body.ngay_bat_dau))
+                .input('ngay_ket_thuc', sql.DateTime2, new Date(req.body.ngay_ket_thuc))
+                .input('dieu_kien', sql.NVarChar(1000), req.body.mo_ta || req.body.dieu_kien || '')
+                .input('gia_tri_don_hang_toi_thieu', sql.Decimal(18, 2), req.body.gia_tri_don_hang_toi_thieu ? parseFloat(req.body.gia_tri_don_hang_toi_thieu) : null)
+                .input('so_luong', sql.Int, req.body.so_luong_gioi_han ? parseInt(req.body.so_luong_gioi_han) : null)
+                .input('trang_thai', sql.Bit, req.body.trang_thai === true || req.body.trang_thai === 1 || req.body.trang_thai === 'active' ? 1 : 0)
+            
+            const insertResult = await request.query(insertQuery);
+            
+            // Lấy lại record vừa tạo
+            const getQuery = `SELECT * FROM dbo.ma_giam_gia WHERE id = @id`;
+            const getResult = await pool.request()
+                .input('id', sql.NVarChar(50), id.trim().toUpperCase())
+                .query(getQuery);
 
             res.status(201).json({
                 success: true,
                 message: 'Tạo mã giảm giá thành công',
-                data: newMaGiamGia
+                data: getResult.recordset[0]
             });
         } catch (error) {
-            console.error('Error in createMaGiamGia:', error);
+            console.error('❌ Error in createMaGiamGia:', error);
+            console.error('Error details:', {
+                message: error.message,
+                code: error.code,
+                number: error.number
+            });
             res.status(500).json({
                 success: false,
                 message: 'Lỗi server khi tạo mã giảm giá',
-                error: error.message
+                error: process.env.NODE_ENV === 'development' ? error.message : undefined
             });
         }
     },
@@ -365,6 +446,7 @@ const magiamgiaController = {
         try {
             const errors = validationResult(req);
             if (!errors.isEmpty()) {
+                console.error('❌ Validation errors:', errors.array());
                 return res.status(400).json({
                     success: false,
                     message: 'Dữ liệu không hợp lệ',
@@ -373,31 +455,127 @@ const magiamgiaController = {
             }
 
             const { id } = req.params;
-            const maGiamGia = new MaGiamGia();
             
-            const updated = await maGiamGia.update(id, {
-                ...req.body,
-                ngay_cap_nhat: new Date()
-            });
+            if (!id || id.trim() === '') {
+                return res.status(400).json({
+                    success: false,
+                    message: 'ID không được để trống'
+                });
+            }
             
-            if (!updated) {
+            console.log(`📝 Updating discount code ${id} with data:`, req.body);
+            const { getPool } = require('../config/db');
+            const sql = require('mssql');
+            const pool = await getPool();
+            
+            // Kiểm tra tồn tại
+            const checkQuery = `SELECT id FROM dbo.ma_giam_gia WHERE id = @id`;
+            const checkResult = await pool.request()
+                .input('id', sql.NVarChar(50), id.trim())
+                .query(checkQuery);
+            
+            if (!checkResult.recordset || checkResult.recordset.length === 0) {
                 return res.status(404).json({
                     success: false,
                     message: 'Không tìm thấy mã giảm giá để cập nhật'
                 });
             }
+            
+            // Map loai_giam_gia sang loai
+            let loai = null
+            if (req.body.loai_giam_gia) {
+                if (req.body.loai_giam_gia === 'fixed_amount' || req.body.loai_giam_gia === 'so_tien_co_dinh') {
+                    loai = 'Số tiền cố định'
+                } else {
+                    loai = 'Phần trăm'
+                }
+            }
+            
+            // Build UPDATE query
+            const updateFields = []
+            const request = pool.request().input('id', sql.NVarChar(50), id.trim())
+            
+            if (req.body.ten_ma_giam_gia !== undefined || req.body.ten !== undefined) {
+                updateFields.push('ten = @ten')
+                request.input('ten', sql.NVarChar(200), req.body.ten_ma_giam_gia || req.body.ten)
+            }
+            if (loai !== null) {
+                updateFields.push('loai = @loai')
+                request.input('loai', sql.NVarChar(50), loai)
+            }
+            if (req.body.gia_tri_giam !== undefined) {
+                updateFields.push('gia_tri = @gia_tri')
+                request.input('gia_tri', sql.Decimal(18, 2), parseFloat(req.body.gia_tri_giam))
+            }
+            if (req.body.gia_tri_giam_toi_da !== undefined) {
+                updateFields.push('giam_toi_da = @giam_toi_da')
+                request.input('giam_toi_da', sql.Decimal(18, 2), req.body.gia_tri_giam_toi_da ? parseFloat(req.body.gia_tri_giam_toi_da) : null)
+            }
+            if (req.body.ngay_bat_dau !== undefined) {
+                updateFields.push('ngay_bat_dau = @ngay_bat_dau')
+                request.input('ngay_bat_dau', sql.DateTime2, new Date(req.body.ngay_bat_dau))
+            }
+            if (req.body.ngay_ket_thuc !== undefined) {
+                updateFields.push('ngay_ket_thuc = @ngay_ket_thuc')
+                request.input('ngay_ket_thuc', sql.DateTime2, new Date(req.body.ngay_ket_thuc))
+            }
+            if (req.body.mo_ta !== undefined || req.body.dieu_kien !== undefined) {
+                updateFields.push('dieu_kien = @dieu_kien')
+                request.input('dieu_kien', sql.NVarChar(1000), req.body.mo_ta || req.body.dieu_kien || '')
+            }
+            if (req.body.gia_tri_don_hang_toi_thieu !== undefined) {
+                updateFields.push('gia_tri_don_hang_toi_thieu = @gia_tri_don_hang_toi_thieu')
+                request.input('gia_tri_don_hang_toi_thieu', sql.Decimal(18, 2), req.body.gia_tri_don_hang_toi_thieu ? parseFloat(req.body.gia_tri_don_hang_toi_thieu) : null)
+            }
+            if (req.body.so_luong_gioi_han !== undefined) {
+                updateFields.push('so_luong = @so_luong')
+                request.input('so_luong', sql.Int, req.body.so_luong_gioi_han ? parseInt(req.body.so_luong_gioi_han) : null)
+            }
+            if (req.body.trang_thai !== undefined) {
+                updateFields.push('trang_thai = CAST(@trang_thai AS BIT)')
+                const trangThai = req.body.trang_thai === true || req.body.trang_thai === 1 || req.body.trang_thai === 'active' ? 1 : 0
+                request.input('trang_thai', sql.Bit, trangThai)
+            }
+            
+            if (updateFields.length === 0) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Không có dữ liệu để cập nhật'
+                });
+            }
+            
+            const updateQuery = `UPDATE dbo.ma_giam_gia SET ${updateFields.join(', ')} WHERE id = @id`;
+            const updateResult = await request.query(updateQuery);
+            
+            if (updateResult.rowsAffected[0] === 0) {
+                return res.status(404).json({
+                    success: false,
+                    message: 'Không thể cập nhật mã giảm giá'
+                });
+            }
+            
+            // Lấy lại record đã cập nhật
+            const getQuery = `SELECT * FROM dbo.ma_giam_gia WHERE id = @id`;
+            const getResult = await pool.request()
+                .input('id', sql.NVarChar(50), id.trim())
+                .query(getQuery);
 
             res.status(200).json({
                 success: true,
                 message: 'Cập nhật mã giảm giá thành công',
-                data: updated
+                data: getResult.recordset[0]
             });
         } catch (error) {
-            console.error('Error in updateMaGiamGia:', error);
+            console.error('❌ Error in updateMaGiamGia:', error);
+            console.error('Error details:', {
+                message: error.message,
+                code: error.code,
+                number: error.number
+            });
             res.status(500).json({
                 success: false,
                 message: 'Lỗi server khi cập nhật mã giảm giá',
-                error: error.message
+                error: process.env.NODE_ENV === 'development' ? error.message : undefined
             });
         }
     },
@@ -406,30 +584,144 @@ const magiamgiaController = {
     async deleteMaGiamGia(req, res) {
         try {
             const { id } = req.params;
-            const maGiamGia = new MaGiamGia();
             
-            const deleted = await maGiamGia.update(id, { 
-                trang_thai: 0,
-                ngay_cap_nhat: new Date()
-            });
-            
-            if (!deleted) {
-                return res.status(404).json({
+            if (!id || id.trim() === '') {
+                return res.status(400).json({
                     success: false,
-                    message: 'Không tìm thấy mã giảm giá để xóa'
+                    message: 'ID không được để trống'
                 });
             }
+            
+            console.log(`🗑️ Deleting discount code with ID: ${id}`);
+            const { getPool } = require('../config/db');
+            const sql = require('mssql');
+            const pool = await getPool();
+            
+            // Kiểm tra xem mã giảm giá có tồn tại không
+            // id là string (FLASH20, NEWUSER, etc.)
+            const checkQuery = `SELECT id, trang_thai FROM dbo.ma_giam_gia WHERE id = @id`;
+            const checkResult = await pool.request()
+                .input('id', sql.NVarChar(50), id.trim())
+                .query(checkQuery);
+            
+            if (!checkResult.recordset || checkResult.recordset.length === 0) {
+                console.log(`❌ Discount code ${id} not found`);
+                return res.status(404).json({
+                    success: false,
+                    message: 'Không tìm thấy mã giảm giá'
+                });
+            }
+            
+            console.log(`✅ Found discount code ${id}, proceeding with hard delete`);
+            
+            // Hard delete - xóa thực sự khỏi database
+            // Sử dụng transaction để đảm bảo commit
+            const transaction = new sql.Transaction(pool);
+            
+            try {
+                await transaction.begin();
+                console.log(`🔄 Transaction started for deleting discount code ${id}`);
+                
+                const deleteQuery = `
+                    DELETE FROM dbo.ma_giam_gia 
+                    WHERE id = @id
+                `;
+                
+                console.log(`🔄 Executing DELETE query for ID: ${id}`);
+                const request = new sql.Request(transaction);
+                const deleteResult = await request
+                    .input('id', sql.NVarChar(50), id.trim())
+                    .query(deleteQuery);
+                
+                console.log(`📊 Delete result - rowsAffected:`, deleteResult.rowsAffected);
+                
+                if (deleteResult.rowsAffected[0] === 0) {
+                    await transaction.rollback();
+                    console.log(`⚠️ No rows affected for discount code ${id}, rolling back`);
+                    return res.status(404).json({
+                        success: false,
+                        message: 'Không tìm thấy mã giảm giá để xóa hoặc không thể xóa'
+                    });
+                }
+                
+                // Commit transaction
+                await transaction.commit();
+                console.log(`✅ Transaction committed for discount code ${id}`);
+                
+                // Verify deletion sau khi commit
+                await new Promise(resolve => setTimeout(resolve, 200));
+                
+                const verifyQuery = `SELECT id FROM dbo.ma_giam_gia WHERE id = @id`;
+                const verifyResult = await pool.request()
+                    .input('id', sql.NVarChar(50), id.trim())
+                    .query(verifyQuery);
+                
+                console.log(`🔍 Verification query result:`, {
+                    recordCount: verifyResult.recordset?.length || 0,
+                    records: verifyResult.recordset
+                });
+                
+                if (verifyResult.recordset && verifyResult.recordset.length > 0) {
+                    console.log(`⚠️ Discount code ${id} still exists after delete`);
+                    return res.status(500).json({
+                        success: false,
+                        message: 'Xóa không thành công - mã giảm giá vẫn còn trong database',
+                        error: {
+                            message: 'Record still exists after delete operation',
+                            id: id
+                        }
+                    });
+                }
 
-            res.status(200).json({
-                success: true,
-                message: 'Xóa mã giảm giá thành công'
-            });
+                console.log(`✅ Successfully deleted discount code ${id} from database`);
+                res.status(200).json({
+                    success: true,
+                    message: 'Xóa mã giảm giá thành công',
+                    data: {
+                        deletedId: id
+                    }
+                });
+            } catch (deleteError) {
+                // Rollback transaction nếu có lỗi
+                if (transaction) {
+                    try {
+                        await transaction.rollback();
+                        console.log(`🔄 Transaction rolled back due to error`);
+                    } catch (rollbackError) {
+                        console.error('❌ Error rolling back transaction:', rollbackError);
+                    }
+                }
+                
+                console.error('❌ Delete query error:', deleteError);
+                // Kiểm tra xem có phải lỗi foreign key constraint không
+                if (deleteError.number === 547) {
+                    return res.status(400).json({
+                        success: false,
+                        message: 'Không thể xóa mã giảm giá vì đang được sử dụng trong hệ thống (có đơn đặt phòng đang sử dụng mã này)',
+                        error: process.env.NODE_ENV === 'development' ? {
+                            message: deleteError.message,
+                            number: deleteError.number
+                        } : undefined
+                    });
+                }
+                throw deleteError; // Re-throw để catch block xử lý
+            }
         } catch (error) {
-            console.error('Error in deleteMaGiamGia:', error);
+            console.error('❌ Error in deleteMaGiamGia:', error);
+            console.error('Error details:', {
+                message: error.message,
+                code: error.code,
+                number: error.number,
+                originalError: error.originalError?.message
+            });
             res.status(500).json({
                 success: false,
                 message: 'Lỗi server khi xóa mã giảm giá',
-                error: error.message
+                error: process.env.NODE_ENV === 'development' ? {
+                    message: error.message,
+                    code: error.code,
+                    number: error.number
+                } : undefined
             });
         }
     },
@@ -438,33 +730,99 @@ const magiamgiaController = {
     async toggleMaGiamGia(req, res) {
         try {
             const { id } = req.params;
-            const maGiamGia = new MaGiamGia();
             
-            const existing = await maGiamGia.findById(id);
-            if (!existing) {
+            if (!id || id.trim() === '') {
+                return res.status(400).json({
+                    success: false,
+                    message: 'ID không được để trống'
+                });
+            }
+            
+            console.log(`🔄 Toggling discount code with ID: ${id}`);
+            const { getPool } = require('../config/db');
+            const sql = require('mssql');
+            const pool = await getPool();
+            
+            // Kiểm tra xem mã giảm giá có tồn tại không
+            // id là string (FLASH20, NEWUSER, etc.)
+            const checkQuery = `SELECT id, trang_thai FROM dbo.ma_giam_gia WHERE id = @id`;
+            const checkResult = await pool.request()
+                .input('id', sql.NVarChar(50), id.trim())
+                .query(checkQuery);
+            
+            if (!checkResult.recordset || checkResult.recordset.length === 0) {
+                console.log(`❌ Discount code ${id} not found`);
                 return res.status(404).json({
                     success: false,
                     message: 'Không tìm thấy mã giảm giá'
                 });
             }
+            
+            const existing = checkResult.recordset[0];
+            // Xử lý trang_thai - có thể là BIT (true/false) hoặc số (1/0)
+            const currentStatus = existing.trang_thai === true || existing.trang_thai === 1 || existing.trang_thai === '1';
+            const newStatus = currentStatus ? 0 : 1;
+            
+            console.log(`📊 Current status: ${currentStatus}, New status: ${newStatus}`);
+            
+            // Update trang_thai - kiểm tra xem cột là BIT hay INT
+            // Thử với BIT trước, nếu không được thì dùng INT
+            const updateQuery = `
+                UPDATE dbo.ma_giam_gia 
+                SET trang_thai = CAST(@newStatus AS BIT)
+                WHERE id = @id
+            `;
+            
+            console.log(`🔄 Executing UPDATE query for ID: ${id}`);
+            const updateResult = await pool.request()
+                .input('id', sql.NVarChar(50), id.trim())
+                .input('newStatus', sql.Bit, newStatus)
+                .query(updateQuery);
+            
+            console.log(`📊 Update result - rowsAffected:`, updateResult.rowsAffected);
+            
+            if (updateResult.rowsAffected[0] === 0) {
+                console.log(`⚠️ No rows affected for discount code ${id}`);
+                return res.status(404).json({
+                    success: false,
+                    message: 'Không thể cập nhật mã giảm giá. Có thể mã giảm giá không tồn tại hoặc đã được cập nhật.'
+                });
+            }
 
-            const newStatus = existing.trang_thai === 1 ? 0 : 1;
-            const updated = await maGiamGia.update(id, { 
-                trang_thai: newStatus,
-                ngay_cap_nhat: new Date()
-            });
+            // Verify update
+            const verifyQuery = `SELECT id, trang_thai FROM dbo.ma_giam_gia WHERE id = @id`;
+            const verifyResult = await pool.request()
+                .input('id', sql.NVarChar(50), id.trim())
+                .query(verifyQuery);
+            
+            const updatedDiscount = verifyResult.recordset[0];
+            const updatedStatus = updatedDiscount.trang_thai === true || updatedDiscount.trang_thai === 1 || updatedDiscount.trang_thai === '1';
+            console.log(`✅ Verified - Discount code ${id} status updated to: ${updatedStatus}`);
 
             res.status(200).json({
                 success: true,
                 message: `${newStatus === 1 ? 'Kích hoạt' : 'Vô hiệu hóa'} mã giảm giá thành công`,
-                data: updated
+                data: {
+                    id: id,
+                    trang_thai: updatedStatus ? 1 : 0
+                }
             });
         } catch (error) {
-            console.error('Error in toggleMaGiamGia:', error);
+            console.error('❌ Error in toggleMaGiamGia:', error);
+            console.error('Error details:', {
+                message: error.message,
+                code: error.code,
+                number: error.number,
+                originalError: error.originalError?.message
+            });
             res.status(500).json({
                 success: false,
                 message: 'Lỗi server khi thay đổi trạng thái mã giảm giá',
-                error: error.message
+                error: process.env.NODE_ENV === 'development' ? {
+                    message: error.message,
+                    code: error.code,
+                    number: error.number
+                } : undefined
             });
         }
     },
