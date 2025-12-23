@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 /// Enum các phương thức thanh toán
-enum PaymentMethod { momo, vnpay, cash }
+enum PaymentMethod { vnpay, payAtHotel, cash }
 
 class PaymentOptions extends StatefulWidget {
   final PaymentMethod selectedMethod;
@@ -67,21 +67,21 @@ class _PaymentOptionsState extends State<PaymentOptions> {
 
             // Payment Methods
             _buildPaymentCard(
-              method: PaymentMethod.momo,
-              title: 'Ví MoMo',
-              subtitle: 'Thanh toán nhanh qua ví điện tử',
-              icon: Icons.account_balance_wallet,
-              iconColor: const Color(0xFFD82D8B),
-            ),
-
-            const SizedBox(height: 12),
-
-            _buildPaymentCard(
               method: PaymentMethod.vnpay,
               title: 'VNPay',
               subtitle: 'Thẻ ATM, Internet Banking, Ví điện tử',
               icon: Icons.account_balance,
               iconColor: const Color(0xFFED1C24),
+            ),
+
+            const SizedBox(height: 12),
+
+            _buildPaymentCard(
+              method: PaymentMethod.payAtHotel,
+              title: 'Thanh toán tại khách sạn',
+              subtitle: 'Thanh toán khi nhận phòng (Tiền mặt hoặc thẻ)',
+              icon: Icons.hotel,
+              iconColor: const Color(0xFF4CAF50),
             ),
 
             const SizedBox(height: 12),

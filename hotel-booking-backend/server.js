@@ -129,7 +129,6 @@ app.use('/api/v2/hoso', require('./routes/hoso_v2'));
 // ==================== PAYMENT ROUTES ====================
 // VNPay routes
 app.use('/api/v2/vnpay', require('./routes/vnpay'));
-app.use('/api/v2/momo', require('./routes/momo'));
 
 // VNPay callback routes (public endpoints)
 // These routes need to be at root level to match VNPay's callback URLs
@@ -162,7 +161,6 @@ app.use('/api/danhgia', require('./routes/danhgia_v2'));
 app.use('/api/tinnhan', require('./routes/tinnhan_v2'));
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/vnpay', require('./routes/vnpay'));
-app.use('/api/momo', require('./routes/momo'));
 
 // Test images endpoint
 app.get('/api/test/images', (req, res) => {
@@ -284,7 +282,7 @@ app.get('/api/debug/env', (req, res) => {
     NODE_ENV: process.env.NODE_ENV || 'NOT SET',
     PORT: process.env.PORT || 'NOT SET',
     allEnvKeys: Object.keys(process.env).filter(key => 
-      key.startsWith('BASE_') || key.startsWith('DB_') || key.startsWith('VNP_') || key.startsWith('MOMO_')
+      key.startsWith('BASE_') || key.startsWith('DB_') || key.startsWith('VNP_')
     )
   });
 });

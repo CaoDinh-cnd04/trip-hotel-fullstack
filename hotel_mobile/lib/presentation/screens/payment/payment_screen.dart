@@ -15,7 +15,6 @@ import 'package:hotel_mobile/presentation/widgets/payment/discount_code_input.da
 import 'package:hotel_mobile/presentation/screens/payment/payment_success_screen.dart';
 import 'package:hotel_mobile/presentation/screens/payment/vnpay_sandbox_screen.dart';
 import 'package:hotel_mobile/presentation/screens/payment/vnpay_package_payment_screen.dart';
-import 'package:hotel_mobile/presentation/screens/payment/momo_payment_screen.dart';
 import 'package:hotel_mobile/core/widgets/glass_card.dart';
 import 'package:hotel_mobile/data/services/applied_promotion_service.dart';
 import 'package:hotel_mobile/data/services/promotion_service.dart';
@@ -92,7 +91,7 @@ class _PaymentScreenState extends State<PaymentScreen>
   final GlobalKey<State<GuestDetailsForm>> _guestFormKey = GlobalKey<State<GuestDetailsForm>>();
 
   /// Phương thức thanh toán được chọn
-  PaymentMethod _selectedPaymentMethod = PaymentMethod.momo;
+  PaymentMethod _selectedPaymentMethod = PaymentMethod.vnpay;
   
   /// Người dùng có muốn cọc 50% không (tùy chọn cho tất cả các trường hợp)
   bool _useDeposit = false;
@@ -118,7 +117,7 @@ class _PaymentScreenState extends State<PaymentScreen>
       // Không cho phép chọn Cash khi >= 3 phòng
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Đặt từ 3 phòng trở lên chỉ được thanh toán online (VNPay/MoMo)'),
+          content: Text('Đặt từ 3 phòng trở lên chỉ được thanh toán online (VNPay)'),
           backgroundColor: Colors.orange,
           duration: Duration(seconds: 2),
         ),
@@ -233,7 +232,7 @@ class _PaymentScreenState extends State<PaymentScreen>
     return widget.roomCount < 2 && _subtotal <= 3000000;
   }
   
-  /// Kiểm tra có bắt buộc dùng VNPay/MoMo không (khi >= 3 phòng)
+  /// Kiểm tra có bắt buộc dùng VNPay không (khi >= 3 phòng)
   bool get _mustUseOnlinePayment => widget.roomCount >= 3;
   
   /// Cọc 50% nếu người dùng chọn tùy chọn cọc
@@ -265,9 +264,9 @@ class _PaymentScreenState extends State<PaymentScreen>
   void initState() {
     super.initState();
     
-    // Nếu >= 3 phòng, mặc định chọn MoMo (chỉ cho phép online payment)
+    // Nếu >= 3 phòng, mặc định chọn VNPay (chỉ cho phép online payment)
     if (widget.roomCount >= 3) {
-      _selectedPaymentMethod = PaymentMethod.momo;
+      _selectedPaymentMethod = PaymentMethod.vnpay;
     }
     
     // Initialize animations
@@ -770,98 +769,6 @@ class _PaymentScreenState extends State<PaymentScreen>
     }
 
     try {
-      // Xử lý đặc biệt cho MoMo (cần mở WebView)
-      if (_selectedPaymentMethod == PaymentMethod.momo) {
-        if (mounted) {
-          setState(() {
-            _isProcessing = false;
-          });
-          
-          // Generate unique order ID for payment
-          final orderId = 'ORDER${DateTime.now().millisecondsSinceEpoch}';
-          
-          // Navigate to MoMo payment screen
-          final orderInfo = _requiresDeposit
-              ? 'Cọc ${(_depositAmount / _fullTotal * 100).toStringAsFixed(0)}% - Đặt phòng ${widget.room.tenLoaiPhong} tại ${widget.hotel.ten}'
-              : 'Đặt phòng ${widget.room.tenLoaiPhong} tại ${widget.hotel.ten}';
-          
-          final result = await Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => MoMoPaymentScreen(
-                bookingId: widget.hotel.id, // Temporary - sẽ được thay thế bằng booking ID sau khi thanh toán thành công
-                amount: _finalTotal,
-                orderInfo: orderInfo,
-                hotel: widget.hotel,
-                room: widget.room,
-                checkInDate: widget.checkInDate,
-                checkOutDate: widget.checkOutDate,
-                guestCount: widget.guestCount,
-                nights: widget.nights,
-                userName: _nameController.text,
-                userEmail: _emailController.text,
-                userPhone: _phoneController.text,
-                roomCount: widget.roomCount,
-                useDeposit: _useDeposit,
-                depositAmount: _depositAmount,
-                fullTotal: _fullTotal,
-              ),
-            ),
-          );
-          
-          // Xử lý kết quả từ MoMo
-          if (result != null && result['success'] == true) {
-            // ✅ Auto-create conversation with hotel manager after MoMo success
-            try {
-              if (widget.hotel.nguoiQuanLyId != null) {
-                final MessageService messageService = MessageService();
-                await messageService.createBookingConversation(
-                  hotelManagerId: widget.hotel.nguoiQuanLyId.toString(),
-                  hotelManagerName: widget.hotel.tenNguoiQuanLy ?? 'Quản lý',
-                  hotelManagerEmail: widget.hotel.emailNguoiQuanLy ?? '',
-                  hotelName: widget.hotel.ten,
-                  bookingId: result['orderId'] ?? 'ORDER_${DateTime.now().millisecondsSinceEpoch}',
-                );
-                print('✅ Auto-created conversation after MoMo payment');
-              }
-            } catch (e) {
-              print('⚠️ Could not auto-create conversation: $e');
-              // Don't block payment flow
-            }
-            
-            // Payment successful
-            if (mounted) {
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => PaymentSuccessScreen(
-                    hotel: widget.hotel,
-                    room: widget.room,
-                    checkInDate: widget.checkInDate,
-                    checkOutDate: widget.checkOutDate,
-                    guestCount: widget.guestCount,
-                    nights: widget.nights,
-                    totalAmount: _finalTotal,
-                    orderId: result['orderId'] ?? 'ORDER_${DateTime.now().millisecondsSinceEpoch}',
-                  ),
-                ),
-              );
-            }
-          } else if (result != null && result['success'] == false) {
-            // Payment failed
-            final reason = result['reason'] ?? 'unknown';
-            final message = result['message'] ?? 'Thanh toán thất bại';
-            
-            if (mounted) {
-              if (reason != 'user_cancelled' && reason != 'error') {
-                _showPaymentErrorDialog(message);
-              }
-            }
-          }
-        }
-        return;
-      }
-      
       // Xử lý đặc biệt cho VNPay (cần mở WebView)
       if (_selectedPaymentMethod == PaymentMethod.vnpay) {
         if (mounted) {
@@ -1133,10 +1040,10 @@ class _PaymentScreenState extends State<PaymentScreen>
   /// Note: Hiện tại không sử dụng vì đã xử lý trực tiếp từng payment method
   PaymentProvider _convertToPaymentProvider(PaymentMethod method) {
     switch (method) {
-      case PaymentMethod.momo:
-        return PaymentProvider.eWallet;
       case PaymentMethod.vnpay:
         return PaymentProvider.vnpay;
+      case PaymentMethod.payAtHotel:
+        return PaymentProvider.hotelPayment;
       case PaymentMethod.cash:
         return PaymentProvider.hotelPayment;
     }
