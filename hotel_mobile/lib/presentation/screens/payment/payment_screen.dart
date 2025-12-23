@@ -861,8 +861,9 @@ class _PaymentScreenState extends State<PaymentScreen>
         return;
       }
       
-      // Xử lý thanh toán tiền mặt (cash)
-      if (_selectedPaymentMethod == PaymentMethod.cash) {
+      // Xử lý thanh toán tiền mặt (cash) hoặc Pay at Hotel
+      if (_selectedPaymentMethod == PaymentMethod.cash || 
+          _selectedPaymentMethod == PaymentMethod.payAtHotel) {
         try {
           // ✅ NEW: Prepare selected amenities data
           final selectedAmenitiesData = {
@@ -909,7 +910,7 @@ class _PaymentScreenState extends State<PaymentScreen>
             'depositAmount': _requiresDeposit ? _depositAmount : 0, // Cọc 50% nếu có
             'paidAmount': _finalTotal, // Số tiền đã thanh toán (cọc hoặc toàn bộ)
             'remainingAmount': _requiresDeposit ? (_fullTotal - _depositAmount) : 0, // Số tiền còn lại
-            'paymentMethod': 'Cash',
+            'paymentMethod': _selectedPaymentMethod == PaymentMethod.cash ? 'Cash' : 'Pay at Hotel',
             'specialRequests': jsonEncode(selectedAmenitiesData), // ✅ NEW: Store amenities as JSON
             'requiresDeposit': _requiresDeposit,
             'depositPercentage': _requiresDeposit ? 50 : 0, // 50% cọc
@@ -917,7 +918,7 @@ class _PaymentScreenState extends State<PaymentScreen>
             'additionalServicesTotal': _selectedServicesTotal, // ✅ NEW: Total for additional services
           };
           
-          print('💵 Creating cash booking...');
+          print('💵 Creating ${_selectedPaymentMethod == PaymentMethod.cash ? "cash" : "pay at hotel"} booking...');
           final booking = await _bookingService.createCashBooking(bookingData);
           print('✅ Cash booking created: ${booking.id}');
           
