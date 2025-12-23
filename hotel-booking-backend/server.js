@@ -129,6 +129,9 @@ app.use('/api/v2/hoso', require('./routes/hoso_v2'));
 // ==================== PAYMENT ROUTES ====================
 // VNPay routes
 app.use('/api/v2/vnpay', require('./routes/vnpay'));
+// Bank Transfer routes (mock/test)
+app.use('/api/v2/bank-transfer', require('./routes/bankTransfer'));
+app.use('/api/bank-transfer', require('./routes/bankTransfer'));
 
 // VNPay callback routes (public endpoints)
 // These routes need to be at root level to match VNPay's callback URLs

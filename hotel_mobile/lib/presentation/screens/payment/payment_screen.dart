@@ -23,6 +23,8 @@ import 'package:hotel_mobile/data/services/api_service.dart';
 import 'package:hotel_mobile/data/models/amenity.dart';
 import 'package:hotel_mobile/core/utils/currency_formatter.dart';
 import 'dart:convert';
+import 'dart:async';
+import 'package:url_launcher/url_launcher.dart';
 
 /// Màn hình thanh toán đặt phòng
 /// 
@@ -861,9 +863,66 @@ class _PaymentScreenState extends State<PaymentScreen>
         return;
       }
       
-      // Xử lý thanh toán tiền mặt (cash) hoặc Pay at Hotel
-      if (_selectedPaymentMethod == PaymentMethod.cash || 
-          _selectedPaymentMethod == PaymentMethod.payAtHotel) {
+      // Xử lý Bank Transfer (giống VNPay, chỉ khác API)
+      if (_selectedPaymentMethod == PaymentMethod.bankTransfer) {
+        if (mounted) {
+          setState(() {
+            _isProcessing = false;
+          });
+          
+          // Generate unique order ID
+          final orderId = 'BT_${DateTime.now().millisecondsSinceEpoch}_${widget.hotel.id}';
+          
+          // Create payment URL
+          final orderInfo = 'Đặt phòng ${widget.room.tenLoaiPhong} tại ${widget.hotel.ten}';
+          
+          try {
+            // Call backend API to get payment URL
+            final response = await ApiService.post(
+              '/v2/bank-transfer/create-payment-url',
+              {
+                'amount': _finalTotal,
+                'orderInfo': orderInfo,
+                'orderId': orderId,
+                'bookingCode': orderId,
+                'userName': _nameController.text,
+                'userEmail': _emailController.text,
+                'userPhone': _phoneController.text,
+              },
+            );
+            
+            if (response['success'] == true && response['data'] != null) {
+              final paymentUrl = response['data']['paymentUrl'];
+              
+              // Launch payment URL in browser
+              print('🏦 Launching Bank Transfer URL: $paymentUrl');
+              final uri = Uri.parse(paymentUrl);
+              if (await canLaunchUrl(uri)) {
+                await launchUrl(uri, mode: LaunchMode.externalApplication);
+                
+                // Start polling payment status
+                _pollBankTransferPaymentStatus(orderId);
+              } else {
+                throw Exception('Không thể mở trình duyệt');
+              }
+            } else {
+              throw Exception(response['message'] ?? 'Không thể tạo link thanh toán');
+            }
+          } catch (e) {
+            print('❌ Error creating bank transfer URL: $e');
+            if (mounted) {
+              setState(() {
+                _isProcessing = false;
+              });
+              _showPaymentErrorDialog('Không thể tạo link thanh toán. Vui lòng thử lại.');
+            }
+          }
+        }
+        return;
+      }
+      
+      // Xử lý thanh toán tiền mặt (cash)
+      if (_selectedPaymentMethod == PaymentMethod.cash) {
         try {
           // ✅ NEW: Prepare selected amenities data
           final selectedAmenitiesData = {
@@ -910,7 +969,7 @@ class _PaymentScreenState extends State<PaymentScreen>
             'depositAmount': _requiresDeposit ? _depositAmount : 0, // Cọc 50% nếu có
             'paidAmount': _finalTotal, // Số tiền đã thanh toán (cọc hoặc toàn bộ)
             'remainingAmount': _requiresDeposit ? (_fullTotal - _depositAmount) : 0, // Số tiền còn lại
-            'paymentMethod': _selectedPaymentMethod == PaymentMethod.cash ? 'Cash' : 'Pay at Hotel',
+            'paymentMethod': 'Cash',
             'specialRequests': jsonEncode(selectedAmenitiesData), // ✅ NEW: Store amenities as JSON
             'requiresDeposit': _requiresDeposit,
             'depositPercentage': _requiresDeposit ? 50 : 0, // 50% cọc
@@ -918,7 +977,7 @@ class _PaymentScreenState extends State<PaymentScreen>
             'additionalServicesTotal': _selectedServicesTotal, // ✅ NEW: Total for additional services
           };
           
-          print('💵 Creating ${_selectedPaymentMethod == PaymentMethod.cash ? "cash" : "pay at hotel"} booking...');
+          print('💵 Creating cash booking...');
           final booking = await _bookingService.createCashBooking(bookingData);
           print('✅ Cash booking created: ${booking.id}');
           
@@ -1043,11 +1102,104 @@ class _PaymentScreenState extends State<PaymentScreen>
     switch (method) {
       case PaymentMethod.vnpay:
         return PaymentProvider.vnpay;
-      case PaymentMethod.payAtHotel:
-        return PaymentProvider.hotelPayment;
+      case PaymentMethod.bankTransfer:
+        return PaymentProvider.bankTransfer;
       case PaymentMethod.cash:
         return PaymentProvider.hotelPayment;
     }
+  }
+  
+  /// Poll Bank Transfer payment status
+  void _pollBankTransferPaymentStatus(String orderId) {
+    print('📊 Polling Bank Transfer payment status for: $orderId');
+    
+    int attempts = 0;
+    const maxAttempts = 60; // 60 * 2 = 120 seconds (2 minutes)
+    
+    Timer.periodic(const Duration(seconds: 2), (timer) async {
+      attempts++;
+      
+      if (attempts > maxAttempts) {
+        timer.cancel();
+        if (mounted) {
+          setState(() {
+            _isProcessing = false;
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Timeout: Không nhận được kết quả thanh toán'),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        }
+        return;
+      }
+      
+      try {
+        final response = await ApiService.get(
+          '/v2/bank-transfer/payment-status/$orderId',
+        );
+        
+        if (response['success'] == true && response['data'] != null) {
+          final status = response['data']['status'];
+          
+          if (status == 'completed') {
+            timer.cancel();
+            print('✅ Bank Transfer payment successful!');
+            
+            // Auto-create conversation
+            try {
+              if (widget.hotel.nguoiQuanLyId != null) {
+                final MessageService messageService = MessageService();
+                await messageService.createBookingConversation(
+                  hotelManagerId: widget.hotel.nguoiQuanLyId.toString(),
+                  hotelManagerName: widget.hotel.tenNguoiQuanLy ?? 'Quản lý',
+                  hotelManagerEmail: widget.hotel.emailNguoiQuanLy ?? '',
+                  hotelName: widget.hotel.ten,
+                  bookingId: orderId,
+                );
+                print('✅ Auto-created conversation after Bank Transfer');
+              }
+            } catch (e) {
+              print('⚠️ Could not auto-create conversation: $e');
+            }
+            
+            if (mounted) {
+              setState(() {
+                _isProcessing = false;
+              });
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => PaymentSuccessScreen(
+                    hotel: widget.hotel,
+                    room: widget.room,
+                    checkInDate: widget.checkInDate,
+                    checkOutDate: widget.checkOutDate,
+                    guestCount: widget.guestCount,
+                    nights: widget.nights,
+                    totalAmount: _finalTotal,
+                    orderId: orderId,
+                  ),
+                ),
+              );
+            }
+          } else if (status == 'failed') {
+            timer.cancel();
+            print('❌ Bank Transfer payment failed');
+            
+            if (mounted) {
+              setState(() {
+                _isProcessing = false;
+              });
+              _showPaymentErrorDialog('Thanh toán thất bại. Vui lòng thử lại.');
+            }
+          }
+        }
+      } catch (e) {
+        print('⚠️ Error polling payment status: $e');
+      }
+    });
   }
 
   /// Xây dựng widget tùy chọn cọc 50%

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 /// Enum các phương thức thanh toán
 enum PaymentProvider {
   vnpay,        // VNPay (cổng thanh toán Việt Nam)
+  bankTransfer, // Chuyển khoản ngân hàng (mock/test)
   vietqr,       // VietQR (chuyển khoản QR code)
   creditCard,   // Thẻ tín dụng
   eWallet,      // Ví điện tử (Momo, ZaloPay, ...)

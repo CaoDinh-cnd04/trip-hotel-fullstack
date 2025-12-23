@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 /// Enum các phương thức thanh toán
-enum PaymentMethod { vnpay, payAtHotel, cash }
+enum PaymentMethod { vnpay, bankTransfer, cash }
 
 class PaymentOptions extends StatefulWidget {
   final PaymentMethod selectedMethod;
@@ -77,11 +77,11 @@ class _PaymentOptionsState extends State<PaymentOptions> {
             const SizedBox(height: 12),
 
             _buildPaymentCard(
-              method: PaymentMethod.payAtHotel,
-              title: 'Thanh toán tại khách sạn',
-              subtitle: 'Thanh toán khi nhận phòng (Tiền mặt hoặc thẻ)',
-              icon: Icons.hotel,
-              iconColor: const Color(0xFF4CAF50),
+              method: PaymentMethod.bankTransfer,
+              title: 'Chuyển khoản ngân hàng',
+              subtitle: 'Chuyển khoản qua ngân hàng (Test mode)',
+              icon: Icons.account_balance_wallet,
+              iconColor: const Color(0xFF2196F3),
             ),
 
             const SizedBox(height: 12),
