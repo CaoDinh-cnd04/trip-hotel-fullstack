@@ -891,8 +891,9 @@ class _PaymentScreenState extends State<PaymentScreen>
               },
             );
             
-            if (response['success'] == true && response['data'] != null) {
-              final paymentUrl = response['data']['paymentUrl'];
+            if (response.success && response.data != null) {
+              final data = response.data as Map<String, dynamic>;
+              final paymentUrl = data['paymentUrl'];
               
               // Launch payment URL in browser
               print('🏦 Launching Bank Transfer URL: $paymentUrl');
@@ -906,7 +907,7 @@ class _PaymentScreenState extends State<PaymentScreen>
                 throw Exception('Không thể mở trình duyệt');
               }
             } else {
-              throw Exception(response['message'] ?? 'Không thể tạo link thanh toán');
+              throw Exception(response.message);
             }
           } catch (e) {
             print('❌ Error creating bank transfer URL: $e');
@@ -1140,8 +1141,9 @@ class _PaymentScreenState extends State<PaymentScreen>
           '/v2/bank-transfer/payment-status/$orderId',
         );
         
-        if (response['success'] == true && response['data'] != null) {
-          final status = response['data']['status'];
+        if (response.success && response.data != null) {
+          final data = response.data as Map<String, dynamic>;
+          final status = data['status'];
           
           if (status == 'completed') {
             timer.cancel();
