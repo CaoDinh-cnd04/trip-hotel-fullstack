@@ -127,7 +127,7 @@ class BankTransferController {
   }
 
   /**
-   * Display test bank transfer page (HTML)
+   * Display QR code payment page (HTML)
    * GET /api/bank-transfer/test-page
    */
   async testPage(req, res) {
@@ -138,13 +138,25 @@ class BankTransferController {
                    process.env.PUBLIC_URL || 
                    `http://localhost:${process.env.PORT || 5000}`;
 
+    // Bank account info (config này nên lưu trong .env)
+    const BANK_ID = '970422'; // VietinBank (MB Bank: 970422, VCB: 970436, TCB: 970407)
+    const ACCOUNT_NO = '1234567890'; // Số tài khoản
+    const ACCOUNT_NAME = 'TRIP HOTEL'; // Tên tài khoản (viết hoa, không dấu)
+    
+    // Generate VietQR URL (chuẩn VietQR)
+    const qrContent = `${orderId} ${amount}`;
+    const vietQRUrl = `https://img.vietqr.io/image/${BANK_ID}-${ACCOUNT_NO}-compact2.png?` +
+      `amount=${amount}&` +
+      `addInfo=${encodeURIComponent(orderInfo)}&` +
+      `accountName=${encodeURIComponent(ACCOUNT_NAME)}`;
+
     const html = `
 <!DOCTYPE html>
 <html lang="vi">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Mock Bank Transfer - Trip Hotel</title>
+  <title>Chuyển khoản ngân hàng - Trip Hotel</title>
   <style>
     * {
       margin: 0;
@@ -153,7 +165,7 @@ class BankTransferController {
     }
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      background: linear-gradient(135deg, #2196F3 0%, #1976D2 100%);
       min-height: 100vh;
       display: flex;
       align-items: center;
@@ -178,56 +190,107 @@ class BankTransferController {
     }
     h1 {
       color: #333;
-      font-size: 24px;
-      margin-bottom: 10px;
+      font-size: 22px;
+      margin-bottom: 5px;
     }
-    .test-badge {
-      display: inline-block;
-      background: #ff9800;
-      color: white;
-      padding: 4px 12px;
-      border-radius: 12px;
-      font-size: 12px;
-      font-weight: bold;
-      margin-bottom: 20px;
-    }
-    .info-box {
-      background: #f5f5f5;
-      border-radius: 12px;
-      padding: 20px;
-      margin-bottom: 30px;
-    }
-    .info-row {
-      display: flex;
-      justify-content: space-between;
-      margin-bottom: 12px;
+    .subtitle {
+      color: #666;
       font-size: 14px;
     }
-    .info-row:last-child {
-      margin-bottom: 0;
-    }
-    .label {
-      color: #666;
-      font-weight: 500;
-    }
-    .value {
-      color: #333;
-      font-weight: 600;
-      text-align: right;
-    }
-    .amount {
-      font-size: 32px;
-      color: #667eea;
-      font-weight: bold;
+    .qr-section {
       text-align: center;
+      margin: 30px 0;
+      padding: 20px;
+      background: #f8f9fa;
+      border-radius: 12px;
+    }
+    .qr-code {
+      width: 250px;
+      height: 250px;
+      margin: 0 auto 15px;
+      background: white;
+      padding: 15px;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+    .qr-code img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+    }
+    .qr-note {
+      font-size: 13px;
+      color: #666;
+      margin-top: 10px;
+    }
+    .bank-info {
+      background: #fff;
+      border: 2px solid #e0e0e0;
+      border-radius: 12px;
+      padding: 20px;
       margin: 20px 0;
     }
-    .buttons {
+    .bank-info-row {
       display: flex;
-      gap: 15px;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 15px;
+      padding-bottom: 15px;
+      border-bottom: 1px solid #f0f0f0;
     }
-    button {
-      flex: 1;
+    .bank-info-row:last-child {
+      margin-bottom: 0;
+      padding-bottom: 0;
+      border-bottom: none;
+    }
+    .bank-label {
+      color: #666;
+      font-size: 13px;
+      font-weight: 500;
+    }
+    .bank-value {
+      color: #333;
+      font-size: 15px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .copy-btn {
+      background: #2196F3;
+      color: white;
+      border: none;
+      padding: 4px 8px;
+      border-radius: 6px;
+      font-size: 11px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .copy-btn:hover {
+      background: #1976D2;
+    }
+    .copy-btn:active {
+      transform: scale(0.95);
+    }
+    .amount-highlight {
+      text-align: center;
+      margin: 25px 0;
+      padding: 20px;
+      background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+      border-radius: 12px;
+      color: white;
+    }
+    .amount-label {
+      font-size: 14px;
+      opacity: 0.9;
+      margin-bottom: 8px;
+    }
+    .amount-value {
+      font-size: 36px;
+      font-weight: bold;
+    }
+    .confirm-btn {
+      width: 100%;
       padding: 16px;
       border: none;
       border-radius: 12px;
@@ -235,33 +298,28 @@ class BankTransferController {
       font-weight: 600;
       cursor: pointer;
       transition: all 0.3s;
-    }
-    .btn-success {
-      background: #4caf50;
+      background: #4CAF50;
       color: white;
+      margin-top: 20px;
     }
-    .btn-success:hover {
+    .confirm-btn:hover {
       background: #45a049;
       transform: translateY(-2px);
       box-shadow: 0 5px 15px rgba(76, 175, 80, 0.3);
     }
-    .btn-failure {
-      background: #f44336;
-      color: white;
-    }
-    .btn-failure:hover {
-      background: #da190b;
-      transform: translateY(-2px);
-      box-shadow: 0 5px 15px rgba(244, 67, 54, 0.3);
+    .confirm-btn:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+      transform: none;
     }
     .note {
       margin-top: 20px;
       padding: 15px;
-      background: #fff3cd;
-      border-left: 4px solid #ffc107;
+      background: #e3f2fd;
+      border-left: 4px solid #2196F3;
       border-radius: 4px;
       font-size: 13px;
-      color: #856404;
+      color: #1565C0;
     }
     .note strong {
       display: block;
@@ -273,8 +331,8 @@ class BankTransferController {
     .loading {
       display: none;
       text-align: center;
-      margin-top: 20px;
-      color: #667eea;
+      margin-top: 15px;
+      color: #2196F3;
     }
     .loading.active {
       display: block;
@@ -284,9 +342,25 @@ class BankTransferController {
       width: 30px;
       height: 30px;
       border: 3px solid #f3f3f3;
-      border-top: 3px solid #667eea;
+      border-top: 3px solid #2196F3;
       border-radius: 50%;
       animation: spin 1s linear infinite;
+    }
+    .copied-toast {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      background: #4CAF50;
+      color: white;
+      padding: 12px 20px;
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+      opacity: 0;
+      transition: opacity 0.3s;
+      z-index: 1000;
+    }
+    .copied-toast.show {
+      opacity: 1;
     }
   </style>
 </head>
@@ -294,64 +368,101 @@ class BankTransferController {
   <div class="container">
     <div class="header">
       <div class="logo">🏦</div>
-      <h1>Mock Bank Transfer</h1>
-      <span class="test-badge">TEST MODE</span>
+      <h1>Chuyển khoản ngân hàng</h1>
+      <p class="subtitle">Quét mã QR hoặc chuyển khoản thủ công</p>
     </div>
 
-    <div class="info-box">
-      <div class="info-row">
-        <span class="label">Mã đơn hàng:</span>
-        <span class="value">${orderId}</span>
+    <!-- QR Code Section -->
+    <div class="qr-section">
+      <div class="qr-code">
+        <img src="${vietQRUrl}" alt="VietQR Code" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 100 100%27%3E%3Ctext y=%27.9em%27 font-size=%2750%27%3E📱%3C/text%3E%3C/svg%3E'" />
       </div>
-      <div class="info-row">
-        <span class="label">Nội dung:</span>
-        <span class="value">${orderInfo}</span>
+      <p class="qr-note">📱 Quét mã QR bằng app ngân hàng để chuyển khoản</p>
+    </div>
+
+    <!-- Bank Info -->
+    <div class="bank-info">
+      <div class="bank-info-row">
+        <span class="bank-label">Ngân hàng</span>
+        <span class="bank-value">VietinBank</span>
       </div>
-      <div class="info-row">
-        <span class="label">Mã giao dịch:</span>
-        <span class="value">${txnRef}</span>
+      <div class="bank-info-row">
+        <span class="bank-label">Số tài khoản</span>
+        <span class="bank-value">
+          ${ACCOUNT_NO}
+          <button class="copy-btn" onclick="copyText('${ACCOUNT_NO}')">Copy</button>
+        </span>
+      </div>
+      <div class="bank-info-row">
+        <span class="bank-label">Chủ tài khoản</span>
+        <span class="bank-value">${ACCOUNT_NAME}</span>
+      </div>
+      <div class="bank-info-row">
+        <span class="bank-label">Nội dung CK</span>
+        <span class="bank-value">
+          ${orderId}
+          <button class="copy-btn" onclick="copyText('${orderId}')">Copy</button>
+        </span>
       </div>
     </div>
 
-    <div class="amount">${Number(amount).toLocaleString('vi-VN')} ₫</div>
-
-    <div class="buttons">
-      <button class="btn-success" onclick="handlePayment(true)">
-        ✅ Thành công
-      </button>
-      <button class="btn-failure" onclick="handlePayment(false)">
-        ❌ Thất bại
-      </button>
+    <!-- Amount -->
+    <div class="amount-highlight">
+      <div class="amount-label">Số tiền cần chuyển</div>
+      <div class="amount-value">${Number(amount).toLocaleString('vi-VN')} ₫</div>
     </div>
+
+    <!-- Confirm Button -->
+    <button class="confirm-btn" id="confirmBtn" onclick="handleConfirm()">
+      ✅ Tôi đã chuyển khoản
+    </button>
 
     <div class="loading" id="loading">
       <div class="spinner"></div>
-      <p style="margin-top: 10px;">Đang xử lý...</p>
+      <p style="margin-top: 10px;">Đang xác nhận...</p>
     </div>
 
     <div class="note">
-      <strong>⚠️ Lưu ý:</strong>
-      Đây là trang test giả lập chuyển khoản ngân hàng. Click "Thành công" để test luồng thanh toán thành công, click "Thất bại" để test luồng lỗi.
+      <strong>📝 Lưu ý quan trọng:</strong>
+      • Vui lòng chuyển <strong>ĐÚNG số tiền</strong> như trên<br>
+      • Điền <strong>ĐÚNG nội dung</strong> để xác nhận tự động<br>
+      • Sau khi chuyển khoản, click nút "Tôi đã chuyển khoản"<br>
+      • Hệ thống sẽ xác nhận và cập nhật booking
     </div>
   </div>
 
-  <script>
-    function handlePayment(success) {
-      // Show loading
-      document.getElementById('loading').classList.add('active');
-      document.querySelectorAll('button').forEach(btn => btn.disabled = true);
+  <!-- Toast notification -->
+  <div class="copied-toast" id="toast">✅ Đã copy!</div>
 
-      // Simulate processing delay (like real bank)
+  <script>
+    function copyText(text) {
+      navigator.clipboard.writeText(text).then(() => {
+        const toast = document.getElementById('toast');
+        toast.classList.add('show');
+        setTimeout(() => {
+          toast.classList.remove('show');
+        }, 2000);
+      });
+    }
+
+    function handleConfirm() {
+      const btn = document.getElementById('confirmBtn');
+      const loading = document.getElementById('loading');
+      
+      btn.disabled = true;
+      loading.classList.add('active');
+
+      // Simulate bank verification (in real app, this would call bank API)
       setTimeout(() => {
         const returnUrl = '${baseUrl}/api/bank-transfer/return?' +
           'orderId=${encodeURIComponent(orderId)}' +
           '&amount=${encodeURIComponent(amount)}' +
           '&txnRef=${encodeURIComponent(txnRef)}' +
-          '&responseCode=' + (success ? '00' : '99') +
-          '&transactionStatus=' + (success ? '00' : '02');
+          '&responseCode=00' +
+          '&transactionStatus=00';
         
         window.location.href = returnUrl;
-      }, 1500);
+      }, 2000);
     }
   </script>
 </body>
