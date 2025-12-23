@@ -1,10 +1,17 @@
-# 🏦 MOCK BANK TRANSFER - Test Payment Method
+# 🏦 BANK TRANSFER WITH QR CODE - Payment Method
 
 ## 📋 Tổng Quan
 
-**Mock Bank Transfer** là phương thức thanh toán **GIẢ LẬP** để **TEST**, hoạt động giống VNPay nhưng đơn giản hơn và không cần payment gateway thật.
+**Bank Transfer** là phương thức thanh toán qua **chuyển khoản ngân hàng** với **QR Code** (VietQR standard).
 
-⚠️ **LƯU Ý: CHỈ DÙNG ĐỂ TEST - KHÔNG PHẢI THANH TOÁN THẬT!**
+✨ **TÍNH NĂNG:**
+- ✅ Tạo QR Code thật (chuẩn VietQR)
+- ✅ Hiển thị thông tin chuyển khoản chi tiết
+- ✅ Copy nhanh số TK, nội dung CK
+- ✅ Xác nhận sau khi chuyển khoản
+- ✅ Auto-confirm booking
+
+⚠️ **LƯU Ý:** Đây là phiên bản test với xác nhận thủ công. Trong production, cần tích hợp Bank API để verify tự động.
 
 ---
 
@@ -58,27 +65,44 @@
                   │
                   ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│ 5. USER THẤY TEST PAGE (HTML)                                  │
+│ 5. USER THẤY QR PAGE                                           │
 │    ┌──────────────────────────────────────────────┐           │
-│    │  🏦 Mock Bank Transfer                       │           │
-│    │  ⚠️ TEST MODE                                │           │
+│    │  🏦 Chuyển khoản ngân hàng                   │           │
 │    │                                               │           │
-│    │  Mã đơn hàng: BT_1703331234567_123          │           │
-│    │  Nội dung: Đặt phòng Deluxe...              │           │
+│    │  ╔═══════════════════════╗                   │           │
+│    │  ║                       ║                   │           │
+│    │  ║   [QR CODE IMAGE]     ║                   │           │
+│    │  ║    VietQR Standard    ║                   │           │
+│    │  ║                       ║                   │           │
+│    │  ╚═══════════════════════╝                   │           │
+│    │  📱 Quét mã QR để CK                        │           │
+│    │                                               │           │
+│    │  Ngân hàng: VietinBank                       │           │
+│    │  Số TK: 1234567890 [Copy]                   │           │
+│    │  Chủ TK: TRIP HOTEL                         │           │
+│    │  Nội dung: BT_1703331234567 [Copy]          │           │
+│    │                                               │           │
 │    │  Số tiền: 997,500 ₫                         │           │
 │    │                                               │           │
-│    │  [✅ Thành công]  [❌ Thất bại]              │           │
+│    │  [✅ Tôi đã chuyển khoản]                   │           │
 │    └──────────────────────────────────────────────┘           │
 └─────────────────┬───────────────────────────────────────────────┘
                   │
                   ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│ 6. USER CLICK NÚT (Thành công hoặc Thất bại)                   │
+│ 6. USER QUÉT QR & CHUYỂN KHOẢN                                 │
+│    (Dùng app banking: VCB, TCB, MB, VietinBank...)            │
+│    Hoặc nhập thông tin thủ công                                │
 └─────────────────┬───────────────────────────────────────────────┘
                   │
                   ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│ 7. REDIRECT ĐẾN RETURN URL                                     │
+│ 7. USER CLICK "TÔI ĐÃ CHUYỂN KHOẢN"                           │
+└─────────────────┬───────────────────────────────────────────────┘
+                  │
+                  ▼
+┌─────────────────────────────────────────────────────────────────┐
+│ 8. REDIRECT ĐẾN RETURN URL                                     │
 │    GET /api/bank-transfer/return?                              │
 │      orderId=BT_...&                                            │
 │      responseCode=00&  (00 = success, 99 = fail)              │
@@ -87,7 +111,7 @@
                   │
                   ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│ 8. BACKEND XỬ LÝ RETURN                                        │
+│ 9. BACKEND XỬ LÝ RETURN                                        │
 │    • UPDATE payments SET status = 'completed'                   │
 │    • AUTO-CONFIRM BOOKING (if success)                         │
 │    • UPDATE phieu_dat_phong SET status = 'confirmed'           │
@@ -97,7 +121,7 @@
                   │
                   ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│ 9. APP NHẬN DEEP LINK                                          │
+│ 10. APP NHẬN DEEP LINK                                         │
 │    Deep link: banktransfer://return?success=true               │
 │    • App detect deep link                                       │
 │    • Start polling payment status                               │
@@ -105,7 +129,7 @@
                   │
                   ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│ 10. APP POLLING PAYMENT STATUS                                 │
+│ 11. APP POLLING PAYMENT STATUS                                 │
 │     GET /api/v2/bank-transfer/payment-status/BT_...           │
 │     Every 2 seconds, max 60 attempts (2 minutes)               │
 │                                                                 │
@@ -120,7 +144,7 @@
                   │
                   ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│ 11. HIỂN THỊ SUCCESS SCREEN                                    │
+│ 12. HIỂN THỊ SUCCESS SCREEN                                    │
 │     ✅ Payment successful                                        │
 │     ✅ Booking confirmed                                         │
 │     ✅ Email sent                                                │
