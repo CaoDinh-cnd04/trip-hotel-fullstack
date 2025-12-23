@@ -26,7 +26,7 @@ class PriceBreakdownCard extends StatelessWidget {
     this.requiresDeposit = false,
     this.depositAmount = 0,
     this.fullTotal = 0,
-    this.paymentMethod = PaymentMethod.momo,
+    this.paymentMethod = PaymentMethod.vnpay,
     this.additionalServicesTotal, // ✅ NEW
   });
 

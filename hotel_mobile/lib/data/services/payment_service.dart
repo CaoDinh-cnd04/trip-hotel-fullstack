@@ -51,6 +51,13 @@ class PaymentService {
             description: description,
             additionalData: additionalData,
           );
+        case PaymentProvider.bankTransfer:
+          return await _processBankTransferPayment(
+            amount: amount,
+            orderId: orderId,
+            description: description,
+            additionalData: additionalData,
+          );
         case PaymentProvider.vietqr:
           return await _processVietQRPayment(
             amount: amount,
@@ -115,6 +122,28 @@ class PaymentService {
         'vnpay_transaction_id': 'VNPAY_${DateTime.now().millisecondsSinceEpoch}',
         'bank_code': 'NCB',
         'card_type': 'ATM',
+      },
+    );
+  }
+
+  /// Process Bank Transfer payment
+  Future<PaymentResult> _processBankTransferPayment({
+    required double amount,
+    required String orderId,
+    required String description,
+    Map<String, dynamic>? additionalData,
+  }) async {
+    // Simulate Bank Transfer payment processing
+    await Future.delayed(const Duration(seconds: 2));
+    
+    return PaymentResult(
+      success: true,
+      message: 'Đã tạo yêu cầu chuyển khoản',
+      transactionId: 'BANK_${DateTime.now().millisecondsSinceEpoch}',
+      provider: PaymentProvider.bankTransfer,
+      additionalData: {
+        'bank_transfer_id': 'BANK_${DateTime.now().millisecondsSinceEpoch}',
+        'payment_method': 'Bank Transfer',
       },
     );
   }
@@ -220,6 +249,8 @@ class PaymentService {
     switch (provider) {
       case PaymentProvider.vnpay:
         return 'VNPay';
+      case PaymentProvider.bankTransfer:
+        return 'Chuyển khoản ngân hàng';
       case PaymentProvider.vietqr:
         return 'VietQR';
       case PaymentProvider.creditCard:
@@ -236,6 +267,8 @@ class PaymentService {
     switch (provider) {
       case PaymentProvider.vnpay:
         return Icons.payment;
+      case PaymentProvider.bankTransfer:
+        return Icons.account_balance;
       case PaymentProvider.vietqr:
         return Icons.qr_code;
       case PaymentProvider.creditCard:
@@ -252,6 +285,8 @@ class PaymentService {
     switch (provider) {
       case PaymentProvider.vnpay:
         return Colors.red;
+      case PaymentProvider.bankTransfer:
+        return Colors.blue;
       case PaymentProvider.vietqr:
         return Colors.purple;
       case PaymentProvider.creditCard:

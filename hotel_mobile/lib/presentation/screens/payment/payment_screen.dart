@@ -878,7 +878,7 @@ class _PaymentScreenState extends State<PaymentScreen>
           
           try {
             // Call backend API to get payment URL
-            final response = await ApiService.post(
+            final response = await ApiService().post(
               '/v2/bank-transfer/create-payment-url',
               {
                 'amount': _finalTotal,
@@ -1136,7 +1136,7 @@ class _PaymentScreenState extends State<PaymentScreen>
       }
       
       try {
-        final response = await ApiService.get(
+        final response = await ApiService().get(
           '/v2/bank-transfer/payment-status/$orderId',
         );
         
