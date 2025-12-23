@@ -1,7 +1,7 @@
 const crypto = require('crypto');
 const axios = require('axios');
 const vnpayConfig = require('../config/vnpay');
-const momoConfig = require('../config/momo');
+// const momoConfig = require('../config/momo'); // ❌ MoMo removed
 const Booking = require('../models/booking');
 
 class RefundService {
@@ -122,97 +122,23 @@ class RefundService {
   }
 
   /**
-   * Hoàn tiền MoMo
-   * Documentation: https://developers.momo.vn/#/docs/en/aiov2/?id=refund-api
+   * ❌ MoMo REMOVED - Refund not supported
    */
   async refundMoMo(booking) {
-    try {
-      console.log('🔄 Bắt đầu hoàn tiền MoMo cho booking:', booking.booking_code);
+    console.log('⚠️ MoMo refund không khả dụng - đã xóa MoMo integration');
+    
+    // Cập nhật trạng thái refund thành manual
+    await Booking.updateRefundStatus(booking.id, {
+      status: 'pending',
+      amount: booking.final_price,
+      transactionId: 'MOMO-MANUAL-REFUND',
+    });
 
-      const partnerCode = momoConfig.partnerCode;
-      const accessKey = momoConfig.accessKey;
-      const requestId = this.generateRequestId();
-      const orderId = booking.payment_transaction_id; // Mã đơn hàng gốc
-      const requestType = 'refund';
-      const amount = Math.floor(booking.final_price);
-      const transId = booking.payment_transaction_id; // Transaction ID từ MoMo
-      const lang = 'vi';
-      const description = `Hoàn tiền đặt phòng ${booking.booking_code}`;
-
-      // Tạo signature
-      const rawSignature = `accessKey=${accessKey}&amount=${amount}&description=${description}&orderId=${orderId}&partnerCode=${partnerCode}&requestId=${requestId}&requestType=${requestType}&transId=${transId}`;
-
-      const signature = crypto
-        .createHmac('sha256', momoConfig.secretKey)
-        .update(rawSignature)
-        .digest('hex');
-
-      const refundData = {
-        partnerCode,
-        accessKey,
-        requestId,
-        orderId,
-        requestType,
-        amount,
-        transId,
-        lang,
-        description,
-        signature,
-      };
-
-      console.log('📤 Gửi yêu cầu hoàn tiền đến MoMo:', refundData);
-
-      // Gửi request đến MoMo API
-      const response = await axios.post(momoConfig.endpoint, refundData, {
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-
-      console.log('📥 Phản hồi từ MoMo:', response.data);
-
-      if (response.data.resultCode === 0) {
-        // Hoàn tiền thành công
-        await Booking.updateRefundStatus(booking.id, {
-          status: 'completed',
-          amount: booking.final_price,
-          transactionId: response.data.transId || requestId,
-        });
-
-        return {
-          success: true,
-          message: 'Hoàn tiền MoMo thành công',
-          transactionId: response.data.transId,
-          amount: booking.final_price,
-        };
-      } else {
-        // Hoàn tiền thất bại
-        await Booking.updateRefundStatus(booking.id, {
-          status: 'failed',
-          amount: 0,
-          transactionId: requestId,
-        });
-
-        return {
-          success: false,
-          message: `Hoàn tiền MoMo thất bại: ${response.data.message}`,
-          code: response.data.resultCode,
-        };
-      }
-    } catch (error) {
-      console.error('❌ Lỗi hoàn tiền MoMo:', error);
-      
-      await Booking.updateRefundStatus(booking.id, {
-        status: 'failed',
-        amount: 0,
-        transactionId: 'ERROR',
-      });
-
-      return {
-        success: false,
-        message: `Lỗi hệ thống: ${error.message}`,
-      };
-    }
+    return {
+      success: false,
+      message: 'MoMo không còn được hỗ trợ. Vui lòng liên hệ admin để hoàn tiền thủ công.',
+      requiresManualRefund: true,
+    };
   }
 
   /**
@@ -247,8 +173,9 @@ class RefundService {
       if (booking.payment_method === 'vnpay') {
         return await this.refundVNPay(booking);
       } else if (booking.payment_method === 'momo') {
+        // ❌ MoMo removed - return manual refund message
         return await this.refundMoMo(booking);
-      } else if (booking.payment_method === 'cash') {
+      } else if (booking.payment_method === 'cash' || booking.payment_method === 'Bank Transfer') {
         // Thanh toán tiền mặt - chỉ cập nhật trạng thái
         await Booking.updateRefundStatus(booking.id, {
           status: 'completed',
