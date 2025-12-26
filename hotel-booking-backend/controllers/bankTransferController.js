@@ -15,7 +15,7 @@
 
 const crypto = require('crypto');
 const { Request } = require('mssql');
-const { connectToDatabase } = require('../config/db');
+const { getPool } = require('../config/db');
 
 class BankTransferController {
   /**
@@ -32,6 +32,18 @@ class BankTransferController {
         userName,
         userEmail,
         userPhone,
+        // ✅ NEW: Booking data for auto-confirm
+        userId,
+        hotelId,
+        hotelName,
+        roomId,
+        roomType,
+        checkInDate,
+        checkOutDate,
+        guestCount,
+        nights,
+        finalPrice,
+        totalPrice,
       } = req.body;
 
       // Validate required fields
@@ -46,50 +58,116 @@ class BankTransferController {
         orderId,
         amount,
         orderInfo,
+        hotelId,
+        userId,
       });
+
+      // ✅ VALIDATION: Kiểm tra booking active và yêu cầu thanh toán
+      if (userId && hotelId && checkInDate && checkOutDate) {
+        console.log('🔍 Bank Transfer - Starting validation check:', {
+          userId,
+          hotelId,
+          checkInDate,
+          checkOutDate,
+          paymentMethod: 'bank_transfer',
+          amount,
+          totalPrice: totalPrice || finalPrice || amount,
+        });
+        
+        const BookingValidationService = require('../services/bookingValidationService');
+        const validation = await BookingValidationService.validateBooking(
+          userId,
+          parseInt(hotelId),
+          new Date(checkInDate),
+          new Date(checkOutDate),
+          'bank_transfer',
+          parseFloat(amount),
+          parseFloat(totalPrice || finalPrice || amount)
+        );
+
+        console.log('🔍 Bank Transfer - Validation result:', {
+          isValid: validation.isValid,
+          message: validation.message,
+          requiresPayment: validation.requiresPayment,
+          minPaymentPercentage: validation.minPaymentPercentage,
+        });
+
+        if (!validation.isValid) {
+          console.log('❌ Bank Transfer - Validation failed, blocking payment creation');
+          return res.status(400).json({
+            success: false,
+            message: validation.message,
+            data: {
+              requiresPayment: validation.requiresPayment,
+              minPaymentPercentage: validation.minPaymentPercentage,
+            },
+          });
+        }
+        
+        console.log('✅ Bank Transfer - Validation passed, proceeding with payment creation');
+      } else {
+        console.log('⚠️ Bank Transfer - Validation skipped:', {
+          hasUserId: !!userId,
+          hasHotelId: !!hotelId,
+          hasCheckInDate: !!checkInDate,
+          hasCheckOutDate: !!checkOutDate,
+        });
+      }
 
       // Generate unique transaction ID
       const txnRef = `BANK_${Date.now()}_${orderId}`;
       
-      // Create payment record in database
-      const pool = await connectToDatabase();
+      // Create extra_data object with FULL booking data (similar to VNPay)
+      const extraData = {
+        userName,
+        userEmail,
+        userPhone,
+        orderInfo,
+        txnRef,
+        // ✅ Booking data for auto-confirm
+        userId,
+        hotelId,
+        hotelName,
+        roomId,
+        roomType,
+        checkInDate,
+        checkOutDate,
+        guestCount,
+        nights,
+        finalPrice: finalPrice || amount,
+        totalPrice: totalPrice || amount,
+      };
+      
+      // Create payment record in database (match VNPay schema)
+      const pool = await getPool();
+      const { Request } = require('mssql');
+      const sql = require('mssql');
       const request = new Request(pool);
       
-      request.input('order_id', orderId);
-      request.input('amount', amount);
-      request.input('order_info', orderInfo);
-      request.input('status', 'pending');
-      request.input('transaction_id', txnRef);
-      request.input('payment_method', 'Bank Transfer');
-      request.input('user_name', userName || null);
-      request.input('user_email', userEmail || null);
-      request.input('user_phone', userPhone || null);
+      // Generate temporary numeric booking_id (will be updated after real booking is created)
+      // Use smaller number to fit SQL Server INT (max: 2,147,483,647)
+      // Take last 9 digits of timestamp to ensure it fits in INT
+      const tempBookingId = Math.floor(Date.now() % 2000000000); // Keep under INT max
       
-      await request.query(`
-        INSERT INTO payments (
-          order_id,
-          amount,
-          order_info,
-          status,
-          transaction_id,
-          payment_method,
-          user_name,
-          user_email,
-          user_phone,
-          created_at
-        ) VALUES (
-          @order_id,
-          @amount,
-          @order_info,
-          @status,
-          @transaction_id,
-          @payment_method,
-          @user_name,
-          @user_email,
-          @user_phone,
-          GETDATE()
-        )
-      `);
+      // Use 'cash' as payment_method to comply with CHECK constraint
+      const paymentMethodValue = 'cash';
+      
+      // ✅ FIX: Explicitly specify NVARCHAR(MAX) type for extra_data to support Unicode (tiếng Việt)
+      const extraDataJson = JSON.stringify(extraData);
+      console.log('💾 Saving extra_data to DB (length:', extraDataJson.length, ')');
+      console.log('💾 Extra data preview:', extraDataJson.substring(0, 200));
+      
+      await request
+        .input('booking_id', tempBookingId)
+        .input('order_id', orderId)
+        .input('amount', amount)
+        .input('status', 'pending')
+        .input('payment_method', paymentMethodValue)
+        .input('extra_data', sql.NVarChar(sql.MAX), extraDataJson) // ✅ Explicitly use NVARCHAR(MAX)
+        .query(`
+          INSERT INTO payments (booking_id, order_id, amount, status, payment_method, extra_data, created_at)
+          VALUES (@booking_id, @order_id, @amount, @status, @payment_method, @extra_data, GETDATE())
+        `);
 
       // Get base URL from environment or request
       const baseUrl = process.env.BASE_URL || 
@@ -102,7 +180,7 @@ class BankTransferController {
         `amount=${encodeURIComponent(amount)}&` +
         `orderInfo=${encodeURIComponent(orderInfo)}&` +
         `txnRef=${encodeURIComponent(txnRef)}`;
-
+      
       console.log('✅ Bank Transfer URL created:', paymentUrl);
 
       return res.json({
@@ -478,22 +556,54 @@ class BankTransferController {
    */
   async bankTransferReturn(req, res) {
     try {
-      const { orderId, amount, txnRef, responseCode, transactionStatus } = req.query;
+      // Support both GET (callback) and POST (manual confirmation)
+      const params = req.method === 'POST' ? req.body : req.query;
+      const { orderId, amount, txnRef, responseCode, transactionStatus, success } = params;
 
-      console.log('🔙 Bank Transfer Return:', req.query);
+      console.log('🔙 Bank Transfer Return:', { method: req.method, params });
 
-      const isSuccess = responseCode === '00' && transactionStatus === '00';
+      // For POST (manual confirmation), success is explicitly set
+      // For GET (callback), check responseCode and transactionStatus
+      const isSuccess = req.method === 'POST' 
+        ? (success === 'true' || success === true)
+        : (responseCode === '00' && transactionStatus === '00');
 
-      // Update payment status in database
-      const pool = await connectToDatabase();
-      const request = new Request(pool);
+      // Get payment record from database first to get amount and txnRef
+      const pool = await getPool();
+      
+      // 1. Get existing payment record
+      const getPaymentRequest = new Request(pool);
+      getPaymentRequest.input('order_id', orderId);
+      const paymentResult = await getPaymentRequest.query(`
+        SELECT amount, transaction_no, extra_data
+        FROM payments
+        WHERE order_id = @order_id
+      `);
 
-      request.input('order_id', orderId);
-      request.input('status', isSuccess ? 'completed' : 'failed');
-      request.input('response_code', responseCode);
-      request.input('transaction_status', transactionStatus);
+      if (paymentResult.recordset.length === 0) {
+        throw new Error('Payment record not found for orderId: ' + orderId);
+      }
 
-      await request.query(`
+      const paymentRecord = paymentResult.recordset[0];
+      const paymentAmount = amount || paymentRecord.amount; // Use param if available, else from DB
+      const paymentTxnRef = txnRef || paymentRecord.transaction_no || orderId; // Use param if available, else from DB
+
+      console.log('💰 Payment info:', {
+        orderId,
+        amount: paymentAmount,
+        txnRef: paymentTxnRef,
+        fromParams: { amount, txnRef },
+        fromDB: { amount: paymentRecord.amount, txnRef: paymentRecord.transaction_no }
+      });
+
+      // 2. Update payment status in database
+      const updateRequest = new Request(pool);
+      updateRequest.input('order_id', orderId);
+      updateRequest.input('status', isSuccess ? 'completed' : 'failed');
+      updateRequest.input('response_code', responseCode || '00'); // Default to '00' for manual confirmation
+      updateRequest.input('transaction_status', transactionStatus || '00');
+
+      await updateRequest.query(`
         UPDATE payments
         SET status = @status,
             response_code = @response_code,
@@ -503,9 +613,42 @@ class BankTransferController {
 
       if (isSuccess) {
         // Auto-confirm booking (similar to VNPay)
-        const AutoConfirmBookingService = require('../services/autoConfirmBookingService');
-        await AutoConfirmBookingService.autoConfirmBookingAfterPayment(orderId);
-        console.log('✅ Auto-confirmed booking:', orderId);
+        try {
+          const AutoConfirmBookingService = require('../services/autoConfirmBookingService');
+          
+          // Get extra_data từ payment record
+          let bookingData = {};
+          let bookingId = null;
+          
+          const paymentInfo = await pool.request()
+            .input('order_id', orderId)
+            .query('SELECT booking_id, extra_data FROM payments WHERE order_id = @order_id');
+          
+          if (paymentInfo.recordset.length > 0) {
+            bookingId = paymentInfo.recordset[0].booking_id;
+            const extraData = paymentInfo.recordset[0].extra_data;
+            
+            if (extraData) {
+              try {
+                bookingData = typeof extraData === 'string' ? JSON.parse(extraData) : extraData;
+              } catch (e) {
+                console.error('⚠️ Bank Transfer: Cannot parse extra_data:', e);
+              }
+            }
+          }
+          
+          await AutoConfirmBookingService.autoConfirmBookingAfterPayment({
+            orderId: orderId,
+            amount: paymentAmount,
+            paymentMethod: 'bank_transfer',
+            transactionId: paymentTxnRef,
+            bookingId: bookingId,
+            bookingData: bookingData,
+          });
+          console.log('✅ Auto-confirmed booking:', orderId);
+        } catch (confirmError) {
+          console.error('⚠️ Bank Transfer: Error auto-confirming booking (non-critical):', confirmError.message);
+        }
       }
 
       // Redirect to app with deep link
@@ -586,10 +729,34 @@ class BankTransferController {
 </html>
       `;
 
+      // For POST requests (manual confirmation), return JSON
+      if (req.method === 'POST') {
+        return res.json({
+          success: true,
+          message: isSuccess ? 'Thanh toán thành công' : 'Thanh toán thất bại',
+          data: {
+            orderId,
+            isSuccess,
+          },
+        });
+      }
+
+      // For GET requests (callback), return HTML
       res.send(html);
 
     } catch (error) {
       console.error('❌ Error processing bank transfer return:', error);
+      
+      // For POST requests, return JSON error
+      if (req.method === 'POST') {
+        return res.status(500).json({
+          success: false,
+          message: 'Lỗi xử lý thanh toán',
+          error: error.message,
+        });
+      }
+      
+      // For GET requests, return HTML error
       res.status(500).send(`
         <html>
           <body style="font-family: Arial; text-align: center; padding: 50px;">
@@ -609,17 +776,22 @@ class BankTransferController {
     try {
       const { orderId } = req.params;
 
-      const pool = await connectToDatabase();
+      const pool = await getPool();
       const request = new Request(pool);
       request.input('order_id', orderId);
 
       const result = await request.query(`
         SELECT 
+          booking_id,
           order_id,
           amount,
           status,
+          payment_method,
+          transaction_no,
           response_code,
-          transaction_id,
+          bank_code,
+          pay_date,
+          extra_data,
           created_at,
           updated_at
         FROM payments

@@ -191,7 +191,8 @@ class BookingController {
    */
   async getMyBookings(req, res) {
     try {
-      const userId = req.user?.id;
+      // ✅ FIX: Lấy userId từ nhiều nguồn để đảm bảo khớp với createCashBooking
+      const userId = req.user?.id || req.user?.ma_nguoi_dung;
       if (!userId) {
         return res.status(401).json({
           success: false,
@@ -203,6 +204,9 @@ class BookingController {
       
       // Log để debug
       console.log('📋 Getting bookings for user:', userId);
+      console.log('📋 User object keys:', Object.keys(req.user || {}));
+      console.log('📋 req.user.id:', req.user?.id);
+      console.log('📋 req.user.ma_nguoi_dung:', req.user?.ma_nguoi_dung);
       console.log('📋 Query params:', { status, limit, offset });
       
       const bookings = await Booking.getByUserId(userId, {
@@ -217,6 +221,7 @@ class BookingController {
         console.log('📋 Sample booking:', {
           id: bookings[0].id,
           booking_code: bookings[0].booking_code,
+          user_id: bookings[0].user_id,
           booking_status: bookings[0].booking_status,
           payment_status: bookings[0].payment_status,
           payment_method: bookings[0].payment_method,
@@ -225,18 +230,48 @@ class BookingController {
       } else {
         console.log('⚠️ No bookings found for user:', userId);
         // Debug: Kiểm tra xem có booking nào trong database không
-        const pool = require('../config/database').getPool();
+        const { getPool } = require('../config/db');
+        const sql = require('mssql');
+        const pool = await getPool();
+        
+        // Kiểm tra cả bảng bookings (mới) và phieu_dat_phong (cũ)
         const debugResult = await pool.request()
-          .input('user_id', require('mssql').Int, userId)
-          .query('SELECT COUNT(*) as total FROM bookings WHERE user_id = @user_id');
-        console.log('📋 Total bookings in DB for user:', debugResult.recordset[0].total);
+          .input('user_id', sql.Int, userId)
+          .query(`
+            SELECT 
+              (SELECT COUNT(*) FROM bookings WHERE user_id = @user_id) as bookings_count,
+              (SELECT COUNT(*) FROM phieu_dat_phong WHERE nguoi_dung_id = @user_id) as phieu_dat_phong_count
+          `);
+        console.log('📋 Total bookings in DB for user:', {
+          bookings_table: debugResult.recordset[0].bookings_count,
+          phieu_dat_phong_table: debugResult.recordset[0].phieu_dat_phong_count,
+        });
+        
+        // Kiểm tra xem có booking nào với user_id khác không
+        const allBookingsCheck = await pool.request()
+          .query('SELECT TOP 5 user_id, booking_code, booking_status FROM bookings ORDER BY created_at DESC');
+        console.log('📋 Recent bookings (for debugging):', allBookingsCheck.recordset);
       }
 
-      res.json({
+      const response = {
         success: true,
         data: bookings,
         total: bookings.length,
+      };
+      
+      console.log('📋 Response summary:', {
+        success: response.success,
+        total: response.total,
+        dataLength: response.data.length,
+        firstBookingKeys: response.data.length > 0 ? Object.keys(response.data[0]) : []
       });
+      
+      if (bookings.length > 0) {
+        console.log('📋 First booking full data:');
+        console.log(JSON.stringify(bookings[0], null, 2));
+      }
+      
+      res.json(response);
     } catch (error) {
       console.error('❌ Error getting bookings:', error);
       res.status(500).json({
@@ -367,6 +402,190 @@ class BookingController {
    * Tạo booking thanh toán tiền mặt
    * POST /api/bookings/cash
    */
+  /**
+   * Kiểm tra validation trước khi đặt phòng
+   * GET /api/bookings/validate
+   * @query hotelId, checkInDate, checkOutDate, paymentMethod, paymentAmount, totalPrice
+   */
+  async validateBooking(req, res) {
+    try {
+      const userId = req.user?.id || req.user?.ma_nguoi_dung;
+      if (!userId) {
+        return res.status(401).json({
+          success: false,
+          message: 'Chưa đăng nhập',
+        });
+      }
+
+      const { hotelId, checkInDate, checkOutDate, paymentMethod, paymentAmount, totalPrice } = req.query;
+
+      if (!hotelId || !checkInDate || !checkOutDate) {
+        return res.status(400).json({
+          success: false,
+          message: 'Thiếu thông tin bắt buộc: hotelId, checkInDate, checkOutDate',
+        });
+      }
+
+      const BookingValidationService = require('../services/bookingValidationService');
+      const validation = await BookingValidationService.validateBooking(
+        userId,
+        parseInt(hotelId),
+        new Date(checkInDate),
+        new Date(checkOutDate),
+        paymentMethod || 'cash',
+        parseFloat(paymentAmount || 0),
+        parseFloat(totalPrice || 0)
+      );
+
+      res.json({
+        success: true,
+        data: validation,
+      });
+    } catch (error) {
+      console.error('Error validating booking:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Lỗi server khi kiểm tra validation',
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined,
+      });
+    }
+  }
+
+  /**
+   * Kiểm tra xem user có booking active ở khách sạn khác không (để ẩn nút đặt phòng)
+   * GET /api/bookings/check-active
+   * @query hotelId (optional) - Nếu có, kiểm tra xem có booking ở khách sạn khác không
+   */
+  async checkActiveBooking(req, res) {
+    try {
+      const userId = req.user?.id || req.user?.ma_nguoi_dung;
+      if (!userId) {
+        return res.status(401).json({
+          success: false,
+          message: 'Chưa đăng nhập',
+        });
+      }
+
+      const { hotelId } = req.query;
+      const BookingValidationService = require('../services/bookingValidationService');
+      
+      // Lấy tất cả bookings chưa checkout
+      const { conflictingBookings } = await BookingValidationService.checkActiveBookings(
+        userId,
+        new Date(), // Dummy dates, không dùng trong logic mới
+        new Date()
+      );
+
+      // Nếu có hotelId, kiểm tra xem có booking ở khách sạn khác không
+      if (hotelId) {
+        const currentHotelId = parseInt(hotelId);
+        
+        console.log('🔍 Check active booking:', {
+          userId,
+          currentHotelId,
+          currentHotelIdType: typeof currentHotelId,
+          conflictingBookingsCount: conflictingBookings.length,
+          conflictingBookings: conflictingBookings.map(b => ({
+            bookingId: b.id,
+            hotelId: b.hotel_id,
+            hotelIdType: typeof b.hotel_id,
+            hotelName: b.hotel_name,
+            checkOut: b.check_out_date,
+          })),
+        });
+
+        const otherHotelBookings = conflictingBookings.filter(
+          booking => {
+            const bookingHotelId = parseInt(booking.hotel_id);
+            const isDifferent = bookingHotelId !== currentHotelId;
+            console.log(`   - Booking ${booking.id}: hotelId=${bookingHotelId} (${typeof booking.hotel_id}) vs current=${currentHotelId} (${typeof currentHotelId}) => ${isDifferent ? 'DIFFERENT' : 'SAME'}`);
+            return isDifferent;
+          }
+        );
+
+        const sameHotelBookings = conflictingBookings.filter(
+          booking => {
+            const bookingHotelId = parseInt(booking.hotel_id);
+            const isSame = bookingHotelId === currentHotelId;
+            console.log(`   - Booking ${booking.id}: hotelId=${bookingHotelId} (${typeof booking.hotel_id}) vs current=${currentHotelId} (${typeof currentHotelId}) => ${isSame ? 'SAME' : 'DIFFERENT'}`);
+            return isSame;
+          }
+        );
+
+        console.log('🔍 Filter results:', {
+          otherHotelBookingsCount: otherHotelBookings.length,
+          sameHotelBookingsCount: sameHotelBookings.length,
+        });
+
+        // ✅ ƯU TIÊN: Nếu có booking ở CÙNG khách sạn → cho phép đặt nhưng chỉ VNPay/Bank Transfer, yêu cầu >= 50%
+        // (Ngay cả khi có booking ở hotel khác, vẫn cho phép đặt thêm phòng ở cùng hotel)
+        if (sameHotelBookings.length > 0) {
+          console.log('✅ Allowing: User has booking at same hotel, can book more rooms with online payment');
+          return res.json({
+            success: true,
+            data: {
+              hasActiveBooking: true,
+              hasOtherHotelBooking: otherHotelBookings.length > 0, // Có booking ở hotel khác nhưng vẫn cho phép đặt cùng hotel
+              hasSameHotelBooking: true,
+              canBook: true, // ✅ Cho phép đặt thêm phòng
+              requiresOnlinePayment: true, // ✅ Yêu cầu thanh toán online
+              minPaymentPercentage: 50, // ✅ Tối thiểu 50%
+              message: 'Bạn đang có đặt phòng tại khách sạn này. Để đặt thêm phòng, vui lòng sử dụng thanh toán VNPay hoặc chuyển khoản ngân hàng (tối thiểu 50% tổng giá trị).',
+              sameHotelBooking: {
+                hotelId: sameHotelBookings[0].hotel_id,
+                hotelName: sameHotelBookings[0].hotel_name,
+                checkOutDate: sameHotelBookings[0].check_out_date,
+              },
+            },
+          });
+        }
+
+        // Nếu có booking ở khách sạn KHÁC → không cho đặt hotel khác
+        if (otherHotelBookings.length > 0) {
+          const otherHotel = otherHotelBookings[0];
+          const checkOutDateStr = new Date(otherHotel.check_out_date).toLocaleDateString('vi-VN');
+          console.log('❌ Blocking: User has booking at other hotel:', otherHotel.hotel_name);
+          return res.json({
+            success: true,
+            data: {
+              hasActiveBooking: true,
+              hasOtherHotelBooking: true,
+              hasSameHotelBooking: false,
+              canBook: false,
+              message: `Bạn đang có đặt phòng tại ${otherHotel.hotel_name} (đến ngày ${checkOutDateStr}). Vui lòng đợi đến sau ngày checkout để đặt khách sạn khác.`,
+              activeBooking: {
+                hotelId: otherHotel.hotel_id,
+                hotelName: otherHotel.hotel_name,
+                checkOutDate: otherHotel.check_out_date,
+              },
+            },
+          });
+        }
+      }
+
+      // Nếu không có booking nào, cho phép đặt bình thường
+      res.json({
+        success: true,
+        data: {
+          hasActiveBooking: conflictingBookings.length > 0,
+          hasOtherHotelBooking: false,
+          hasSameHotelBooking: false,
+          canBook: true,
+          requiresOnlinePayment: false,
+          minPaymentPercentage: 0,
+          message: 'Bạn có thể đặt phòng',
+        },
+      });
+    } catch (error) {
+      console.error('Error checking active booking:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Lỗi server khi kiểm tra booking active',
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined,
+      });
+    }
+  }
+
   async createCashBooking(req, res) {
     try {
       const userId = req.user?.id || req.user?.ma_nguoi_dung;
@@ -429,6 +648,48 @@ class BookingController {
         });
       }
 
+      // ✅ VALIDATION: Kiểm tra booking active và yêu cầu thanh toán
+      console.log('🔍 Cash booking - Starting validation check:', {
+        userId,
+        hotelId,
+        checkInDate,
+        checkOutDate,
+        paymentMethod: 'cash',
+        totalAmount,
+      });
+      
+      const BookingValidationService = require('../services/bookingValidationService');
+      const validation = await BookingValidationService.validateBooking(
+        userId,
+        parseInt(hotelId),
+        new Date(checkInDate),
+        new Date(checkOutDate),
+        'cash', // Payment method
+        0, // Payment amount (cash = 0)
+        parseFloat(totalAmount) // Total price
+      );
+
+      console.log('🔍 Cash booking - Validation result:', {
+        isValid: validation.isValid,
+        message: validation.message,
+        requiresPayment: validation.requiresPayment,
+        minPaymentPercentage: validation.minPaymentPercentage,
+      });
+
+      if (!validation.isValid) {
+        console.log('❌ Cash booking - Validation failed, blocking booking creation');
+        return res.status(400).json({
+          success: false,
+          message: validation.message,
+          data: {
+            requiresPayment: validation.requiresPayment,
+            minPaymentPercentage: validation.minPaymentPercentage,
+          },
+        });
+      }
+      
+      console.log('✅ Cash booking - Validation passed, proceeding with booking creation');
+
       const bookingData = {
         userId,
         userEmail: req.body.userEmail || req.user.email,
@@ -460,13 +721,14 @@ class BookingController {
 
       // ✅ Gửi email thông báo cho hotel manager khi có đặt phòng tiền mặt
       try {
-        const EmailService = require('../services/emailService');
-        const emailService = new EmailService();
-        const pool = require('../config/database').getPool();
+        const emailService = require('../services/emailService');
+        const { getPool } = require('../config/db');
+        const sql = require('mssql');
+        const pool = await getPool();
         
         // Lấy thông tin hotel manager
         const managerResult = await pool.request()
-          .input('hotelId', require('mssql').Int, req.body.hotelId)
+          .input('hotelId', sql.Int, req.body.hotelId)
           .query(`
             SELECT 
               nd.id as manager_id,

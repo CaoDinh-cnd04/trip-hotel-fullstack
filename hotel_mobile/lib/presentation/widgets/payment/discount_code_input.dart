@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../data/services/discount_service.dart';
+import '../../../data/services/backend_auth_service.dart';
 import 'discount_code_list_sheet.dart';
 
 /// Widget để nhập và áp dụng mã giảm giá
@@ -52,6 +53,7 @@ class DiscountCodeInput extends StatefulWidget {
 class _DiscountCodeInputState extends State<DiscountCodeInput> {
   final TextEditingController _codeController = TextEditingController();
   final DiscountService _discountService = DiscountService();
+  final BackendAuthService _authService = BackendAuthService();
   
   bool _isLoading = false;
   bool _isApplied = false;
@@ -142,6 +144,31 @@ class _DiscountCodeInputState extends State<DiscountCodeInput> {
       return;
     }
 
+    // Kiểm tra đăng nhập trước khi áp dụng mã
+    if (!_authService.isSignedIn) {
+      setState(() {
+        _errorMessage = 'Vui lòng đăng nhập để sử dụng mã giảm giá';
+      });
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Vui lòng đăng nhập để sử dụng mã giảm giá'),
+            backgroundColor: Colors.orange,
+            duration: const Duration(seconds: 3),
+            action: SnackBarAction(
+              label: 'Đăng nhập',
+              textColor: Colors.white,
+              onPressed: () {
+                // TODO: Navigate to login screen
+              },
+            ),
+          ),
+        );
+      }
+      return;
+    }
+
     setState(() {
       _isLoading = true;
       _errorMessage = null;
@@ -187,18 +214,21 @@ class _DiscountCodeInputState extends State<DiscountCodeInput> {
           });
         }
       } else {
+        final errorMsg = response['message'] ?? 'Mã giảm giá không hợp lệ';
         setState(() {
-          _errorMessage = response['message'] ?? 'Mã giảm giá không hợp lệ';
+          _errorMessage = errorMsg;
           _isLoading = false;
         });
         
-        // Show error message nếu cần đăng nhập
-        if (response['requiresLogin'] == true && mounted) {
+        // Show error message nếu cần đăng nhập hoặc token hết hạn
+        if ((response['requiresLogin'] == true || 
+             errorMsg.contains('đăng nhập') || 
+             errorMsg.contains('Token')) && mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(response['message'] ?? 'Vui lòng đăng nhập để sử dụng mã giảm giá'),
+              content: Text(errorMsg),
               backgroundColor: Colors.orange,
-              duration: const Duration(seconds: 3),
+              duration: const Duration(seconds: 4),
               action: SnackBarAction(
                 label: 'Đăng nhập',
                 textColor: Colors.white,
@@ -206,6 +236,15 @@ class _DiscountCodeInputState extends State<DiscountCodeInput> {
                   // TODO: Navigate to login screen
                 },
               ),
+            ),
+          );
+        } else if (mounted) {
+          // Hiển thị thông báo lỗi khác
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(errorMsg),
+              backgroundColor: Colors.red,
+              duration: const Duration(seconds: 3),
             ),
           );
         }

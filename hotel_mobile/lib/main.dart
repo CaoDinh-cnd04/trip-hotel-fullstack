@@ -6,9 +6,13 @@ import 'dart:async';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
 import 'core/theme/app_theme.dart';
+import 'core/theme/vip_theme_provider.dart';
+import 'core/theme/vip_theme.dart';
 import 'core/config/facebook_config.dart';
 import 'core/handlers/app_lifecycle_handler.dart';
 import 'core/services/language_service.dart';
+import 'core/services/currency_service.dart';
+import 'core/providers/currency_provider.dart';
 import 'presentation/main_wrapper.dart';
 import 'presentation/screens/login_screen.dart';
 import 'presentation/screens/register_screen.dart';
@@ -81,6 +85,10 @@ void main() async {
       await BackendAuthService().restoreUserData();
       print('✅ BackendAuthService initialized');
       
+      // Initialize CurrencyService
+      await CurrencyService.instance.initialize();
+      print('✅ CurrencyService initialized');
+      
       // Initialize other services
       _initializeAllServices();
 
@@ -102,17 +110,24 @@ void main() async {
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
-  /// Xây dựng giao diện chính của ứng dụng với Provider cho LanguageService
+  /// Xây dựng giao diện chính của ứng dụng với Provider cho LanguageService và VipThemeProvider
   @override
   Widget build(BuildContext context) {
-    return ChangeNotifierProvider(
-      create: (context) => LanguageService(),
-      child: Consumer<LanguageService>(
-        builder: (context, languageService, child) {
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (context) => LanguageService()),
+        ChangeNotifierProvider(create: (context) => VipThemeProvider()),
+        ChangeNotifierProvider(create: (context) => CurrencyProvider()),
+      ],
+      child: Consumer2<LanguageService, VipThemeProvider>(
+        builder: (context, languageService, vipThemeProvider, child) {
+          // Log VIP theme changes
+          print('🎨 [MaterialApp] Building with VIP level: ${vipThemeProvider.vipLevel}, Primary color: ${vipThemeProvider.primaryColor}');
+          
           return AppLifecycleHandler(
             child: MaterialApp(
               title: 'Hotel Booking',
-              theme: AppTheme.lightTheme,
+              theme: VipTheme.getLightTheme(vipThemeProvider), // ✅ Sử dụng VIP theme động
               debugShowCheckedModeBanner: false,
 
               // Internationalization

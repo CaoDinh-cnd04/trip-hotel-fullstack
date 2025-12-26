@@ -18,7 +18,7 @@ import 'package:crypto/crypto.dart';
 import 'package:intl/intl.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/config/payment_config.dart';
-import '../../core/services/backend_auth_service.dart';
+import '../services/backend_auth_service.dart';
 import '../../core/services/vnpay_signature_service.dart';
 
 /// Model cho Bank (ngân hàng VNPay)
@@ -101,7 +101,8 @@ class VNPayService {
         .join('&');
   }
 
-  /// Tạo URL thanh toán VNPay TRỰC TIẾP từ Flutter
+  /// ✅ FIX: Gọi backend API để tạo VNPay payment URL (giống Bank Transfer)
+  /// Backend sẽ tạo payment URL VÀ lưu booking data với NVARCHAR(MAX)
   /// 
   /// Parameters:
   /// - [bookingId]: ID của booking cần thanh toán
@@ -121,92 +122,35 @@ class VNPayService {
     String? ipAddr,
   }) async {
     try {
-      print('📤 VNPay Service: Tạo payment URL trực tiếp từ Flutter');
+      print('📤 VNPay Service: Gọi backend API để tạo payment URL với đầy đủ booking data');
       print('📋 VNPay Service: bookingId=$bookingId, amount=$amount');
       
-      // Tạo order ID unique
-      final now = DateTime.now();
-      final orderId = 'BOOKING_${bookingId}_${now.millisecondsSinceEpoch}';
+      // ✅ FIX: Gọi backend API để tạo payment URL (backend sẽ lưu vào DB với NVARCHAR(MAX))
+      final response = await _dio.post(
+        '/api/v2/vnpay/create-payment-url',
+        data: {
+          'bookingId': bookingId,
+          'amount': amount,
+          'orderInfo': orderInfo,
+          'bankCode': bankCode,
+          'bookingData': bookingData, // ✅ Send full booking data to backend
+        },
+      );
       
-      // Lấy IP address (nếu không có, dùng default)
-      final clientIp = ipAddr ?? '127.0.0.1';
-      
-      // Return URL - phải là public URL (không phải localhost)
-      // Lấy từ backend API
-      final returnUrl = await _getReturnUrl();
-      
-      if (returnUrl.contains('localhost') || returnUrl.contains('127.0.0.1')) {
-        throw Exception('VNPay Sandbox không chấp nhận localhost làm Return URL. Vui lòng cấu hình Return URL công khai trong backend .env file.');
+      if (response.data['success'] == true) {
+        final paymentUrl = response.data['data']['paymentUrl'];
+        final orderId = response.data['data']['orderId'];
+        
+        print('✅ VNPay Service: Payment URL đã được tạo thành công từ backend');
+        print('📋 VNPay Service: Order ID: $orderId');
+        
+        return {
+          'paymentUrl': paymentUrl,
+          'orderId': orderId,
+        };
+      } else {
+        throw Exception(response.data['message'] ?? 'Không thể tạo payment URL');
       }
-      
-      // Format dates
-      final createDate = _formatDate(now);
-      final expireDate = _formatDate(now.add(const Duration(minutes: 15)));
-      
-      // Tạo params theo đúng format VNPay
-      final vnpParams = <String, String>{
-        'vnp_Version': '2.1.0',
-        'vnp_Command': 'pay',
-        'vnp_TmnCode': PaymentConfig.vnpayTmnCode,
-        'vnp_Amount': (amount * 100).toInt().toString(), // VNPay yêu cầu * 100
-        'vnp_CurrCode': 'VND',
-        'vnp_TxnRef': orderId,
-        'vnp_OrderInfo': _sanitizeOrderInfo(orderInfo),
-        'vnp_OrderType': 'billpayment',
-        'vnp_Locale': 'vn',
-        'vnp_ReturnUrl': returnUrl,
-        'vnp_IpAddr': clientIp,
-        'vnp_CreateDate': createDate,
-        'vnp_ExpireDate': expireDate,
-      };
-      
-      // Thêm bankCode nếu có
-      if (bankCode != null && bankCode.trim().isNotEmpty) {
-        vnpParams['vnp_BankCode'] = bankCode.trim();
-      }
-      
-      // Sắp xếp params theo thứ tự alphabet (QUAN TRỌNG!)
-      final sortedParams = _sortObject(vnpParams);
-      
-      // Tạo query string từ sorted params (không encode)
-      final signData = _createQueryString(sortedParams);
-      
-      // Tạo HMAC SHA512 signature
-      final key = utf8.encode(PaymentConfig.vnpayHashSecret);
-      final bytes = utf8.encode(signData);
-      final hmac = Hmac(sha512, key);
-      final digest = hmac.convert(bytes);
-      final signature = digest.toString();
-      
-      // Thêm signature vào params
-      sortedParams['vnp_SecureHash'] = signature;
-      
-      // Tạo URL cuối cùng
-      final queryString = _createQueryString(sortedParams);
-      final baseUrl = PaymentConfig.useVnpaySandbox 
-          ? PaymentConfig.vnpaySandboxUrl 
-          : PaymentConfig.vnpayProductionUrl;
-      final paymentUrl = '$baseUrl?$queryString';
-      
-      print('✅ VNPay Service: Payment URL đã được tạo thành công');
-      print('📋 VNPay Service: Order ID: $orderId');
-      print('📋 VNPay Service: Return URL: $returnUrl');
-      print('📋 VNPay Service: Signature: ${signature.substring(0, 40)}...');
-      
-      // Lưu booking data vào backend (nếu có) - để backend xử lý sau khi payment success
-      if (bookingData != null) {
-        try {
-          await _savePaymentInfo(bookingId, orderId, amount, bookingData);
-        } catch (e) {
-          print('⚠️ VNPay Service: Không thể lưu payment info vào backend: $e');
-          // Không throw error, vẫn tiếp tục với payment
-        }
-      }
-      
-      return {
-        'paymentUrl': paymentUrl,
-        'orderId': orderId,
-      };
     } catch (e) {
       print('❌ VNPay Service: Error tạo payment URL: $e');
       rethrow;

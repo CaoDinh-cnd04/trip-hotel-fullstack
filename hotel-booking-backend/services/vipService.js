@@ -90,7 +90,6 @@ class VipService {
       }
       
       const pool = await getPool();
-      const request = pool.request();
       
       // Tính points được cộng
       const pointsToAdd = this.calculatePoints(finalPrice);
@@ -101,8 +100,8 @@ class VipService {
         return null;
       }
 
-      // Lấy VIP points hiện tại
-      const currentVipResult = await request
+      // Lấy VIP points hiện tại (tạo request riêng cho query này)
+      const currentVipResult = await pool.request()
         .input('userId', sql.Int, userId)
         .query(`
           SELECT vip_points, vip_level, vip_status
@@ -123,8 +122,8 @@ class VipService {
       // Xác định VIP level mới
       const { level, status } = this.determineVipLevel(newTotalPoints);
 
-      // Update VIP points và level trong database
-      await request
+      // Update VIP points và level trong database (tạo request mới cho update)
+      await pool.request()
         .input('userId', sql.Int, userId)
         .input('newPoints', sql.Int, newTotalPoints)
         .input('newLevel', sql.NVarChar(50), level)
@@ -168,14 +167,13 @@ class VipService {
   static async getVipInfo(userId) {
     try {
       const pool = await getPool();
-      const request = pool.request();
       
-      const result = await request
+      const result = await pool.request()
         .input('userId', sql.Int, userId)
         .query(`
           SELECT 
             id,
-            ten as name,
+            ho_ten as name,
             email,
             vip_points as vipPoints,
             vip_level as vipLevel,

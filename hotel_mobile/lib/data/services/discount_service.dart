@@ -92,26 +92,36 @@ class DiscountService {
       print('   Status code: ${e.response?.statusCode}');
       print('   Response data: ${e.response?.data}');
       
+      final responseData = e.response?.data;
+      final errorMessage = responseData?['message'] ?? 'Lỗi không xác định';
+      
       if (e.response?.statusCode == 401) {
+        // Token không hợp lệ, hết hạn, hoặc chưa đăng nhập
         return {
           'success': false,
-          'message': e.response?.data['message'] ?? 'Vui lòng đăng nhập để sử dụng mã giảm giá',
+          'message': errorMessage.contains('Token') 
+              ? 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại'
+              : (errorMessage.contains('đăng nhập') 
+                  ? errorMessage 
+                  : 'Vui lòng đăng nhập để sử dụng mã giảm giá'),
           'requiresLogin': true,
         };
       } else if (e.response?.statusCode == 400) {
         return {
           'success': false,
-          'message': e.response?.data['message'] ?? 'Thông tin không hợp lệ',
+          'message': errorMessage,
         };
       } else if (e.response?.statusCode == 500) {
         return {
           'success': false,
-          'message': e.response?.data['message'] ?? 'Lỗi server. Vui lòng thử lại sau',
+          'message': errorMessage,
         };
       } else {
         return {
           'success': false,
-          'message': e.response?.data['message'] ?? 'Lỗi kết nối. Vui lòng kiểm tra internet',
+          'message': errorMessage.isNotEmpty 
+              ? errorMessage 
+              : 'Lỗi kết nối. Vui lòng kiểm tra internet',
         };
       }
     } catch (e) {

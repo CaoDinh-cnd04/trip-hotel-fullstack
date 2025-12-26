@@ -467,7 +467,7 @@ abstract class AppLocalizations {
   /// No description provided for @errorOccurred.
   ///
   /// In en, this message translates to:
-  /// **'An error occurred'**
+  /// **'An error occurred. Please try again.'**
   String get errorOccurred;
 
   /// No description provided for @networkError.
@@ -743,7 +743,7 @@ abstract class AppLocalizations {
   /// No description provided for @tryAgain.
   ///
   /// In en, this message translates to:
-  /// **'Try again'**
+  /// **'Try Again'**
   String get tryAgain;
 
   /// No description provided for @aboutUsTitle.
@@ -1081,6 +1081,288 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Delete Account'**
   String get deleteAccount;
+
+  /// No description provided for @noAddressForMap.
+  ///
+  /// In en, this message translates to:
+  /// **'No address to display on map'**
+  String get noAddressForMap;
+
+  /// No description provided for @cannotOpenGoogleMaps.
+  ///
+  /// In en, this message translates to:
+  /// **'Cannot open Google Maps. Please install Google Maps or a browser.'**
+  String get cannotOpenGoogleMaps;
+
+  /// No description provided for @mapError.
+  ///
+  /// In en, this message translates to:
+  /// **'Map error'**
+  String get mapError;
+
+  /// No description provided for @cannotBookRoom.
+  ///
+  /// In en, this message translates to:
+  /// **'Cannot book room'**
+  String get cannotBookRoom;
+
+  /// No description provided for @understood.
+  ///
+  /// In en, this message translates to:
+  /// **'Understood'**
+  String get understood;
+
+  /// No description provided for @logoutError.
+  ///
+  /// In en, this message translates to:
+  /// **'Logout error'**
+  String get logoutError;
+
+  /// No description provided for @deleteAccountError.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete account error'**
+  String get deleteAccountError;
+
+  /// No description provided for @close.
+  ///
+  /// In en, this message translates to:
+  /// **'Close'**
+  String get close;
+
+  /// No description provided for @notificationSettingsUpdated.
+  ///
+  /// In en, this message translates to:
+  /// **'Notification settings updated'**
+  String get notificationSettingsUpdated;
+
+  /// No description provided for @cannotUpdateEmailSettings.
+  ///
+  /// In en, this message translates to:
+  /// **'Cannot update email settings'**
+  String get cannotUpdateEmailSettings;
+
+  /// No description provided for @emailSettingsUpdated.
+  ///
+  /// In en, this message translates to:
+  /// **'Email settings updated'**
+  String get emailSettingsUpdated;
+
+  /// No description provided for @confirmCancelBooking.
+  ///
+  /// In en, this message translates to:
+  /// **'Confirm Cancel Booking'**
+  String get confirmCancelBooking;
+
+  /// No description provided for @confirmCancelBookingMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'Are you sure you want to cancel booking {bookingCode}?'**
+  String confirmCancelBookingMessage(String bookingCode);
+
+  /// No description provided for @goBack.
+  ///
+  /// In en, this message translates to:
+  /// **'Go Back'**
+  String get goBack;
+
+  /// No description provided for @confirmCancel.
+  ///
+  /// In en, this message translates to:
+  /// **'Confirm Cancel'**
+  String get confirmCancel;
+
+  /// No description provided for @processingCancel.
+  ///
+  /// In en, this message translates to:
+  /// **'Processing cancellation...'**
+  String get processingCancel;
+
+  /// No description provided for @cancelSuccess.
+  ///
+  /// In en, this message translates to:
+  /// **'Booking cancelled successfully'**
+  String get cancelSuccess;
+
+  /// No description provided for @bookingCancelled.
+  ///
+  /// In en, this message translates to:
+  /// **'Booking {bookingCode} has been cancelled'**
+  String bookingCancelled(String bookingCode);
+
+  /// No description provided for @cannotCancelBooking.
+  ///
+  /// In en, this message translates to:
+  /// **'Cannot cancel booking'**
+  String get cannotCancelBooking;
+
+  /// No description provided for @contactSupport.
+  ///
+  /// In en, this message translates to:
+  /// **'Contact Support'**
+  String get contactSupport;
+
+  /// No description provided for @supportChat.
+  ///
+  /// In en, this message translates to:
+  /// **'Support Chat'**
+  String get supportChat;
+
+  /// No description provided for @openingChat.
+  ///
+  /// In en, this message translates to:
+  /// **'Opening chat with {hotelName}...'**
+  String openingChat(String hotelName);
+
+  /// No description provided for @errorCreatingConversation.
+  ///
+  /// In en, this message translates to:
+  /// **'Error Creating Conversation'**
+  String get errorCreatingConversation;
+
+  /// No description provided for @cannotCreateConversation.
+  ///
+  /// In en, this message translates to:
+  /// **'Cannot create conversation'**
+  String get cannotCreateConversation;
+
+  /// No description provided for @backToHome.
+  ///
+  /// In en, this message translates to:
+  /// **'Back to Home'**
+  String get backToHome;
+
+  /// No description provided for @onlinePaymentRequired.
+  ///
+  /// In en, this message translates to:
+  /// **'Booking 3 or more rooms requires online payment (VNPay)'**
+  String get onlinePaymentRequired;
+
+  /// No description provided for @discountAutoApplied.
+  ///
+  /// In en, this message translates to:
+  /// **'Discount code {code} auto-applied! Save {amount}'**
+  String discountAutoApplied(String code, String amount);
+
+  /// No description provided for @pleaseFillAllFields.
+  ///
+  /// In en, this message translates to:
+  /// **'Please fill in all fields'**
+  String get pleaseFillAllFields;
+
+  /// No description provided for @paymentSuccess.
+  ///
+  /// In en, this message translates to:
+  /// **'Payment Successful!'**
+  String get paymentSuccess;
+
+  /// No description provided for @bookingConfirmed.
+  ///
+  /// In en, this message translates to:
+  /// **'Your booking has been confirmed.\nConfirmation email has been sent.'**
+  String get bookingConfirmed;
+
+  /// No description provided for @memberBenefits.
+  ///
+  /// In en, this message translates to:
+  /// **'Member Benefits'**
+  String get memberBenefits;
+
+  /// No description provided for @pointsMax.
+  ///
+  /// In en, this message translates to:
+  /// **'PointsMAX'**
+  String get pointsMax;
+
+  /// No description provided for @paymentFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Payment Failed'**
+  String get paymentFailed;
+
+  /// No description provided for @paymentError.
+  ///
+  /// In en, this message translates to:
+  /// **'Payment Error'**
+  String get paymentError;
+
+  /// No description provided for @paymentTimeout.
+  ///
+  /// In en, this message translates to:
+  /// **'Timeout: Payment result not received'**
+  String get paymentTimeout;
+
+  /// No description provided for @paymentTimeoutTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Payment Timeout'**
+  String get paymentTimeoutTitle;
+
+  /// No description provided for @confirmPayment.
+  ///
+  /// In en, this message translates to:
+  /// **'Confirm Payment'**
+  String get confirmPayment;
+
+  /// No description provided for @notPaid.
+  ///
+  /// In en, this message translates to:
+  /// **'Not Paid'**
+  String get notPaid;
+
+  /// No description provided for @paid.
+  ///
+  /// In en, this message translates to:
+  /// **'Paid'**
+  String get paid;
+
+  /// No description provided for @copied.
+  ///
+  /// In en, this message translates to:
+  /// **'Copied {label}'**
+  String copied(String label);
+
+  /// No description provided for @bankTransfer.
+  ///
+  /// In en, this message translates to:
+  /// **'Bank Transfer'**
+  String get bankTransfer;
+
+  /// No description provided for @processingPayment.
+  ///
+  /// In en, this message translates to:
+  /// **'Processing payment...'**
+  String get processingPayment;
+
+  /// No description provided for @waitingPaymentResult.
+  ///
+  /// In en, this message translates to:
+  /// **'Waiting for payment result. Please check back later or contact support.'**
+  String get waitingPaymentResult;
+
+  /// No description provided for @cancelPayment.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel Payment?'**
+  String get cancelPayment;
+
+  /// No description provided for @confirmCancelPayment.
+  ///
+  /// In en, this message translates to:
+  /// **'Are you sure you want to cancel this payment transaction?'**
+  String get confirmCancelPayment;
+
+  /// No description provided for @no.
+  ///
+  /// In en, this message translates to:
+  /// **'No'**
+  String get no;
+
+  /// No description provided for @reopenedPaymentPage.
+  ///
+  /// In en, this message translates to:
+  /// **'Reopened payment page'**
+  String get reopenedPaymentPage;
 }
 
 class _AppLocalizationsDelegate

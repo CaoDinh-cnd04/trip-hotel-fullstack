@@ -325,13 +325,13 @@ exports.verifyOTP = async (req, res) => {
       // Continue without custom token - frontend will handle it
     }
 
-    // Gửi email chào mừng cho user mới (async, không cần đợi)
-    const isNewUser = user.ngay_dang_ky && (new Date() - user.ngay_dang_ky < 60000);
-    if (isNewUser) {
-      EmailService.sendWelcomeEmail(email, user.ho_ten).catch(err => 
-        console.error('❌ Error sending welcome email:', err)
-      );
-    }
+    // Gửi email chào mừng cho user mới (disabled - function not implemented yet)
+    // const isNewUser = user.ngay_dang_ky && (new Date() - user.ngay_dang_ky < 60000);
+    // if (isNewUser) {
+    //   EmailService.sendWelcomeEmail(email, user.ho_ten).catch(err => 
+    //     console.error('❌ Error sending welcome email:', err)
+    //   );
+    // }
 
     res.json({
       success: true,

@@ -192,5 +192,96 @@
   "deleteAccountTitle": "Delete Account",
   "deleteAccountMessage": "Are you sure you want to delete your account? This action cannot be undone.",
   "deleteAccount": "Delete Account",
-  "delete": "Delete"
+  "delete": "Delete",
+  
+  "noAddressForMap": "No address to display on map",
+  "cannotOpenGoogleMaps": "Cannot open Google Maps. Please install Google Maps or a browser.",
+  "mapError": "Map error",
+  "cannotBookRoom": "Cannot book room",
+  "understood": "Understood",
+  "logoutError": "Logout error",
+  "deleteAccountError": "Delete account error",
+  "close": "Close",
+  "notificationSettingsUpdated": "Notification settings updated",
+  "cannotUpdateEmailSettings": "Cannot update email settings",
+  "emailSettingsUpdated": "Email settings updated",
+  "confirmCancelBooking": "Confirm Cancel Booking",
+  "confirmCancelBookingMessage": "Are you sure you want to cancel booking {bookingCode}?",
+  "@confirmCancelBookingMessage": {
+    "placeholders": {
+      "bookingCode": {
+        "type": "String"
+      }
+    }
+  },
+  "goBack": "Go Back",
+  "confirmCancel": "Confirm Cancel",
+  "processingCancel": "Processing cancellation...",
+  "cancelSuccess": "Booking cancelled successfully",
+  "bookingCancelled": "Booking {bookingCode} has been cancelled",
+  "@bookingCancelled": {
+    "placeholders": {
+      "bookingCode": {
+        "type": "String"
+      }
+    }
+  },
+  "cannotCancelBooking": "Cannot cancel booking",
+  "bookingHistory": "Booking History",
+  "contactSupport": "Contact Support",
+  "supportChat": "Support Chat",
+  "openingChat": "Opening chat with {hotelName}...",
+  "@openingChat": {
+    "placeholders": {
+      "hotelName": {
+        "type": "String"
+      }
+    }
+  },
+  "errorCreatingConversation": "Error Creating Conversation",
+  "cannotCreateConversation": "Cannot create conversation",
+  "tryAgain": "Try Again",
+  "backToHome": "Back to Home",
+  "noData": "No data",
+  "onlinePaymentRequired": "Booking 3 or more rooms requires online payment (VNPay)",
+  "discountAutoApplied": "Discount code {code} auto-applied! Save {amount}",
+  "@discountAutoApplied": {
+    "placeholders": {
+      "code": {
+        "type": "String"
+      },
+      "amount": {
+        "type": "String"
+      }
+    }
+  },
+  "pleaseFillAllFields": "Please fill in all fields",
+  "paymentSuccess": "Payment Successful!",
+  "bookingConfirmed": "Your booking has been confirmed.\nConfirmation email has been sent.",
+  
+  "memberBenefits": "Member Benefits",
+  "pointsMax": "PointsMAX",
+  "paymentFailed": "Payment Failed",
+  "paymentError": "Payment Error",
+  "paymentTimeout": "Timeout: Payment result not received",
+  "paymentTimeoutTitle": "Payment Timeout",
+  "confirmPayment": "Confirm Payment",
+  "notPaid": "Not Paid",
+  "paid": "Paid",
+  "errorOccurred": "An error occurred. Please try again.",
+  "copied": "Copied {label}",
+  "@copied": {
+    "placeholders": {
+      "label": {
+        "type": "String"
+      }
+    }
+  },
+  "bankTransfer": "Bank Transfer",
+  "processingPayment": "Processing payment...",
+  "waitingPaymentResult": "Waiting for payment result. Please check back later or contact support.",
+  "cancelPayment": "Cancel Payment?",
+  "confirmCancelPayment": "Are you sure you want to cancel this payment transaction?",
+  "no": "No",
+  "reopenedPaymentPage": "Reopened payment page"
 }

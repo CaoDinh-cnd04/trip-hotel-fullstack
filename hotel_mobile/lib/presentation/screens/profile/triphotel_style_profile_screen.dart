@@ -27,6 +27,9 @@ import '../../../data/services/hotel_owner_service.dart';
 import '../../../data/services/message_service.dart';
 import '../../../data/services/review_service.dart';
 import 'triphotel_vip_screen.dart';
+import '../../../core/theme/vip_theme_provider.dart';
+import '../../../core/services/currency_service.dart';
+import '../../../core/providers/currency_provider.dart';
 
 class TriphotelStyleProfileScreen extends StatefulWidget {
   const TriphotelStyleProfileScreen({Key? key}) : super(key: key);
@@ -98,9 +101,17 @@ class _TriphotelStyleProfileScreenState extends State<TriphotelStyleProfileScree
       try {
         final vipResponse = await _userProfileService.getVipStatus();
         if (vipResponse.success && vipResponse.data != null) {
+          final newVipLevel = vipResponse.data!['vipLevel'] ?? 'Bronze';
           setState(() {
-            _vipStatus = vipResponse.data!['vipLevel'] ?? 'Bronze';
+            _vipStatus = newVipLevel;
           });
+          
+          // ✅ Cập nhật VIP theme khi load profile
+          if (mounted) {
+            final vipThemeProvider = Provider.of<VipThemeProvider>(context, listen: false);
+            vipThemeProvider.setVipLevel(newVipLevel);
+            print('✅ Updated VIP theme to: $newVipLevel');
+          }
         }
       } catch (e) {
         print('❌ Error loading VIP status: $e');
@@ -255,7 +266,7 @@ class _TriphotelStyleProfileScreenState extends State<TriphotelStyleProfileScree
         } else {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Lỗi xóa tài khoản: ${deleteResponse.message}')),
+              SnackBar(content: Text('${AppLocalizations.of(context)!.deleteAccountError}: ${deleteResponse.message}')),
             );
           }
         }
@@ -264,7 +275,7 @@ class _TriphotelStyleProfileScreenState extends State<TriphotelStyleProfileScree
       print('❌ Lỗi xóa tài khoản: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Lỗi xóa tài khoản: $e')),
+          SnackBar(content: Text('${AppLocalizations.of(context)!.deleteAccountError}: $e')),
         );
       }
     }
@@ -352,8 +363,12 @@ class _TriphotelStyleProfileScreenState extends State<TriphotelStyleProfileScree
         });
         Navigator.of(context).pop();
         
-        // Lưu cài đặt
-        await _userProfileService.updateUserSettings(currency: currency);
+        // Lưu cài đặt vào CurrencyProvider (sẽ tự động notify listeners)
+        if (mounted) {
+          final currencyProvider = Provider.of<CurrencyProvider>(context, listen: false);
+          await currencyProvider.setCurrency(currency);
+          print('✅ [Profile] Currency changed to: $currency');
+        }
       },
     );
   }
@@ -483,7 +498,7 @@ class _TriphotelStyleProfileScreenState extends State<TriphotelStyleProfileScree
                             actions: [
                               TextButton(
                                 onPressed: () => Navigator.pop(context),
-                                child: const Text('Đóng'),
+                                child: Text(AppLocalizations.of(context)!.close),
                               ),
                             ],
                           ),
@@ -588,7 +603,7 @@ class _TriphotelStyleProfileScreenState extends State<TriphotelStyleProfileScree
                     
                     // Quyền lợi thành viên
                     _buildSectionCard(
-                      title: 'Quyền lợi thành viên',
+                      title: l10n.memberBenefits,
                       children: [
                         _buildMenuItem(
                           icon: Icons.star,
@@ -882,10 +897,10 @@ class _TriphotelStyleProfileScreenState extends State<TriphotelStyleProfileScree
                               } else {
                                 if (mounted) {
                                   ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text('Đã cập nhật cài đặt thông báo'),
+                                    SnackBar(
+                                      content: Text(AppLocalizations.of(context)!.notificationSettingsUpdated),
                                       backgroundColor: Colors.green,
-                                      duration: Duration(seconds: 1),
+                                      duration: const Duration(seconds: 1),
                                     ),
                                   );
                                 }
@@ -917,8 +932,8 @@ class _TriphotelStyleProfileScreenState extends State<TriphotelStyleProfileScree
                                 await _storageService.saveBool('email_notifications_enabled', !value);
                                 if (mounted) {
                                   ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text('Không thể cập nhật cài đặt email'),
+                                    SnackBar(
+                                      content: Text(AppLocalizations.of(context)!.cannotUpdateEmailSettings),
                                       backgroundColor: Colors.red,
                                     ),
                                   );
@@ -926,10 +941,10 @@ class _TriphotelStyleProfileScreenState extends State<TriphotelStyleProfileScree
                               } else {
                                 if (mounted) {
                                   ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text('Đã cập nhật cài đặt email'),
+                                    SnackBar(
+                                      content: Text(AppLocalizations.of(context)!.emailSettingsUpdated),
                                       backgroundColor: Colors.green,
-                                      duration: Duration(seconds: 1),
+                                      duration: const Duration(seconds: 1),
                                     ),
                                   );
                                 }

@@ -1,7 +1,10 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../data/services/auth_service.dart';
 import '../data/services/backend_auth_service.dart';
+import '../core/theme/vip_theme_provider.dart';
+import '../core/services/currency_service.dart';
 import 'screens/main_navigation_screen.dart';
 import 'screens/auth/triphotel_style_login_screen.dart';
 import 'screens/admin/admin_main_screen.dart';
@@ -166,6 +169,22 @@ class _MainWrapperState extends State<MainWrapper> {
 
       if (isAuth && _authService.currentUser != null) {
         print('✅ User authenticated: ${_authService.currentUser!.email}');
+        
+        // ✅ Refresh VIP theme và Currency sau khi user đăng nhập
+        if (mounted) {
+          try {
+            final vipThemeProvider = Provider.of<VipThemeProvider>(context, listen: false);
+            vipThemeProvider.refreshVipLevel();
+            print('🔄 [MainWrapper] Refreshed VIP theme after login');
+            
+            // Refresh currency từ API
+            CurrencyService.instance.refreshCurrency();
+            print('🔄 [MainWrapper] Refreshed currency after login');
+          } catch (e) {
+            print('⚠️ [MainWrapper] Error refreshing settings: $e');
+          }
+        }
+        
         if (isAdmin) {
           print('👑 Admin user detected - showing admin interface');
         } else if (isHotelManager) {

@@ -18,10 +18,14 @@ class AppConstants {
   //    - Mac/Linux: chạy: ifconfig → tìm inet
   static String get baseUrl {
     // TODO: Thay đổi dòng dưới đây theo môi trường của bạn
-    return _emulatorUrl; // Android Emulator - 10.0.2.2:5000
+    // 1. ANDROID EMULATOR → return _emulatorUrl; (10.0.2.2:5000)
+    // 2. THIẾT BỊ THẬT → return 'http://YOUR_COMPUTER_IP:5000';
     
-    // Thiết bị thật - IP của máy backend
-    // return 'http://192.168.110.113:5000'; // ← IP máy backend + port 5000
+    // Android Emulator - dùng 10.0.2.2 để kết nối với localhost của máy
+    return _emulatorUrl; // http://10.0.2.2:5000
+    
+    // Nếu dùng thiết bị thật, uncomment dòng dưới và thay YOUR_IP bằng IP máy bạn
+    // return 'http://192.168.110.89:5000'; // ← IP máy backend + port 5000
   }
 
   // Alternative URLs for different scenarios

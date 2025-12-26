@@ -12,9 +12,10 @@ import 'package:hotel_mobile/presentation/widgets/payment/guest_details_form.dar
 import 'package:hotel_mobile/presentation/widgets/payment/payment_options.dart';
 import 'package:hotel_mobile/presentation/widgets/payment/payment_bottom_bar.dart';
 import 'package:hotel_mobile/presentation/widgets/payment/discount_code_input.dart';
-import 'package:hotel_mobile/presentation/screens/payment/payment_success_screen.dart';
-import 'package:hotel_mobile/presentation/screens/payment/vnpay_sandbox_screen.dart';
+import 'package:hotel_mobile/presentation/screens/main_navigation_screen.dart';
+import 'package:hotel_mobile/presentation/screens/payment/bank_transfer_screen.dart';
 import 'package:hotel_mobile/presentation/screens/payment/vnpay_package_payment_screen.dart';
+import 'package:hotel_mobile/presentation/screens/payment/payment_success_screen_v2.dart';
 import 'package:hotel_mobile/core/widgets/glass_card.dart';
 import 'package:hotel_mobile/data/services/applied_promotion_service.dart';
 import 'package:hotel_mobile/data/services/promotion_service.dart';
@@ -22,6 +23,7 @@ import 'package:hotel_mobile/data/services/discount_service.dart';
 import 'package:hotel_mobile/data/services/api_service.dart';
 import 'package:hotel_mobile/data/models/amenity.dart';
 import 'package:hotel_mobile/core/utils/currency_formatter.dart';
+import 'package:hotel_mobile/l10n/app_localizations.dart';
 import 'dart:convert';
 import 'dart:async';
 import 'package:url_launcher/url_launcher.dart';
@@ -60,6 +62,10 @@ class PaymentScreen extends StatefulWidget {
   final double? discount;
   /// Số lượng phòng (mặc định 1)
   final int roomCount;
+  /// Yêu cầu thanh toán online (VNPay/Bank Transfer) - khi đặt thêm phòng ở cùng khách sạn
+  final bool requiresOnlinePayment;
+  /// Tối thiểu % thanh toán (khi đặt thêm phòng ở cùng khách sạn)
+  final int minPaymentPercentage;
 
   const PaymentScreen({
     super.key,
@@ -72,6 +78,8 @@ class PaymentScreen extends StatefulWidget {
     required this.roomPrice,
     this.discount,
     this.roomCount = 1,
+    this.requiresOnlinePayment = false,
+    this.minPaymentPercentage = 0,
   });
 
   @override
@@ -99,6 +107,22 @@ class _PaymentScreenState extends State<PaymentScreen>
   bool _useDeposit = false;
   
   void _updatePaymentMethod(PaymentMethod method) {
+    // ✅ Kiểm tra: Nếu yêu cầu thanh toán online, không cho chọn Cash
+    if (widget.requiresOnlinePayment && method == PaymentMethod.cash) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            widget.minPaymentPercentage > 0
+                ? 'Bạn đang có đặt phòng tại khách sạn này. Để đặt thêm phòng, vui lòng sử dụng thanh toán VNPay hoặc chuyển khoản ngân hàng (tối thiểu ${widget.minPaymentPercentage}% tổng giá trị).'
+                : 'Bạn đang có đặt phòng tại khách sạn này. Để đặt thêm phòng, vui lòng sử dụng thanh toán VNPay hoặc chuyển khoản ngân hàng.',
+          ),
+          backgroundColor: Colors.orange,
+          duration: const Duration(seconds: 3),
+        ),
+      );
+      return;
+    }
+    
     // Kiểm tra điều kiện trước khi cho phép chọn
     if (method == PaymentMethod.cash && !_canUseCash) {
       // Không cho phép chọn Cash nếu không đủ điều kiện
@@ -117,11 +141,11 @@ class _PaymentScreenState extends State<PaymentScreen>
     }
     if (_mustUseOnlinePayment && method == PaymentMethod.cash) {
       // Không cho phép chọn Cash khi >= 3 phòng
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Đặt từ 3 phòng trở lên chỉ được thanh toán online (VNPay)'),
+        ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(AppLocalizations.of(context)!.onlinePaymentRequired),
           backgroundColor: Colors.orange,
-          duration: Duration(seconds: 2),
+          duration: const Duration(seconds: 2),
         ),
       );
       return;
@@ -265,6 +289,13 @@ class _PaymentScreenState extends State<PaymentScreen>
   @override
   void initState() {
     super.initState();
+    
+    // ✅ Nếu yêu cầu thanh toán online và có minPaymentPercentage >= 50%, tự động bật cọc
+    if (widget.requiresOnlinePayment && widget.minPaymentPercentage >= 50) {
+      _useDeposit = true;
+      // ✅ Tự động chọn VNPay nếu yêu cầu thanh toán online
+      _selectedPaymentMethod = PaymentMethod.vnpay;
+    }
     
     // Nếu >= 3 phòng, mặc định chọn VNPay (chỉ cho phép online payment)
     if (widget.roomCount >= 3) {
@@ -493,7 +524,7 @@ class _PaymentScreenState extends State<PaymentScreen>
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('🎉 Đã tự động áp dụng mã giảm giá $code! Giảm ${CurrencyFormatter.formatVND(discountAmount)}'),
+              content: Text('🎉 ${AppLocalizations.of(context)!.discountAutoApplied(code, CurrencyFormatter.formatVND(discountAmount))}'),
               backgroundColor: Colors.green,
               duration: const Duration(seconds: 3),
             ),
@@ -715,8 +746,9 @@ class _PaymentScreenState extends State<PaymentScreen>
                           onMethodChanged: _updatePaymentMethod,
                           roomCount: widget.roomCount,
                           totalAmount: _subtotal,
-                          canUseCash: _canUseCash,
+                          canUseCash: _canUseCash && !widget.requiresOnlinePayment, // ✅ Ẩn Cash nếu yêu cầu online
                           mustUseOnlinePayment: _mustUseOnlinePayment,
+                          requiresOnlinePayment: widget.requiresOnlinePayment, // ✅ Truyền yêu cầu thanh toán online
                         ),
                       ),
                     ),
@@ -755,8 +787,8 @@ class _PaymentScreenState extends State<PaymentScreen>
     if (guestFormState == null || !(guestFormState as dynamic).validateForm()) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Vui lòng điền đầy đủ thông tin'),
+          SnackBar(
+            content: Text(AppLocalizations.of(context)!.pleaseFillAllFields),
             backgroundColor: Colors.red,
           ),
         );
@@ -830,20 +862,14 @@ class _PaymentScreenState extends State<PaymentScreen>
               // Don't block payment flow
             }
             
-            // Payment successful
+            // Payment successful - navigate to success screen
             if (mounted) {
-              Navigator.pushReplacement(
-                context,
+              final orderId = result['orderId'] ?? 'ORDER_${DateTime.now().millisecondsSinceEpoch}';
+              Navigator.of(context).pushReplacement(
                 MaterialPageRoute(
-                  builder: (context) => PaymentSuccessScreen(
-                    hotel: widget.hotel,
-                    room: widget.room,
-                    checkInDate: widget.checkInDate,
-                    checkOutDate: widget.checkOutDate,
-                    guestCount: widget.guestCount,
-                    nights: widget.nights,
-                    totalAmount: _finalTotal,
-                    orderId: result['orderId'] ?? 'ORDER_${DateTime.now().millisecondsSinceEpoch}',
+                  builder: (context) => PaymentSuccessScreenV2(
+                    orderId: orderId,
+                    paymentMethod: 'vnpay',
                   ),
                 ),
               );
@@ -877,9 +903,12 @@ class _PaymentScreenState extends State<PaymentScreen>
           final orderInfo = 'Đặt phòng ${widget.room.tenLoaiPhong} tại ${widget.hotel.ten}';
           
           try {
-            // Call backend API to get payment URL
+            // Get current user ID from BackendAuthService
+            final userId = BackendAuthService().currentUser?.id;
+            
+            // Call backend API to get payment URL (with full booking data like Cash payment)
             final response = await ApiService().post(
-              '/v2/bank-transfer/create-payment-url',
+              '/api/v2/bank-transfer/create-payment-url', // ✅ FIX: Added /api/ prefix
               {
                 'amount': _finalTotal,
                 'orderInfo': orderInfo,
@@ -888,6 +917,18 @@ class _PaymentScreenState extends State<PaymentScreen>
                 'userName': _nameController.text,
                 'userEmail': _emailController.text,
                 'userPhone': _phoneController.text,
+                // ✅ ADD: Full booking data for auto-confirm
+                'userId': userId,
+                'hotelId': widget.hotel.id,
+                'hotelName': widget.hotel.ten,
+                'roomId': widget.room.id,
+                'roomType': widget.room.tenLoaiPhong,
+                'checkInDate': widget.checkInDate.toIso8601String(),
+                'checkOutDate': widget.checkOutDate.toIso8601String(),
+                'guestCount': widget.guestCount,
+                'nights': widget.nights,
+                'finalPrice': _finalTotal,
+                'totalPrice': _fullTotal,
               },
             );
             
@@ -895,16 +936,31 @@ class _PaymentScreenState extends State<PaymentScreen>
               final data = response.data as Map<String, dynamic>;
               final paymentUrl = data['paymentUrl'];
               
-              // Launch payment URL in browser
-              print('🏦 Launching Bank Transfer URL: $paymentUrl');
-              final uri = Uri.parse(paymentUrl);
-              if (await canLaunchUrl(uri)) {
-                await launchUrl(uri, mode: LaunchMode.externalApplication);
+              // ✅ FIX: Use WebView instead of external browser for better compatibility
+              print('🏦 Opening Bank Transfer in WebView: $paymentUrl');
+              
+              if (mounted) {
+                setState(() {
+                  _isProcessing = false;
+                });
                 
-                // Start polling payment status
-                _pollBankTransferPaymentStatus(orderId);
-              } else {
-                throw Exception('Không thể mở trình duyệt');
+                // Navigate to Bank Transfer screen with WebView
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => BankTransferScreen(
+                      paymentUrl: paymentUrl,
+                      orderId: orderId,
+                      amount: _finalTotal,
+                      hotel: widget.hotel,
+                      room: widget.room,
+                      checkInDate: widget.checkInDate,
+                      checkOutDate: widget.checkOutDate,
+                      guestCount: widget.guestCount,
+                      nights: widget.nights,
+                    ),
+                  ),
+                );
               }
             } else {
               throw Exception(response.message);
@@ -1005,18 +1061,13 @@ class _PaymentScreenState extends State<PaymentScreen>
               _isProcessing = false;
             });
             
-            Navigator.pushReplacement(
-              context,
+            // Navigate to success screen với booking code
+            final orderId = booking.bookingCode ?? 'CASH_${DateTime.now().millisecondsSinceEpoch}';
+            Navigator.of(context).pushReplacement(
               MaterialPageRoute(
-                builder: (context) => PaymentSuccessScreen(
-                  hotel: widget.hotel,
-                  room: widget.room,
-                  checkInDate: widget.checkInDate,
-                  checkOutDate: widget.checkOutDate,
-                  guestCount: widget.guestCount,
-                  nights: widget.nights,
-                  totalAmount: _finalTotal,
-                  orderId: booking.bookingCode ?? 'CASH_${DateTime.now().millisecondsSinceEpoch}',
+                builder: (context) => PaymentSuccessScreenV2(
+                  orderId: orderId,
+                  paymentMethod: 'cash',
                 ),
               ),
             );
@@ -1054,23 +1105,54 @@ class _PaymentScreenState extends State<PaymentScreen>
 
       if (mounted) {
         if (result.success) {
-          // Navigate to success screen safely with post frame callback
+          // Show success dialog then navigate to home
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (mounted) {
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => PaymentSuccessScreen(
-                    hotel: widget.hotel,
-                    room: widget.room,
-                    checkInDate: widget.checkInDate,
-                    checkOutDate: widget.checkOutDate,
-                    guestCount: widget.guestCount,
-                    nights: widget.nights,
-                    totalAmount: _finalTotal,
-                    orderId: 'ORDER_${DateTime.now().millisecondsSinceEpoch}',
-                  ),
-                ),
+              showDialog(
+                context: context,
+                barrierDismissible: false,
+                builder: (BuildContext dialogContext) {
+                  return AlertDialog(
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    content: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          width: 80,
+                          height: 80,
+                          decoration: BoxDecoration(color: Colors.green[50], shape: BoxShape.circle),
+                          child: Icon(Icons.check_circle, size: 60, color: Colors.green[600]),
+                        ),
+                        const SizedBox(height: 20),
+                        Text(AppLocalizations.of(context)!.paymentSuccess,
+                          style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.green[700])),
+                        const SizedBox(height: 12),
+                        Text(AppLocalizations.of(context)!.bookingConfirmed,
+                          textAlign: TextAlign.center, style: TextStyle(fontSize: 14, color: Colors.black87)),
+                      ],
+                    ),
+                    actions: [
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          onPressed: () {
+                            Navigator.of(dialogContext).pop();
+                            Navigator.of(context).pushAndRemoveUntil(
+                              MaterialPageRoute(builder: (context) => const MainNavigationScreen()),
+                              (route) => false,
+                            );
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.blue[600],
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                          child: Text(AppLocalizations.of(context)!.backToHome, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                        ),
+                      ),
+                    ],
+                  );
+                },
               );
             }
           });
@@ -1082,7 +1164,7 @@ class _PaymentScreenState extends State<PaymentScreen>
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Lỗi thanh toán: $e'),
+            content: Text('${AppLocalizations.of(context)!.paymentError}: $e'),
             backgroundColor: Colors.red,
           ),
         );
@@ -1127,8 +1209,8 @@ class _PaymentScreenState extends State<PaymentScreen>
             _isProcessing = false;
           });
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Timeout: Không nhận được kết quả thanh toán'),
+            SnackBar(
+              content: Text(AppLocalizations.of(context)!.paymentTimeout),
               backgroundColor: Colors.orange,
             ),
           );
@@ -1138,7 +1220,7 @@ class _PaymentScreenState extends State<PaymentScreen>
       
       try {
         final response = await ApiService().get(
-          '/v2/bank-transfer/payment-status/$orderId',
+          '/api/v2/bank-transfer/payment-status/$orderId', // ✅ FIX: Added /api/ prefix
         );
         
         if (response.success && response.data != null) {
@@ -1170,18 +1252,12 @@ class _PaymentScreenState extends State<PaymentScreen>
               setState(() {
                 _isProcessing = false;
               });
-              Navigator.pushReplacement(
-                context,
+              // Navigate to success screen
+              Navigator.of(context).pushReplacement(
                 MaterialPageRoute(
-                  builder: (context) => PaymentSuccessScreen(
-                    hotel: widget.hotel,
-                    room: widget.room,
-                    checkInDate: widget.checkInDate,
-                    checkOutDate: widget.checkOutDate,
-                    guestCount: widget.guestCount,
-                    nights: widget.nights,
-                    totalAmount: _finalTotal,
+                  builder: (context) => PaymentSuccessScreenV2(
                     orderId: orderId,
+                    paymentMethod: 'bank_transfer',
                   ),
                 ),
               );
@@ -1623,18 +1699,18 @@ class _PaymentScreenState extends State<PaymentScreen>
         showDialog(
           context: context,
           builder: (context) => AlertDialog(
-            title: const Row(
+            title: Row(
               children: [
-                Icon(Icons.error, color: Colors.red, size: 28),
-                SizedBox(width: 12),
-                Text('Thanh toán thất bại'),
+                const Icon(Icons.error, color: Colors.red, size: 28),
+                const SizedBox(width: 12),
+                Text(AppLocalizations.of(context)!.paymentFailed),
               ],
             ),
             content: Text(errorMessage),
             actions: [
               TextButton(
                 onPressed: () => Navigator.of(context).pop(),
-                child: const Text('Đóng'),
+                child: Text(AppLocalizations.of(context)!.close),
               ),
             ],
           ),

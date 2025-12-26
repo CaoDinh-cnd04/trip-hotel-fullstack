@@ -3,7 +3,7 @@ import 'dart:io';
 import '../models/api_response.dart';
 import '../models/hotel_registration.dart';
 import '../../core/constants/app_constants.dart';
-import '../../core/services/backend_auth_service.dart';
+import '../services/backend_auth_service.dart';
 
 /// Service xử lý các chức năng cho chủ khách sạn
 /// 

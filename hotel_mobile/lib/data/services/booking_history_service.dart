@@ -1,7 +1,7 @@
 import 'package:dio/dio.dart';
 import '../models/booking_model.dart';
 import '../../core/constants/app_constants.dart';
-import '../../core/services/backend_auth_service.dart';
+import '../services/backend_auth_service.dart'; // ⚠️ FIX: Import from data/services, not core/services
 
 class BookingHistoryService {
   final Dio _dio;
@@ -19,12 +19,15 @@ class BookingHistoryService {
     // Add interceptor to include token
     _dio.interceptors.add(InterceptorsWrapper(
       onRequest: (options, handler) async {
-        final token = await _authService.getToken();
+        final token = _authService.getToken(); // ⚠️ FIX: getToken() is now synchronous
         if (token != null && token.isNotEmpty) {
           options.headers['Authorization'] = 'Bearer $token';
-          print('✅ Booking: Added token to header');
+          final userId = _authService.currentUser?.id;
+          print('✅ Booking History: Added token to header');
+          print('✅ Booking History: User ID: $userId');
         } else {
-          print('⚠️ Booking: No token available');
+          print('⚠️ Booking History: No token available');
+          print('⚠️ Current user: ${_authService.currentUser?.hoTen}');
         }
         return handler.next(options);
       },
@@ -81,23 +84,38 @@ class BookingHistoryService {
         queryParams['status'] = status;
       }
 
+      print('📖 Making request to: /bookings with params: $queryParams');
       final response = await _dio.get('/bookings', queryParameters: queryParams);
       
-      print('📖 Booking history response status: ${response.statusCode}');
-      print('📖 Response data: ${response.data}');
+      print('📖 ✅ Booking history response received!');
+      print('📖 Response status: ${response.statusCode}');
+      print('📖 Response data type: ${response.data.runtimeType}');
+      print('📖 Response data keys: ${response.data is Map ? response.data.keys.toList() : 'not a map'}');
+      print('📖 Response success field: ${response.data['success']}');
+      print('📖 Response data field type: ${response.data['data']?.runtimeType}');
+      print('📖 Response data length: ${response.data['data'] is List ? response.data['data'].length : 'not a list'}');
       
       if (response.data['success'] == true) {
         final List<dynamic> data = response.data['data'] ?? [];
-        print('📖 Found ${data.length} bookings');
+        print('📖 Found ${data.length} bookings in response');
+        
+        if (data.isNotEmpty) {
+          print('📖 First booking raw data:');
+          print('   ${data[0]}');
+        }
         
         final bookings = <BookingModel>[];
         for (var i = 0; i < data.length; i++) {
           try {
+            print('📖 Parsing booking $i...');
             final booking = BookingModel.fromJson(data[i]);
             bookings.add(booking);
-          } catch (parseError) {
+            print('✅ Successfully parsed booking $i: ${booking.bookingCode}');
+          } catch (parseError, stackTrace) {
             print('❌ Error parsing booking $i: $parseError');
+            print('❌ Stack trace: $stackTrace');
             print('📋 Booking data: ${data[i]}');
+            print('📋 Data keys: ${data[i] is Map ? data[i].keys.toList() : 'not a map'}');
             // Continue with other bookings instead of failing completely
           }
         }
@@ -183,6 +201,33 @@ class BookingHistoryService {
     } catch (e) {
       print('❌ Error fetching booking stats: $e');
       rethrow;
+    }
+  }
+
+  /// Kiểm tra xem user có booking active ở khách sạn khác không
+  Future<Map<String, dynamic>> checkActiveBooking({int? hotelId}) async {
+    try {
+      print('🔍 Checking active booking...');
+      final queryParams = <String, dynamic>{};
+      if (hotelId != null) {
+        queryParams['hotelId'] = hotelId;
+      }
+      
+      final response = await _dio.get('/bookings/check-active', queryParameters: queryParams);
+      
+      if (response.data['success'] == true) {
+        return response.data['data'];
+      } else {
+        throw Exception(response.data['message'] ?? 'Kiểm tra booking active thất bại');
+      }
+    } catch (e) {
+      print('❌ Error checking active booking: $e');
+      // Nếu lỗi, trả về có thể đặt phòng (fail-safe)
+      if (e is DioException && e.response?.statusCode == 401) {
+        // Chưa đăng nhập, cho phép đặt phòng
+        return {'canBook': true, 'hasOtherHotelBooking': false};
+      }
+      return {'canBook': true, 'hasOtherHotelBooking': false};
     }
   }
 }

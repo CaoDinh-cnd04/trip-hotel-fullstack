@@ -18,7 +18,7 @@ import 'package:app_links/app_links.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/config/payment_config.dart';
-import '../../core/services/backend_auth_service.dart';
+import '../services/backend_auth_service.dart';
 
 /// Service xử lý VNPay sử dụng package vnpay_payment_flutter
 class VNPayPackageService {

@@ -147,19 +147,36 @@ const CreateDiscountCodePage = () => {
     try {
       setLoading(true)
       
+      // ✅ Build data object, excluding null/empty optional fields to avoid validation errors
       const discountCodeData = {
         ma_giam_gia: formData.ma_giam_gia.toUpperCase(),
         ten_ma_giam_gia: formData.ten_ma_giam_gia,
-        mo_ta: formData.mo_ta || '',
         loai_giam_gia: formData.loai_giam_gia,
         gia_tri_giam: parseFloat(formData.gia_tri_giam),
-        gia_tri_don_hang_toi_thieu: formData.gia_tri_don_hang_toi_thieu ? parseFloat(formData.gia_tri_don_hang_toi_thieu) : null,
-        gia_tri_giam_toi_da: formData.gia_tri_giam_toi_da ? parseFloat(formData.gia_tri_giam_toi_da) : null,
         ngay_bat_dau: formData.ngay_bat_dau,
         ngay_ket_thuc: formData.ngay_ket_thuc,
-        so_luong_gioi_han: formData.so_luong_gioi_han ? parseInt(formData.so_luong_gioi_han) : null,
-        gioi_han_su_dung_moi_nguoi: formData.gioi_han_su_dung_moi_nguoi ? parseInt(formData.gioi_han_su_dung_moi_nguoi) : null,
         trang_thai: formData.trang_thai
+      }
+      
+      // ✅ Only add optional fields if they have valid values
+      if (formData.mo_ta && formData.mo_ta.trim()) {
+        discountCodeData.mo_ta = formData.mo_ta
+      }
+      
+      if (formData.gia_tri_don_hang_toi_thieu && parseFloat(formData.gia_tri_don_hang_toi_thieu) > 0) {
+        discountCodeData.gia_tri_don_hang_toi_thieu = parseFloat(formData.gia_tri_don_hang_toi_thieu)
+      }
+      
+      if (formData.gia_tri_giam_toi_da && parseFloat(formData.gia_tri_giam_toi_da) > 0) {
+        discountCodeData.gia_tri_giam_toi_da = parseFloat(formData.gia_tri_giam_toi_da)
+      }
+      
+      if (formData.so_luong_gioi_han && parseInt(formData.so_luong_gioi_han) > 0) {
+        discountCodeData.so_luong_gioi_han = parseInt(formData.so_luong_gioi_han)
+      }
+      
+      if (formData.gioi_han_su_dung_moi_nguoi && parseInt(formData.gioi_han_su_dung_moi_nguoi) > 0) {
+        discountCodeData.gioi_han_su_dung_moi_nguoi = parseInt(formData.gioi_han_su_dung_moi_nguoi)
       }
 
       if (editingDiscount) {
@@ -379,145 +396,295 @@ const CreateDiscountCodePage = () => {
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-white rounded-lg shadow-sm border border-slate-200 p-6"
+          className="bg-white rounded-lg shadow-sm border border-slate-200 p-8"
         >
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <div className="space-y-4">
-              <Input
-                label="Mã giảm giá *"
-                name="ma_giam_gia"
-                value={formData.ma_giam_gia}
-                onChange={handleChange}
-                placeholder="Ví dụ: SUMMER2024"
-                required
-                className="uppercase"
-                disabled={!!editingDiscount}
-              />
-              <p className="text-xs text-slate-500 -mt-2">Mã sẽ được tự động chuyển thành chữ in hoa {editingDiscount && '(Không thể thay đổi)'}</p>
-
-              <Input
-                label="Tên mã giảm giá *"
-                name="ten_ma_giam_gia"
-                value={formData.ten_ma_giam_gia}
-                onChange={handleChange}
-                placeholder="Ví dụ: Ưu đãi mùa hè 2024"
-                required
-              />
-
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">Mô tả</label>
-                <textarea
-                  name="mo_ta"
-                  value={formData.mo_ta}
-                  onChange={handleChange}
-                  className="w-full p-3 border border-slate-300 rounded-md focus:ring-sky-500 focus:border-sky-500"
-                  rows="3"
-                  placeholder="Mô tả chi tiết về mã giảm giá"
-                />
-              </div>
-
-              <Select
-                label="Loại giảm giá *"
-                name="loai_giam_gia"
-                value={formData.loai_giam_gia}
-                onChange={handleChange}
-                required
-              >
-                <option value="percentage">Phần trăm (%)</option>
-                <option value="fixed_amount">Số tiền cố định (VND)</option>
-              </Select>
-
-              <Input
-                label="Giá trị giảm giá *"
-                name="gia_tri_giam"
-                type="number"
-                value={formData.gia_tri_giam}
-                onChange={handleChange}
-                placeholder={formData.loai_giam_gia === 'percentage' ? '20' : '100000'}
-                required
-                min="0"
-              />
-
-              <Input
-                label="Giá trị đơn hàng tối thiểu (VND)"
-                name="gia_tri_don_hang_toi_thieu"
-                type="number"
-                value={formData.gia_tri_don_hang_toi_thieu}
-                onChange={handleChange}
-                placeholder="1000000"
-                min="0"
-              />
-
-              {formData.loai_giam_gia === 'percentage' && (
-                <Input
-                  label="Giá trị giảm tối đa (VND)"
-                  name="gia_tri_giam_toi_da"
-                  type="number"
-                  value={formData.gia_tri_giam_toi_da}
-                  onChange={handleChange}
-                  placeholder="500000"
-                  min="0"
-                />
-              )}
-
-              <Input
-                label="Ngày bắt đầu *"
-                name="ngay_bat_dau"
-                type="datetime-local"
-                value={formData.ngay_bat_dau}
-                onChange={handleChange}
-                required
-              />
-
-              <Input
-                label="Ngày kết thúc *"
-                name="ngay_ket_thuc"
-                type="datetime-local"
-                value={formData.ngay_ket_thuc}
-                onChange={handleChange}
-                required
-              />
-
-              <Input
-                label="Số lượng sử dụng tối đa (để trống nếu không giới hạn)"
-                name="so_luong_gioi_han"
-                type="number"
-                value={formData.so_luong_gioi_han}
-                onChange={handleChange}
-                placeholder="100"
-                min="1"
-              />
-
-              <Input
-                label="Giới hạn sử dụng mỗi người (để trống nếu không giới hạn)"
-                name="gioi_han_su_dung_moi_nguoi"
-                type="number"
-                value={formData.gioi_han_su_dung_moi_nguoi}
-                onChange={handleChange}
-                placeholder="1"
-                min="1"
-              />
-
-              <Select
-                label="Trạng thái"
-                name="trang_thai"
-                value={formData.trang_thai}
-                onChange={handleChange}
-              >
-                <option value="active">Hoạt động</option>
-                <option value="inactive">Không hoạt động</option>
-              </Select>
+          <form onSubmit={handleSubmit} className="space-y-8">
+            {/* Header */}
+            <div className="border-b border-slate-200 pb-4">
+              <h3 className="text-lg font-semibold text-slate-900">
+                {editingDiscount ? 'Chỉnh sửa mã giảm giá' : 'Tạo mã giảm giá mới'}
+              </h3>
+              <p className="text-sm text-slate-600 mt-1">
+                Các trường đánh dấu (<span className="text-red-500">*</span>) là bắt buộc
+              </p>
             </div>
 
-            <div className="flex gap-4 pt-4">
+            {/* Section 1: Thông tin cơ bản */}
+            <div className="space-y-4">
+              <div className="flex items-center gap-2 mb-4">
+                <Tag className="text-sky-600" size={20} />
+                <h4 className="font-semibold text-slate-800">1. Thông tin cơ bản</h4>
+              </div>
+              
+              <div className="pl-7 space-y-4">
+                <div>
+                  <Input
+                    label="Mã giảm giá *"
+                    name="ma_giam_gia"
+                    value={formData.ma_giam_gia}
+                    onChange={handleChange}
+                    placeholder="VD: SUMMER2024, WELCOME10"
+                    required
+                    className="uppercase"
+                    disabled={!!editingDiscount}
+                  />
+                  <p className="text-xs text-slate-500 mt-1 flex items-center gap-1">
+                    <span className="inline-block w-1 h-1 rounded-full bg-slate-400"></span>
+                    Mã được tự động chuyển thành chữ IN HOA, độ dài 3-20 ký tự
+                    {editingDiscount && <span className="text-amber-600 font-medium">(Không thể thay đổi khi chỉnh sửa)</span>}
+                  </p>
+                </div>
+
+                <div>
+                  <Input
+                    label="Tên mã giảm giá *"
+                    name="ten_ma_giam_gia"
+                    value={formData.ten_ma_giam_gia}
+                    onChange={handleChange}
+                    placeholder="VD: Ưu đãi mùa hè 2024, Chào mừng khách hàng mới"
+                    required
+                  />
+                  <p className="text-xs text-slate-500 mt-1 flex items-center gap-1">
+                    <span className="inline-block w-1 h-1 rounded-full bg-slate-400"></span>
+                    Tên hiển thị cho khách hàng, tối đa 200 ký tự
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">
+                    Mô tả <span className="text-slate-400 font-normal">(Tùy chọn)</span>
+                  </label>
+                  <textarea
+                    name="mo_ta"
+                    value={formData.mo_ta}
+                    onChange={handleChange}
+                    className="w-full p-3 border border-slate-300 rounded-md focus:ring-2 focus:ring-sky-500 focus:border-sky-500 transition"
+                    rows="3"
+                    placeholder="Mô tả chi tiết về điều kiện áp dụng, lợi ích của mã giảm giá..."
+                  />
+                  <p className="text-xs text-slate-500 mt-1 flex items-center gap-1">
+                    <span className="inline-block w-1 h-1 rounded-full bg-slate-400"></span>
+                    Giải thích thêm về mã giảm giá để khách hàng hiểu rõ hơn
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Section 2: Giá trị giảm giá */}
+            <div className="space-y-4">
+              <div className="flex items-center gap-2 mb-4">
+                <DollarSign className="text-green-600" size={20} />
+                <h4 className="font-semibold text-slate-800">2. Giá trị giảm giá</h4>
+              </div>
+              
+              <div className="pl-7 space-y-4">
+                <div>
+                  <Select
+                    label="Loại giảm giá *"
+                    name="loai_giam_gia"
+                    value={formData.loai_giam_gia}
+                    onChange={handleChange}
+                    required
+                  >
+                    <option value="percentage">Phần trăm (%) - Giảm theo tỷ lệ</option>
+                    <option value="fixed_amount">Số tiền cố định (VND) - Giảm trực tiếp</option>
+                  </Select>
+                  <p className="text-xs text-slate-500 mt-1 flex items-center gap-1">
+                    <span className="inline-block w-1 h-1 rounded-full bg-slate-400"></span>
+                    Chọn <strong>Phần trăm</strong> để giảm theo %, chọn <strong>Số tiền cố định</strong> để giảm số tiền cụ thể
+                  </p>
+                </div>
+
+                <div>
+                  <Input
+                    label={`Giá trị giảm ${formData.loai_giam_gia === 'percentage' ? '(%)' : '(VND)'} *`}
+                    name="gia_tri_giam"
+                    type="number"
+                    value={formData.gia_tri_giam}
+                    onChange={handleChange}
+                    placeholder={formData.loai_giam_gia === 'percentage' ? 'VD: 20 (= giảm 20%)' : 'VD: 100000 (= giảm 100,000đ)'}
+                    required
+                    min="0"
+                    step={formData.loai_giam_gia === 'percentage' ? '1' : '1000'}
+                  />
+                  <p className="text-xs text-slate-500 mt-1 flex items-center gap-1">
+                    <span className="inline-block w-1 h-1 rounded-full bg-slate-400"></span>
+                    {formData.loai_giam_gia === 'percentage' 
+                      ? 'Nhập số từ 1-100. VD: Nhập 20 = giảm 20%' 
+                      : 'Nhập số tiền giảm. VD: 100000 = giảm 100,000 VNĐ'}
+                  </p>
+                </div>
+
+                <div>
+                  <Input
+                    label="Giá trị đơn hàng tối thiểu (VND)"
+                    name="gia_tri_don_hang_toi_thieu"
+                    type="number"
+                    value={formData.gia_tri_don_hang_toi_thieu}
+                    onChange={handleChange}
+                    placeholder="VD: 1000000 (= áp dụng cho đơn từ 1 triệu trở lên)"
+                    min="0"
+                    step="10000"
+                  />
+                  <p className="text-xs text-slate-500 mt-1 flex items-center gap-1">
+                    <span className="inline-block w-1 h-1 rounded-full bg-slate-400"></span>
+                    <span className="text-slate-400 font-normal">(Tùy chọn)</span> Để trống = không giới hạn. Đặt giá trị để chỉ áp dụng cho đơn hàng có giá trị cao hơn
+                  </p>
+                </div>
+
+                {formData.loai_giam_gia === 'percentage' && (
+                  <div>
+                    <Input
+                      label="Giá trị giảm tối đa (VND)"
+                      name="gia_tri_giam_toi_da"
+                      type="number"
+                      value={formData.gia_tri_giam_toi_da}
+                      onChange={handleChange}
+                      placeholder="VD: 500000 (= tối đa giảm 500,000đ)"
+                      min="0"
+                      step="10000"
+                    />
+                    <p className="text-xs text-slate-500 mt-1 flex items-center gap-1">
+                      <span className="inline-block w-1 h-1 rounded-full bg-slate-400"></span>
+                      <span className="text-slate-400 font-normal">(Tùy chọn)</span> Giới hạn số tiền giảm tối đa khi dùng %. VD: Giảm 20% nhưng tối đa 500k
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Section 3: Thời gian hiệu lực */}
+            <div className="space-y-4">
+              <div className="flex items-center gap-2 mb-4">
+                <Calendar className="text-purple-600" size={20} />
+                <h4 className="font-semibold text-slate-800">3. Thời gian hiệu lực</h4>
+              </div>
+              
+              <div className="pl-7 space-y-4">
+                <div>
+                  <Input
+                    label="Ngày bắt đầu *"
+                    name="ngay_bat_dau"
+                    type="datetime-local"
+                    value={formData.ngay_bat_dau}
+                    onChange={handleChange}
+                    required
+                  />
+                  <p className="text-xs text-slate-500 mt-1 flex items-center gap-1">
+                    <span className="inline-block w-1 h-1 rounded-full bg-slate-400"></span>
+                    Mã giảm giá sẽ có hiệu lực từ thời điểm này
+                  </p>
+                </div>
+
+                <div>
+                  <Input
+                    label="Ngày kết thúc *"
+                    name="ngay_ket_thuc"
+                    type="datetime-local"
+                    value={formData.ngay_ket_thuc}
+                    onChange={handleChange}
+                    required
+                  />
+                  <p className="text-xs text-slate-500 mt-1 flex items-center gap-1">
+                    <span className="inline-block w-1 h-1 rounded-full bg-slate-400"></span>
+                    Mã giảm giá sẽ hết hiệu lực sau thời điểm này
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Section 4: Giới hạn sử dụng */}
+            <div className="space-y-4">
+              <div className="flex items-center gap-2 mb-4">
+                <Users className="text-orange-600" size={20} />
+                <h4 className="font-semibold text-slate-800">4. Giới hạn sử dụng</h4>
+              </div>
+              
+              <div className="pl-7 space-y-4">
+                <div>
+                  <Input
+                    label="Số lượng mã tối đa"
+                    name="so_luong_gioi_han"
+                    type="number"
+                    value={formData.so_luong_gioi_han}
+                    onChange={handleChange}
+                    placeholder="VD: 100 (= chỉ có 100 mã có thể được sử dụng)"
+                    min="1"
+                  />
+                  <p className="text-xs text-slate-500 mt-1 flex items-center gap-1">
+                    <span className="inline-block w-1 h-1 rounded-full bg-slate-400"></span>
+                    <span className="text-slate-400 font-normal">(Tùy chọn)</span> Để trống = không giới hạn. Giới hạn tổng số lần mã này được sử dụng
+                  </p>
+                </div>
+
+                <div>
+                  <Input
+                    label="Số lần dùng tối đa/người"
+                    name="gioi_han_su_dung_moi_nguoi"
+                    type="number"
+                    value={formData.gioi_han_su_dung_moi_nguoi}
+                    onChange={handleChange}
+                    placeholder="VD: 1 (= mỗi người chỉ dùng được 1 lần)"
+                    min="1"
+                  />
+                  <p className="text-xs text-slate-500 mt-1 flex items-center gap-1">
+                    <span className="inline-block w-1 h-1 rounded-full bg-slate-400"></span>
+                    <span className="text-slate-400 font-normal">(Tùy chọn)</span> Để trống = không giới hạn. Giới hạn số lần mỗi khách hàng có thể dùng mã này
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Section 5: Trạng thái */}
+            <div className="space-y-4">
+              <div className="flex items-center gap-2 mb-4">
+                <Power className="text-indigo-600" size={20} />
+                <h4 className="font-semibold text-slate-800">5. Trạng thái</h4>
+              </div>
+              
+              <div className="pl-7 space-y-4">
+                <div>
+                  <Select
+                    label="Trạng thái hoạt động"
+                    name="trang_thai"
+                    value={formData.trang_thai}
+                    onChange={handleChange}
+                  >
+                    <option value="active">✅ Hoạt động - Khách hàng có thể sử dụng</option>
+                    <option value="inactive">🔒 Tạm ngừng - Khách hàng không thể sử dụng</option>
+                  </Select>
+                  <p className="text-xs text-slate-500 mt-1 flex items-center gap-1">
+                    <span className="inline-block w-1 h-1 rounded-full bg-slate-400"></span>
+                    Chọn <strong>Hoạt động</strong> để mã có thể được sử dụng ngay
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="flex gap-4 pt-6 border-t border-slate-200">
               <Button
                 type="submit"
                 variant="primary"
                 disabled={loading}
-                className="flex items-center gap-2"
+                className="flex items-center gap-2 px-6 py-3 text-base"
               >
-                <Tag size={20} />
-                {loading ? 'Đang lưu...' : editingDiscount ? 'Cập nhật mã giảm giá' : 'Tạo mã giảm giá'}
+                {loading ? (
+                  <>
+                    <RefreshCw className="animate-spin" size={20} />
+                    Đang xử lý...
+                  </>
+                ) : editingDiscount ? (
+                  <>
+                    <Edit size={20} />
+                    Cập nhật mã giảm giá
+                  </>
+                ) : (
+                  <>
+                    <Plus size={20} />
+                    Tạo mã giảm giá
+                  </>
+                )}
               </Button>
               {editingDiscount && (
                 <Button
@@ -527,7 +694,9 @@ const CreateDiscountCodePage = () => {
                     resetForm()
                     setActiveTab('manage')
                   }}
+                  className="flex items-center gap-2 px-6 py-3 text-base"
                 >
+                  <X size={20} />
                   Hủy chỉnh sửa
                 </Button>
               )}

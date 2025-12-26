@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:hotel_mobile/data/models/booking_model.dart';
 import 'package:hotel_mobile/data/services/booking_history_service.dart';
 import 'package:hotel_mobile/presentation/widgets/booking_card.dart';
@@ -8,6 +9,8 @@ import '../../../core/widgets/error_state_widget.dart';
 import '../../../core/widgets/empty_state_widget.dart';
 import '../../../data/services/api_service.dart';
 import '../../../data/services/message_service.dart';
+import '../../../core/theme/vip_theme_provider.dart';
+import '../../../l10n/app_localizations.dart';
 import '../chat/modern_conversation_list_screen.dart';
 import '../chat/modern_chat_screen.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -35,7 +38,9 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> with Single
   @override
   void initState() {
     super.initState();
+    print('📖 === BookingHistoryScreen initState ===');
     _tabController = TabController(length: 3, vsync: this);
+    print('📖 TabController created, calling _loadBookings()...');
     _loadBookings();
   }
 
@@ -48,6 +53,7 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> with Single
   Future<void> _loadBookings({String? status}) async {
     print('📖 === LOADING BOOKINGS ===');
     print('📖 Status filter: $status');
+    print('📖 Current state: isLoading=$_isLoading, bookings=${_bookings.length}, error=$_error');
     
     setState(() {
       _isLoading = true;
@@ -55,19 +61,39 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> with Single
     });
 
     try {
+      print('📖 Calling _bookingService.getBookingHistory()...');
       final bookings = await _bookingService.getBookingHistory(status: status);
-      print('📖 Loaded ${bookings.length} bookings');
+      print('📖 ✅ Loaded ${bookings.length} bookings from service');
+      
+      if (bookings.isNotEmpty) {
+        print('📖 First booking details:');
+        print('   - ID: ${bookings[0].id}');
+        print('   - Code: ${bookings[0].bookingCode}');
+        print('   - Hotel: ${bookings[0].hotelName}');
+        print('   - Status: ${bookings[0].bookingStatus}');
+      }
       
       if (mounted) {
+        print('📖 Widget is mounted, updating state...');
+        print('📖 Setting bookings: ${bookings.length} items');
         setState(() {
           _bookings = bookings;
           _isLoading = false;
+          _error = null; // Clear any previous errors
         });
+        print('📖 ✅ State updated successfully!');
+        print('   - bookings.length: ${_bookings.length}');
+        print('   - isLoading: $_isLoading');
+        print('   - error: $_error');
+        print('   - Will show: ${_bookings.isEmpty ? "Empty state" : "Booking list"}');
+      } else {
+        print('⚠️ Widget not mounted, skipping state update');
       }
-    } catch (e) {
+    } catch (e, stackTrace) {
       print('❌ === BOOKING LOAD ERROR ===');
       print('❌ Error: $e');
       print('❌ Error type: ${e.runtimeType}');
+      print('❌ Stack trace: $stackTrace');
       print('❌ ========================');
       
       if (mounted) {
@@ -98,15 +124,16 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> with Single
   }
 
   Future<void> _showCancelConfirmation(BookingModel booking) async {
+    final l10n = AppLocalizations.of(context)!;
     final bool? confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Xác nhận hủy phòng'),
+        title: Text(l10n.confirmCancelBooking),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Bạn có chắc muốn hủy đặt phòng ${booking.bookingCode}?'),
+            Text(l10n.confirmCancelBookingMessage(booking.bookingCode)),
             const SizedBox(height: 12),
             if (booking.paymentMethod != 'cash') ...[
               Container(
@@ -149,7 +176,7 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> with Single
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Quay lại'),
+            child: Text(l10n.goBack),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
@@ -157,7 +184,7 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> with Single
               backgroundColor: Colors.red,
               foregroundColor: Colors.white,
             ),
-            child: const Text('Xác nhận hủy'),
+            child: Text(l10n.confirmCancel),
           ),
         ],
       ),
@@ -171,19 +198,20 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> with Single
   Future<void> _cancelBooking(BookingModel booking) async {
     try {
       // Show loading
+      final l10n = AppLocalizations.of(context)!;
       showDialog(
         context: context,
         barrierDismissible: false,
-        builder: (context) => const Center(
+        builder: (context) => Center(
           child: Card(
             child: Padding(
-              padding: EdgeInsets.all(24.0),
+              padding: const EdgeInsets.all(24.0),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  CircularProgressIndicator(),
-                  SizedBox(height: 16),
-                  Text('Đang xử lý hủy phòng...'),
+                  const CircularProgressIndicator(),
+                  const SizedBox(height: 16),
+                  Text(l10n.processingCancel),
                 ],
               ),
             ),
@@ -209,14 +237,14 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> with Single
                   color: refundSuccess ? Colors.green : Colors.orange,
                 ),
                 const SizedBox(width: 8),
-                const Text('Hủy phòng thành công'),
+                Text(l10n.cancelSuccess),
               ],
             ),
             content: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Đã hủy đặt phòng ${booking.bookingCode}'),
+                Text(l10n.bookingCancelled(booking.bookingCode)),
                 const SizedBox(height: 12),
                 if (refundSuccess) ...[
                   Container(
@@ -268,7 +296,7 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> with Single
                   Navigator.pop(context);
                   _refreshBookings();
                 },
-                child: const Text('Đóng'),
+                child: Text(l10n.close),
               ),
             ],
           ),
@@ -296,14 +324,16 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> with Single
         
         showDialog(
           context: context,
-          builder: (context) => AlertDialog(
-            title: const Row(
-              children: [
-                Icon(Icons.error_outline, color: Colors.red),
-                SizedBox(width: 8),
-                Text('Không thể hủy phòng'),
-              ],
-            ),
+          builder: (context) {
+            final l10n = AppLocalizations.of(context)!;
+            return AlertDialog(
+              title: Row(
+                children: [
+                  const Icon(Icons.error_outline, color: Colors.red),
+                  const SizedBox(width: 8),
+                  Text(l10n.cannotCancelBooking),
+                ],
+              ),
             content: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -352,13 +382,14 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> with Single
                 ),
               ],
             ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Đóng'),
-              ),
-            ],
-          ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: Text(l10n.close),
+                ),
+              ],
+            );
+          },
         );
       }
     }
@@ -366,11 +397,21 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> with Single
 
   @override
   Widget build(BuildContext context) {
+    // Debug log
+    print('📖 === BUILD CALLED ===');
+    print('   - isLoading: $_isLoading');
+    print('   - error: $_error');
+    print('   - bookings.length: ${_bookings.length}');
+    print('   - Will show: ${_isLoading ? "Loading" : (_error != null ? "Error" : (_bookings.isEmpty ? "Empty" : "List"))}');
+    
+    // ✅ Sử dụng VIP theme colors
+    final vipTheme = Provider.of<VipThemeProvider>(context, listen: false);
+    
     return Scaffold(
-      backgroundColor: Colors.grey[100],
+      backgroundColor: vipTheme.backgroundColor,
       appBar: AppBar(
-        title: const Text('Lịch sử đặt phòng'),
-        backgroundColor: const Color(0xFF8B4513),
+        title: Text(AppLocalizations.of(context)!.bookingHistory),
+        backgroundColor: vipTheme.primaryColor, // ✅ VIP theme color
         foregroundColor: Colors.white,
         elevation: 0,
         bottom: TabBar(
@@ -530,14 +571,15 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> with Single
       if (hotel.nguoiQuanLyId == null) {
         // Hotel has no manager
         if (mounted) {
+          final l10n = AppLocalizations.of(context)!;
           showDialog(
             context: context,
             builder: (context) => AlertDialog(
-              title: const Row(
+              title: Row(
                 children: [
-                  Icon(Icons.info_outline, color: Colors.blue),
-                  SizedBox(width: 8),
-                  Text('Liên hệ hỗ trợ'),
+                  const Icon(Icons.info_outline, color: Colors.blue),
+                  const SizedBox(width: 8),
+                  Text(l10n.contactSupport),
                 ],
               ),
               content: Text(
@@ -550,7 +592,7 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> with Single
               actions: [
                 TextButton(
                   onPressed: () => Navigator.pop(context),
-                  child: const Text('Đóng'),
+                  child: Text(l10n.close),
                 ),
                 ElevatedButton(
                   onPressed: () {
@@ -562,7 +604,7 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> with Single
                       ),
                     );
                   },
-                  child: const Text('Chat hỗ trợ'),
+                  child: Text(l10n.supportChat),
                 ),
               ],
             ),
@@ -631,9 +673,10 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> with Single
           ),
         );
         
+        final l10n = AppLocalizations.of(context)!;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('💬 Đang mở chat với ${hotel.tenNguoiQuanLy ?? "khách sạn"}...'),
+            content: Text('💬 ${l10n.openingChat(hotel.tenNguoiQuanLy ?? "khách sạn")}'),
             backgroundColor: Colors.green,
             duration: const Duration(seconds: 2),
           ),
@@ -642,16 +685,17 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> with Single
     } catch (e) {
       print('❌ Error creating conversation: $e');
       if (mounted) {
+        final l10n = AppLocalizations.of(context)!;
         showDialog(
           context: context,
           builder: (context) => AlertDialog(
-            title: const Text('⚠️ Lỗi tạo cuộc trò chuyện'),
-            content: Text('Không thể tạo cuộc trò chuyện: ${e.toString()}\n\n'
-                'Vui lòng thử lại sau hoặc liên hệ trực tiếp với khách sạn.'),
+            title: Text('⚠️ ${l10n.errorCreatingConversation}'),
+            content: Text('${l10n.cannotCreateConversation}: ${e.toString()}\n\n'
+                '${l10n.tryAgain}'),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(context),
-                child: const Text('Đóng'),
+                child: Text(l10n.close),
               ),
             ],
           ),

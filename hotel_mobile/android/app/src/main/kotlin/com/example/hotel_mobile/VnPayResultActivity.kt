@@ -4,7 +4,6 @@ import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
 import android.content.Intent
 import android.net.Uri
-import androidx.localbroadcastmanager.content.LocalBroadcastManager
 
 /**
  * Activity để nhận callback từ VNPay SDK
@@ -28,8 +27,10 @@ class VnPayResultActivity : AppCompatActivity() {
             val bankCode = data.getQueryParameter("vnp_BankCode")
             val payDate = data.getQueryParameter("vnp_PayDate")
             
-            // Gửi kết quả về Flutter qua LocalBroadcastManager
+            // Gửi kết quả về Flutter qua Broadcast
             val resultIntent = Intent("vnpay.payment.result").apply {
+                addCategory(Intent.CATEGORY_DEFAULT)
+                setPackage(packageName) // Chỉ gửi trong cùng app
                 putExtra("responseCode", responseCode)
                 putExtra("transactionNo", transactionNo)
                 putExtra("amount", amount)
@@ -38,7 +39,7 @@ class VnPayResultActivity : AppCompatActivity() {
                 putExtra("payDate", payDate)
                 putExtra("isSuccess", responseCode == "00")
             }
-            LocalBroadcastManager.getInstance(this).sendBroadcast(resultIntent)
+            sendBroadcast(resultIntent)
         }
         
         // Đóng activity này và quay về MainActivity

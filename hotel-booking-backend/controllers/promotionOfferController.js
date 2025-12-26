@@ -450,9 +450,9 @@ const cancelOffer = async (req, res) => {
     const sql = require('mssql');
     const pool = await getPool();
     const checkQuery = `
-      SELECT po.id FROM dbo.promotion_offers po
-      INNER JOIN dbo.khach_san ks ON po.hotel_id = ks.id
-      WHERE po.id = @offer_id AND ks.nguoi_quan_ly_id = @manager_id
+      SELECT km.id FROM dbo.khuyen_mai km
+      INNER JOIN dbo.khach_san ks ON km.khach_san_id = ks.id
+      WHERE km.id = @offer_id AND ks.nguoi_quan_ly_id = @manager_id
     `;
     
     const checkResult = await pool.request()
@@ -514,9 +514,9 @@ const toggleOffer = async (req, res) => {
     
     // Kiểm tra quyền và trạng thái
     const checkQuery = `
-      SELECT po.id, po.status FROM dbo.promotion_offers po
-      INNER JOIN dbo.khach_san ks ON po.hotel_id = ks.id
-      WHERE po.id = @offer_id AND ks.nguoi_quan_ly_id = @manager_id
+      SELECT km.id, km.trang_thai FROM dbo.khuyen_mai km
+      INNER JOIN dbo.khach_san ks ON km.khach_san_id = ks.id
+      WHERE km.id = @offer_id AND ks.nguoi_quan_ly_id = @manager_id
     `;
     
     const checkResult = await pool.request()
@@ -533,25 +533,16 @@ const toggleOffer = async (req, res) => {
     
     const offer = checkResult.recordset[0];
     
-    // Chỉ cho phép bật nếu đã được approved
-    if (is_active && offer.status !== 'approved') {
+    // Chỉ cho phép bật nếu đã được approved (trang_thai = 1)
+    if (is_active && offer.trang_thai !== 1) {
       return res.status(400).json({
         success: false,
         message: 'Chỉ có thể bật ưu đãi đã được Admin duyệt'
       });
     }
     
-    // Update is_active
-    const updateQuery = `
-      UPDATE dbo.promotion_offers
-      SET is_active = @is_active, updated_at = GETDATE()
-      WHERE id = @offer_id
-    `;
-    
-    await pool.request()
-      .input('offer_id', sql.Int, offerId)
-      .input('is_active', sql.Bit, is_active ? 1 : 0)
-      .query(updateQuery);
+    // Update trang_thai (sử dụng model thay vì query trực tiếp)
+    await promotionOfferModel.toggleActive(parsedOfferId, is_active);
     
     res.json({
       success: true,
@@ -592,9 +583,9 @@ const submitForApproval = async (req, res) => {
     
     // Kiểm tra quyền
     const checkQuery = `
-      SELECT po.id FROM dbo.promotion_offers po
-      INNER JOIN dbo.khach_san ks ON po.hotel_id = ks.id
-      WHERE po.id = @offer_id AND ks.nguoi_quan_ly_id = @manager_id
+      SELECT km.id FROM dbo.khuyen_mai km
+      INNER JOIN dbo.khach_san ks ON km.khach_san_id = ks.id
+      WHERE km.id = @offer_id AND ks.nguoi_quan_ly_id = @manager_id
     `;
     
     const checkResult = await pool.request()
@@ -609,16 +600,8 @@ const submitForApproval = async (req, res) => {
       });
     }
     
-    // Update status to pending
-    const updateQuery = `
-      UPDATE dbo.promotion_offers
-      SET status = 'pending', is_active = 0, updated_at = GETDATE()
-      WHERE id = @offer_id
-    `;
-    
-    await pool.request()
-      .input('offer_id', sql.Int, parsedOfferId)
-      .query(updateQuery);
+    // Update trang_thai to pending (0)
+    await promotionOfferModel.updateStatus(parsedOfferId, 'pending');
     
     res.json({
       success: true,

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:hotel_mobile/data/services/review_service.dart';
 import 'package:hotel_mobile/data/services/service_review_service.dart';
-import 'package:hotel_mobile/core/services/backend_auth_service.dart';
+import 'package:hotel_mobile/data/services/backend_auth_service.dart';
 
 /// Màn hình tạo đánh giá với 2 loại:
 /// 1. Đánh giá tổng quan khách sạn (lưu vào bảng danh_gia)

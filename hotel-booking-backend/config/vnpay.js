@@ -21,6 +21,12 @@
  * - VNPay KHÔNG chấp nhận localhost - PHẢI dùng public URL
  * - Return URL và IPN URL ĐÃ được đăng ký trong VNPay Merchant Admin
  * - Hash Secret đã được cập nhật: 2EUDNGDHMR3DNHY7IZY1AIBOKB35JFE3
+ * 
+ * ⚠️ QUAN TRỌNG VỀ IP:
+ * - IP 42.114.148.78 chỉ hoạt động khi máy có IP đó
+ * - Khi đổi mạng → IP thay đổi → VNPay không callback được
+ * - ✅ GIẢI PHÁP: Dùng Cloudflare Tunnel (xem README-VNPAY-URL.md)
+ * - Chạy: .\start-cloudflare-and-update-env.ps1 để tự động cập nhật URL
  */
 
 // ============================================

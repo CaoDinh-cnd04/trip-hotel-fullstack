@@ -82,9 +82,8 @@ repositories {
 dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
     
-    // AndroidX dependencies (bắt buộc cho AppCompatActivity và LocalBroadcastManager)
+    // AndroidX dependencies (bắt buộc cho AppCompatActivity)
     implementation("androidx.appcompat:appcompat:1.6.1")
-    implementation("androidx.localbroadcastmanager:localbroadcastmanager:1.1.0")
     
     // VNPay SDK - chỉ load nếu AAR file tồn tại
     if (file("libs/merchant-1.0.25.aar").exists()) {

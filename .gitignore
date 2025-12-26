@@ -202,6 +202,11 @@ scripts/deploy/
 
 # Cloudflare Tunnel (temporary URL)
 hotel-booking-backend/CLOUDFLARE_TUNNEL_URL.txt
+hotel-booking-backend/cloudflared.exe
+
+# Environment backup files
+hotel-booking-backend/.env.backup*
+hotel-booking-backend/.env.backup_*
 
 # Temporary debug/test files
 hotel-booking-backend/*_test.js

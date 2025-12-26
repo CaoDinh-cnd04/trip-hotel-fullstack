@@ -4,8 +4,11 @@
  */
 
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../../../data/services/user_profile_service.dart';
 import '../../../core/utils/currency_formatter.dart';
+import '../../../core/theme/vip_theme_provider.dart';
+import '../../../l10n/app_localizations.dart';
 
 class TriphotelVipScreen extends StatefulWidget {
   const TriphotelVipScreen({Key? key}) : super(key: key);
@@ -62,6 +65,14 @@ class _TriphotelVipScreenState extends State<TriphotelVipScreen> {
           _error = null;
           _isLoading = false;
         });
+        
+        // ✅ Cập nhật VIP theme khi VIP level thay đổi
+        final vipLevel = response.data!['vipLevel'] ?? 'Bronze';
+        if (mounted) {
+          final vipThemeProvider = Provider.of<VipThemeProvider>(context, listen: false);
+          vipThemeProvider.setVipLevel(vipLevel);
+          print('✅ Updated VIP theme to: $vipLevel');
+        }
       } else {
         setState(() {
           // Hiển thị message từ API hoặc message mặc định
@@ -110,7 +121,7 @@ class _TriphotelVipScreenState extends State<TriphotelVipScreen> {
                       const SizedBox(height: 16),
                       ElevatedButton(
                         onPressed: _loadVipInfo,
-                        child: const Text('Thử lại'),
+                        child: Text(AppLocalizations.of(context)!.tryAgain),
                       ),
                     ],
                   ),
@@ -127,7 +138,7 @@ class _TriphotelVipScreenState extends State<TriphotelVipScreen> {
                         ],
                       ),
                     )
-                  : const Center(child: Text('Không có dữ liệu')),
+                  : Center(child: Text(AppLocalizations.of(context)!.noData)),
     );
   }
 

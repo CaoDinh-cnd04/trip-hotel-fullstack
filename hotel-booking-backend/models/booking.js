@@ -145,33 +145,80 @@ class Booking {
       // ⚠️ SỬA LỖI: Query trực tiếp từ bảng bookings thay vì view
       // View có thể có filter hoặc join thiếu dữ liệu
       // Đảm bảo hiển thị TẤT CẢ bookings, kể cả pending
+      // ✅ FIX: Sử dụng GROUP BY để đảm bảo chỉ 1 row cho mỗi booking
+      // ✅ FIX: Đặt điều kiện status vào WHERE clause, không phải sau GROUP BY
       let query = `
         SELECT 
-          b.*,
-          ks.ten as hotel_name,
-          ks.hinh_anh as hotel_image,
-          ks.dia_chi as hotel_address,
-          CASE 
+          b.id,
+          b.booking_code,
+          b.user_id,
+          b.user_email,
+          b.user_name,
+          b.user_phone,
+          b.hotel_id,
+          MAX(ISNULL(ks.ten, b.hotel_name)) as hotel_name,
+          MAX(ISNULL(ks.hinh_anh, '')) as hotel_image,
+          MAX(ISNULL(ks.dia_chi, '')) as hotel_address,
+          b.room_id,
+          b.room_number,
+          b.room_type,
+          b.check_in_date,
+          b.check_out_date,
+          b.guest_count,
+          b.room_count,
+          b.nights,
+          b.room_price,
+          b.total_price,
+          b.discount_amount,
+          b.final_price,
+          b.payment_method,
+          b.payment_status,
+          b.payment_transaction_id,
+          b.payment_date,
+          b.refund_status,
+          b.refund_amount,
+          b.refund_transaction_id,
+          b.refund_date,
+          b.refund_reason,
+          b.booking_status,
+          b.cancellation_allowed,
+          b.created_at,
+          b.updated_at,
+          b.cancelled_at,
+          b.special_requests,
+          b.admin_notes,
+          b.vip_points_added,
+          MAX(CASE 
             WHEN b.booking_status = 'pending' AND b.cancellation_allowed = 1 
               AND DATEDIFF(hour, GETDATE(), b.check_in_date) >= 24 
             THEN 1 
             ELSE 0 
-          END as can_cancel,
-          b.cancelled_at,
-          b.refund_status,
-          b.refund_reason
+          END) as can_cancel
         FROM bookings b
         LEFT JOIN khach_san ks ON b.hotel_id = ks.id
         WHERE b.user_id = @user_id
       `;
 
-      // ⚠️ QUAN TRỌNG: Không filter theo status nếu không có yêu cầu
+      // ⚠️ QUAN TRỌNG: Đặt điều kiện status vào WHERE clause TRƯỚC GROUP BY
+      // Không filter theo status nếu không có yêu cầu
       // Hoặc nếu status = 'all' hoặc null, hiển thị tất cả
       if (status && status !== 'all' && status !== '') {
         query += ` AND b.booking_status = @status`;
       }
 
-      query += ` ORDER BY b.created_at DESC OFFSET @offset ROWS FETCH NEXT @limit ROWS ONLY`;
+      query += `
+        GROUP BY 
+          b.id, b.booking_code, b.user_id, b.user_email, b.user_name, b.user_phone,
+          b.hotel_id, b.room_id, b.room_number, b.room_type, b.check_in_date, b.check_out_date,
+          b.guest_count, b.room_count, b.nights, b.room_price, b.total_price, b.discount_amount,
+          b.final_price, b.payment_method, b.payment_status, b.payment_transaction_id, b.payment_date,
+          b.refund_status, b.refund_amount, b.refund_transaction_id, b.refund_date, b.refund_reason,
+          b.booking_status, b.cancellation_allowed, b.created_at, b.updated_at, b.cancelled_at,
+          b.special_requests, b.admin_notes, b.vip_points_added
+        ORDER BY b.created_at DESC 
+        OFFSET @offset ROWS 
+        FETCH NEXT @limit ROWS ONLY
+      `;
 
       const request = pool.request()
         .input('user_id', sql.Int, userId)
@@ -184,22 +231,52 @@ class Booking {
 
       const result = await request.query(query);
       
+      // ✅ FIX: Normalize dữ liệu để đảm bảo các field là string, không phải array
+      const normalizedBookings = result.recordset.map(booking => {
+        const normalized = { ...booking };
+        
+        // Normalize các field có thể là array thành string
+        if (Array.isArray(normalized.hotel_name)) {
+          normalized.hotel_name = normalized.hotel_name[0] || normalized.hotel_name || '';
+        }
+        if (Array.isArray(normalized.hotel_image)) {
+          normalized.hotel_image = normalized.hotel_image[0] || normalized.hotel_image || '';
+        }
+        if (Array.isArray(normalized.hotel_address)) {
+          normalized.hotel_address = normalized.hotel_address[0] || normalized.hotel_address || '';
+        }
+        if (Array.isArray(normalized.refund_status)) {
+          normalized.refund_status = normalized.refund_status[0] || normalized.refund_status || null;
+        }
+        if (Array.isArray(normalized.refund_reason)) {
+          normalized.refund_reason = normalized.refund_reason[0] || normalized.refund_reason || null;
+        }
+        if (Array.isArray(normalized.cancelled_at)) {
+          normalized.cancelled_at = normalized.cancelled_at[0] || normalized.cancelled_at || null;
+        }
+        
+        return normalized;
+      });
+      
       // Log để debug
       console.log('📋 Query result:', {
         userId,
         status,
         limit,
         offset,
-        found: result.recordset.length,
-        sample: result.recordset.length > 0 ? {
-          id: result.recordset[0].id,
-          booking_code: result.recordset[0].booking_code,
-          booking_status: result.recordset[0].booking_status,
-          payment_method: result.recordset[0].payment_method,
+        found: normalizedBookings.length,
+        sample: normalizedBookings.length > 0 ? {
+          id: normalizedBookings[0].id,
+          booking_code: normalizedBookings[0].booking_code,
+          booking_status: normalizedBookings[0].booking_status,
+          payment_method: normalizedBookings[0].payment_method,
+          hotel_name: normalizedBookings[0].hotel_name,
+          hotel_name_type: typeof normalizedBookings[0].hotel_name,
+          is_hotel_name_array: Array.isArray(normalizedBookings[0].hotel_name),
         } : null,
       });
       
-      return result.recordset;
+      return normalizedBookings;
     } catch (error) {
       console.error('❌ Error getting user bookings:', error);
       throw error;

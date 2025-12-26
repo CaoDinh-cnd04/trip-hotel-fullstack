@@ -192,7 +192,7 @@ class AppLocalizationsVi extends AppLocalizations {
   String get success => 'Thành công';
 
   @override
-  String get errorOccurred => 'Có lỗi xảy ra';
+  String get errorOccurred => 'Có lỗi xảy ra. Vui lòng thử lại.';
 
   @override
   String get networkError => 'Lỗi mạng';
@@ -509,4 +509,160 @@ class AppLocalizationsVi extends AppLocalizations {
 
   @override
   String get deleteAccount => 'Xóa tài khoản';
+
+  @override
+  String get noAddressForMap => 'Không có địa chỉ để hiển thị trên bản đồ';
+
+  @override
+  String get cannotOpenGoogleMaps =>
+      'Không thể mở Google Maps. Vui lòng cài đặt Google Maps hoặc trình duyệt.';
+
+  @override
+  String get mapError => 'Lỗi mở bản đồ';
+
+  @override
+  String get cannotBookRoom => 'Không thể đặt phòng';
+
+  @override
+  String get understood => 'Đã hiểu';
+
+  @override
+  String get logoutError => 'Lỗi đăng xuất';
+
+  @override
+  String get deleteAccountError => 'Lỗi xóa tài khoản';
+
+  @override
+  String get close => 'Đóng';
+
+  @override
+  String get notificationSettingsUpdated => 'Đã cập nhật cài đặt thông báo';
+
+  @override
+  String get cannotUpdateEmailSettings => 'Không thể cập nhật cài đặt email';
+
+  @override
+  String get emailSettingsUpdated => 'Đã cập nhật cài đặt email';
+
+  @override
+  String get confirmCancelBooking => 'Xác nhận hủy phòng';
+
+  @override
+  String confirmCancelBookingMessage(String bookingCode) {
+    return 'Bạn có chắc muốn hủy đặt phòng $bookingCode?';
+  }
+
+  @override
+  String get goBack => 'Quay lại';
+
+  @override
+  String get confirmCancel => 'Xác nhận hủy';
+
+  @override
+  String get processingCancel => 'Đang xử lý hủy phòng...';
+
+  @override
+  String get cancelSuccess => 'Hủy phòng thành công';
+
+  @override
+  String bookingCancelled(String bookingCode) {
+    return 'Đã hủy đặt phòng $bookingCode';
+  }
+
+  @override
+  String get cannotCancelBooking => 'Không thể hủy phòng';
+
+  @override
+  String get contactSupport => 'Liên hệ hỗ trợ';
+
+  @override
+  String get supportChat => 'Chat hỗ trợ';
+
+  @override
+  String openingChat(String hotelName) {
+    return 'Đang mở chat với $hotelName...';
+  }
+
+  @override
+  String get errorCreatingConversation => 'Lỗi tạo cuộc trò chuyện';
+
+  @override
+  String get cannotCreateConversation => 'Không thể tạo cuộc trò chuyện';
+
+  @override
+  String get backToHome => 'Về trang chủ';
+
+  @override
+  String get onlinePaymentRequired =>
+      'Đặt từ 3 phòng trở lên chỉ được thanh toán online (VNPay)';
+
+  @override
+  String discountAutoApplied(String code, String amount) {
+    return 'Đã tự động áp dụng mã giảm giá $code! Giảm $amount';
+  }
+
+  @override
+  String get pleaseFillAllFields => 'Vui lòng điền đầy đủ thông tin';
+
+  @override
+  String get paymentSuccess => 'Thanh toán thành công!';
+
+  @override
+  String get bookingConfirmed =>
+      'Đặt phòng của bạn đã được xác nhận.\nEmail xác nhận đã được gửi.';
+
+  @override
+  String get memberBenefits => 'Quyền lợi thành viên';
+
+  @override
+  String get pointsMax => 'PointsMAX';
+
+  @override
+  String get paymentFailed => 'Thanh toán thất bại';
+
+  @override
+  String get paymentError => 'Lỗi thanh toán';
+
+  @override
+  String get paymentTimeout => 'Timeout: Không nhận được kết quả thanh toán';
+
+  @override
+  String get paymentTimeoutTitle => 'Hết thời gian thanh toán';
+
+  @override
+  String get confirmPayment => 'Xác nhận thanh toán';
+
+  @override
+  String get notPaid => 'Chưa';
+
+  @override
+  String get paid => 'Đã chuyển khoản';
+
+  @override
+  String copied(String label) {
+    return 'Đã sao chép $label';
+  }
+
+  @override
+  String get bankTransfer => 'Chuyển khoản ngân hàng';
+
+  @override
+  String get processingPayment => 'Đang xử lý thanh toán...';
+
+  @override
+  String get waitingPaymentResult =>
+      'Đang chờ kết quả thanh toán. Vui lòng kiểm tra lại sau hoặc liên hệ hỗ trợ.';
+
+  @override
+  String get cancelPayment => 'Hủy thanh toán?';
+
+  @override
+  String get confirmCancelPayment =>
+      'Bạn có chắc muốn hủy giao dịch thanh toán?';
+
+  @override
+  String get no => 'Không';
+
+  @override
+  String get reopenedPaymentPage => 'Đã mở lại trang thanh toán';
 }

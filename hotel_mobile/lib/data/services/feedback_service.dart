@@ -102,7 +102,7 @@ class FeedbackService {
       if (userId != null) queryParams['user_id'] = userId;
       if (search != null && search.isNotEmpty) queryParams['search'] = search;
 
-      final response = await _dio.get('/feedback', queryParameters: queryParams);
+      final response = await _dio.get('/api/v2/feedback', queryParameters: queryParams);
 
       return ApiResponse<List<FeedbackModel>>.fromJson(response.data, (data) {
         if (data is List) {
@@ -122,7 +122,7 @@ class FeedbackService {
   /// Trả về ApiResponse chứa FeedbackModel
   Future<ApiResponse<FeedbackModel>> getFeedbackById(int id) async {
     try {
-      final response = await _dio.get('/feedback/$id');
+      final response = await _dio.get('/api/v2/feedback/$id');
       return ApiResponse<FeedbackModel>.fromJson(
         response.data,
         (data) => FeedbackModel.fromJson(data),
@@ -143,7 +143,7 @@ class FeedbackService {
       print('📦 Data: ${feedback.toJson()}');
       
       final response = await _dio.post(
-        '/feedback',
+        '/api/v2/feedback',
         data: feedback.toJson(),
       );
       
@@ -170,7 +170,7 @@ class FeedbackService {
   Future<ApiResponse<FeedbackModel>> updateFeedback(FeedbackModel feedback) async {
     try {
       final response = await _dio.put(
-        '/feedback/${feedback.id}',
+        '/api/v2/feedback/${feedback.id}',
         data: feedback.toJson(),
       );
       return ApiResponse<FeedbackModel>.fromJson(
@@ -208,7 +208,7 @@ class FeedbackService {
       }
 
       final apiResponse = await _dio.put(
-        '/feedback/$feedbackId/respond',
+        '/api/v2/feedback/$feedbackId/respond',
         data: responseData,
       );
 
@@ -244,7 +244,7 @@ class FeedbackService {
       }
 
       final response = await _dio.put(
-        '/feedback/$feedbackId/status',
+        '/api/v2/feedback/$feedbackId/status',
         data: responseData,
       );
 
@@ -264,7 +264,7 @@ class FeedbackService {
   /// Trả về ApiResponse với thông báo kết quả
   Future<ApiResponse<String>> deleteFeedback(int id) async {
     try {
-      final response = await _dio.delete('/feedback/$id');
+      final response = await _dio.delete('/api/v2/feedback/$id');
       return ApiResponse<String>.fromJson(
         response.data,
         (data) => data.toString(),
@@ -289,7 +289,7 @@ class FeedbackService {
       if (fromDate != null) queryParams['from_date'] = fromDate.toIso8601String();
       if (toDate != null) queryParams['to_date'] = toDate.toIso8601String();
 
-      final response = await _dio.get('/feedback/statistics', queryParameters: queryParams);
+      final response = await _dio.get('/api/v2/feedback/statistics', queryParameters: queryParams);
       
       return ApiResponse<Map<String, dynamic>>.fromJson(
         response.data,
@@ -316,7 +316,7 @@ class FeedbackService {
         ));
       }
 
-      final response = await _dio.post('/feedback/upload-images', data: formData);
+      final response = await _dio.post('/api/v2/feedback/upload-images', data: formData);
       
       return ApiResponse<List<String>>.fromJson(
         response.data,
@@ -352,7 +352,7 @@ class FeedbackService {
       }
 
       final response = await _dio.get(
-        '/feedback/user/$userId',
+        '/api/v2/feedback/user/$userId',
         queryParameters: queryParams,
       );
 

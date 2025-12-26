@@ -192,7 +192,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get success => 'Success';
 
   @override
-  String get errorOccurred => 'An error occurred';
+  String get errorOccurred => 'An error occurred. Please try again.';
 
   @override
   String get networkError => 'Network error';
@@ -330,7 +330,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get noData => 'No data';
 
   @override
-  String get tryAgain => 'Try again';
+  String get tryAgain => 'Try Again';
 
   @override
   String get aboutUsTitle => 'About Us';
@@ -508,4 +508,160 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get deleteAccount => 'Delete Account';
+
+  @override
+  String get noAddressForMap => 'No address to display on map';
+
+  @override
+  String get cannotOpenGoogleMaps =>
+      'Cannot open Google Maps. Please install Google Maps or a browser.';
+
+  @override
+  String get mapError => 'Map error';
+
+  @override
+  String get cannotBookRoom => 'Cannot book room';
+
+  @override
+  String get understood => 'Understood';
+
+  @override
+  String get logoutError => 'Logout error';
+
+  @override
+  String get deleteAccountError => 'Delete account error';
+
+  @override
+  String get close => 'Close';
+
+  @override
+  String get notificationSettingsUpdated => 'Notification settings updated';
+
+  @override
+  String get cannotUpdateEmailSettings => 'Cannot update email settings';
+
+  @override
+  String get emailSettingsUpdated => 'Email settings updated';
+
+  @override
+  String get confirmCancelBooking => 'Confirm Cancel Booking';
+
+  @override
+  String confirmCancelBookingMessage(String bookingCode) {
+    return 'Are you sure you want to cancel booking $bookingCode?';
+  }
+
+  @override
+  String get goBack => 'Go Back';
+
+  @override
+  String get confirmCancel => 'Confirm Cancel';
+
+  @override
+  String get processingCancel => 'Processing cancellation...';
+
+  @override
+  String get cancelSuccess => 'Booking cancelled successfully';
+
+  @override
+  String bookingCancelled(String bookingCode) {
+    return 'Booking $bookingCode has been cancelled';
+  }
+
+  @override
+  String get cannotCancelBooking => 'Cannot cancel booking';
+
+  @override
+  String get contactSupport => 'Contact Support';
+
+  @override
+  String get supportChat => 'Support Chat';
+
+  @override
+  String openingChat(String hotelName) {
+    return 'Opening chat with $hotelName...';
+  }
+
+  @override
+  String get errorCreatingConversation => 'Error Creating Conversation';
+
+  @override
+  String get cannotCreateConversation => 'Cannot create conversation';
+
+  @override
+  String get backToHome => 'Back to Home';
+
+  @override
+  String get onlinePaymentRequired =>
+      'Booking 3 or more rooms requires online payment (VNPay)';
+
+  @override
+  String discountAutoApplied(String code, String amount) {
+    return 'Discount code $code auto-applied! Save $amount';
+  }
+
+  @override
+  String get pleaseFillAllFields => 'Please fill in all fields';
+
+  @override
+  String get paymentSuccess => 'Payment Successful!';
+
+  @override
+  String get bookingConfirmed =>
+      'Your booking has been confirmed.\nConfirmation email has been sent.';
+
+  @override
+  String get memberBenefits => 'Member Benefits';
+
+  @override
+  String get pointsMax => 'PointsMAX';
+
+  @override
+  String get paymentFailed => 'Payment Failed';
+
+  @override
+  String get paymentError => 'Payment Error';
+
+  @override
+  String get paymentTimeout => 'Timeout: Payment result not received';
+
+  @override
+  String get paymentTimeoutTitle => 'Payment Timeout';
+
+  @override
+  String get confirmPayment => 'Confirm Payment';
+
+  @override
+  String get notPaid => 'Not Paid';
+
+  @override
+  String get paid => 'Paid';
+
+  @override
+  String copied(String label) {
+    return 'Copied $label';
+  }
+
+  @override
+  String get bankTransfer => 'Bank Transfer';
+
+  @override
+  String get processingPayment => 'Processing payment...';
+
+  @override
+  String get waitingPaymentResult =>
+      'Waiting for payment result. Please check back later or contact support.';
+
+  @override
+  String get cancelPayment => 'Cancel Payment?';
+
+  @override
+  String get confirmCancelPayment =>
+      'Are you sure you want to cancel this payment transaction?';
+
+  @override
+  String get no => 'No';
+
+  @override
+  String get reopenedPaymentPage => 'Reopened payment page';
 }

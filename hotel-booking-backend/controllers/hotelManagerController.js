@@ -1929,28 +1929,47 @@ exports.updateBookingStatus = async (req, res) => {
     }
     
     const booking = bookingCheck.recordset[0];
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const checkInDate = new Date(booking.check_in_date);
+    const checkInDateOnly = new Date(checkInDate.getFullYear(), checkInDate.getMonth(), checkInDate.getDate());
+    const checkOutDate = new Date(booking.check_out_date);
+    const checkOutDateOnly = new Date(checkOutDate.getFullYear(), checkOutDate.getMonth(), checkOutDate.getDate());
     
-    // ⚠️ VALIDATION 1: Chỉ cho phép xác nhận "completed" sau check-out
-    if (booking_status === 'completed') {
-      const checkOutDate = new Date(booking.check_out_date);
-      const now = new Date();
-      
-      if (now < checkOutDate) {
+    // ✅ VALIDATION 1: Chỉ cho phép check-in (status = 'checked_in' hoặc 'in_progress') đúng ngày check-in
+    if (booking_status === 'checked_in' || booking_status === 'in_progress') {
+      if (today.getTime() !== checkInDateOnly.getTime()) {
         return res.status(400).json({
           success: false,
-          message: `Không thể xác nhận hoàn thành. Chỉ có thể xác nhận sau ngày trả phòng (${checkOutDate.toLocaleDateString('vi-VN')})`
+          message: `Chỉ có thể check-in vào đúng ngày nhận phòng (${checkInDate.toLocaleDateString('vi-VN')}). Ngày hôm nay: ${today.toLocaleDateString('vi-VN')}`
         });
       }
     }
     
-    // ⚠️ VALIDATION 2: Không cho hủy trong thời gian đặt phòng (check-in đến check-out)
+    // ✅ VALIDATION 2: Chỉ cho phép checkout (status = 'completed') đúng ngày check-out
+    if (booking_status === 'completed') {
+      if (today.getTime() !== checkOutDateOnly.getTime()) {
+        return res.status(400).json({
+          success: false,
+          message: `Chỉ có thể checkout vào đúng ngày trả phòng (${checkOutDate.toLocaleDateString('vi-VN')}). Ngày hôm nay: ${today.toLocaleDateString('vi-VN')}`
+        });
+      }
+    }
+    
+    // ✅ VALIDATION 3: Chỉ cho phép hủy đúng ngày check-in hoặc ngày check-out (không được hủy tùy ý)
     if (booking_status === 'cancelled') {
-      const checkInDate = new Date(booking.check_in_date);
-      const checkOutDate = new Date(booking.check_out_date);
-      const now = new Date();
+      const isCheckInDay = today.getTime() === checkInDateOnly.getTime();
+      const isCheckOutDay = today.getTime() === checkOutDateOnly.getTime();
       
-      // Kiểm tra nếu đang trong thời gian đặt phòng
-      if (now >= checkInDate && now <= checkOutDate) {
+      if (!isCheckInDay && !isCheckOutDay) {
+        return res.status(400).json({
+          success: false,
+          message: `Chỉ có thể hủy đặt phòng vào đúng ngày nhận phòng (${checkInDate.toLocaleDateString('vi-VN')}) hoặc ngày trả phòng (${checkOutDate.toLocaleDateString('vi-VN')}). Ngày hôm nay: ${today.toLocaleDateString('vi-VN')}`
+        });
+      }
+      
+      // Không cho hủy nếu đang trong thời gian đặt phòng (giữa check-in và check-out)
+      if (now >= checkInDate && now <= checkOutDate && !isCheckInDay && !isCheckOutDay) {
         return res.status(400).json({
           success: false,
           message: 'Không thể hủy đặt phòng trong thời gian đặt phòng (từ ngày nhận phòng đến ngày trả phòng)'

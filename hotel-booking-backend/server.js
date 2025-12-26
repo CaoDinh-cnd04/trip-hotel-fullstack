@@ -127,6 +127,8 @@ app.use('/api/v2/tinnhan', require('./routes/tinnhan_v2'));
 app.use('/api/v2/hoso', require('./routes/hoso_v2'));
 
 // ==================== PAYMENT ROUTES ====================
+// Common payment routes (for all payment methods)
+app.use('/api/v2/payment', require('./routes/payment'));
 // VNPay routes
 app.use('/api/v2/vnpay', require('./routes/vnpay'));
 // Bank Transfer routes (mock/test)
@@ -324,8 +326,8 @@ const startServer = async () => {
     // Auto-update booking status (confirmed → in_progress → completed)
     const { runAllBookingUpdates } = require('./services/bookingStatusScheduler');
     runAllBookingUpdates(); // Chạy ngay khi khởi động
-    setInterval(runAllBookingUpdates, 30 * 60 * 1000); // Chạy mỗi 30 phút
-    console.log('✅ Booking status scheduler started (runs every 30 minutes)');
+    setInterval(runAllBookingUpdates, 5 * 60 * 1000); // Chạy mỗi 5 phút (tự động hoàn thành booking)
+    console.log('✅ Booking status scheduler started (runs every 5 minutes)');
     
     // Start the Express server
     app.listen(PORT, () => {

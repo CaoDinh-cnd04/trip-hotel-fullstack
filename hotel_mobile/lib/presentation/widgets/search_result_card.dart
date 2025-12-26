@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import 'dart:math' as math;
 import 'package:hotel_mobile/core/widgets/glass_card.dart';
 import 'package:hotel_mobile/data/services/discount_service.dart';
+import 'package:hotel_mobile/core/utils/currency_formatter.dart';
 import 'favorite_button.dart';
 
 /// Widget hiển thị card khách sạn trong kết quả tìm kiếm
@@ -518,12 +519,6 @@ class _SearchResultCardState extends State<SearchResultCard> {
   /// ============================================
   /// Hiển thị thông tin mã giảm giá đã áp dụng
   Widget _buildDiscountVoucherInfo(double discountAmount) {
-    final currencyFormat = NumberFormat.currency(
-      locale: 'vi_VN',
-      symbol: '₫',
-      decimalDigits: 0,
-    );
-
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
@@ -544,7 +539,7 @@ class _SearchResultCardState extends State<SearchResultCard> {
           ),
           const SizedBox(width: 6),
           Text(
-            'Đã áp dụng ${currencyFormat.format(discountAmount)}',
+            'Đã áp dụng ${CurrencyFormatter.format(discountAmount)}',
             style: const TextStyle(
               color: Color(0xFF2E7D32),
               fontSize: 12,
@@ -620,12 +615,6 @@ class _SearchResultCardState extends State<SearchResultCard> {
     required double originalPrice,
     required int discountPercent,
   }) {
-    final currencyFormat = NumberFormat.currency(
-      locale: 'vi_VN',
-      symbol: '₫',
-      decimalDigits: 0,
-    );
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -635,7 +624,7 @@ class _SearchResultCardState extends State<SearchResultCard> {
           children: [
             // Giá gốc (gạch ngang)
             Text(
-              currencyFormat.format(originalPrice),
+              CurrencyFormatter.format(originalPrice),
               style: const TextStyle(
                 decoration: TextDecoration.lineThrough,
                 decorationColor: Color(0xFF999999),
@@ -666,7 +655,7 @@ class _SearchResultCardState extends State<SearchResultCard> {
         const SizedBox(height: 8),
         // Giá cuối - nổi bật (màu đỏ)
         Text(
-          currencyFormat.format(finalPrice),
+          CurrencyFormatter.format(finalPrice),
           style: const TextStyle(
             color: Color(0xFFE91E63), // Màu đỏ Agoda
             fontSize: 28,
@@ -691,12 +680,6 @@ class _SearchResultCardState extends State<SearchResultCard> {
   Widget _buildAvailableDiscountsInfo() {
     if (_availableDiscounts.isEmpty) return const SizedBox.shrink();
 
-    final currencyFormat = NumberFormat.currency(
-      locale: 'vi_VN',
-      symbol: '₫',
-      decimalDigits: 0,
-    );
-
     // Lấy mã giảm giá tốt nhất (chưa áp dụng)
     final bestDiscount = _availableDiscounts.first;
     final discountValue = bestDiscount['discountValue']?.toDouble() ?? 0;
@@ -706,7 +689,7 @@ class _SearchResultCardState extends State<SearchResultCard> {
     if (discountType == 'phan_tram') {
       discountText = 'GIẢM ${(discountValue * 100).toInt()}%';
     } else {
-      discountText = 'GIẢM ${currencyFormat.format(discountValue)}';
+      discountText = 'GIẢM ${CurrencyFormatter.format(discountValue)}';
     }
 
     return Container(

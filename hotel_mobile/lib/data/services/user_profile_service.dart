@@ -2,7 +2,7 @@ import 'package:dio/dio.dart';
 import '../models/api_response.dart';
 import '../models/user.dart';
 import '../../core/constants/app_constants.dart';
-import '../../core/services/backend_auth_service.dart';
+import '../services/backend_auth_service.dart';
 
 /// Service quản lý profile người dùng
 /// 

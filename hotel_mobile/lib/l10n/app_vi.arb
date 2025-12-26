@@ -192,5 +192,96 @@
   "deleteAccountTitle": "Xóa tài khoản",
   "deleteAccountMessage": "Bạn có chắc chắn muốn xóa tài khoản? Hành động này không thể hoàn tác.",
   "deleteAccount": "Xóa tài khoản",
-  "delete": "Xóa"
+  "delete": "Xóa",
+  
+  "noAddressForMap": "Không có địa chỉ để hiển thị trên bản đồ",
+  "cannotOpenGoogleMaps": "Không thể mở Google Maps. Vui lòng cài đặt Google Maps hoặc trình duyệt.",
+  "mapError": "Lỗi mở bản đồ",
+  "cannotBookRoom": "Không thể đặt phòng",
+  "understood": "Đã hiểu",
+  "logoutError": "Lỗi đăng xuất",
+  "deleteAccountError": "Lỗi xóa tài khoản",
+  "close": "Đóng",
+  "notificationSettingsUpdated": "Đã cập nhật cài đặt thông báo",
+  "cannotUpdateEmailSettings": "Không thể cập nhật cài đặt email",
+  "emailSettingsUpdated": "Đã cập nhật cài đặt email",
+  "confirmCancelBooking": "Xác nhận hủy phòng",
+  "confirmCancelBookingMessage": "Bạn có chắc muốn hủy đặt phòng {bookingCode}?",
+  "@confirmCancelBookingMessage": {
+    "placeholders": {
+      "bookingCode": {
+        "type": "String"
+      }
+    }
+  },
+  "goBack": "Quay lại",
+  "confirmCancel": "Xác nhận hủy",
+  "processingCancel": "Đang xử lý hủy phòng...",
+  "cancelSuccess": "Hủy phòng thành công",
+  "bookingCancelled": "Đã hủy đặt phòng {bookingCode}",
+  "@bookingCancelled": {
+    "placeholders": {
+      "bookingCode": {
+        "type": "String"
+      }
+    }
+  },
+  "cannotCancelBooking": "Không thể hủy phòng",
+  "bookingHistory": "Lịch sử đặt phòng",
+  "contactSupport": "Liên hệ hỗ trợ",
+  "supportChat": "Chat hỗ trợ",
+  "openingChat": "Đang mở chat với {hotelName}...",
+  "@openingChat": {
+    "placeholders": {
+      "hotelName": {
+        "type": "String"
+      }
+    }
+  },
+  "errorCreatingConversation": "Lỗi tạo cuộc trò chuyện",
+  "cannotCreateConversation": "Không thể tạo cuộc trò chuyện",
+  "tryAgain": "Thử lại",
+  "backToHome": "Về trang chủ",
+  "noData": "Không có dữ liệu",
+  "onlinePaymentRequired": "Đặt từ 3 phòng trở lên chỉ được thanh toán online (VNPay)",
+  "discountAutoApplied": "Đã tự động áp dụng mã giảm giá {code}! Giảm {amount}",
+  "@discountAutoApplied": {
+    "placeholders": {
+      "code": {
+        "type": "String"
+      },
+      "amount": {
+        "type": "String"
+      }
+    }
+  },
+  "pleaseFillAllFields": "Vui lòng điền đầy đủ thông tin",
+  "paymentSuccess": "Thanh toán thành công!",
+  "bookingConfirmed": "Đặt phòng của bạn đã được xác nhận.\nEmail xác nhận đã được gửi.",
+  
+  "memberBenefits": "Quyền lợi thành viên",
+  "pointsMax": "PointsMAX",
+  "paymentFailed": "Thanh toán thất bại",
+  "paymentError": "Lỗi thanh toán",
+  "paymentTimeout": "Timeout: Không nhận được kết quả thanh toán",
+  "paymentTimeoutTitle": "Hết thời gian thanh toán",
+  "confirmPayment": "Xác nhận thanh toán",
+  "notPaid": "Chưa",
+  "paid": "Đã chuyển khoản",
+  "errorOccurred": "Có lỗi xảy ra. Vui lòng thử lại.",
+  "copied": "Đã sao chép {label}",
+  "@copied": {
+    "placeholders": {
+      "label": {
+        "type": "String"
+      }
+    }
+  },
+  "bankTransfer": "Chuyển khoản ngân hàng",
+  "processingPayment": "Đang xử lý thanh toán...",
+  "waitingPaymentResult": "Đang chờ kết quả thanh toán. Vui lòng kiểm tra lại sau hoặc liên hệ hỗ trợ.",
+  "cancelPayment": "Hủy thanh toán?",
+  "confirmCancelPayment": "Bạn có chắc muốn hủy giao dịch thanh toán?",
+  "no": "Không",
+  "reopenedPaymentPage": "Đã mở lại trang thanh toán"
 }

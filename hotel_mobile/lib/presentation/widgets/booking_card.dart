@@ -278,42 +278,51 @@ class _BookingCardState extends State<BookingCard> {
                   children: [
                     Expanded(
                       child: Row(
+                        mainAxisSize: MainAxisSize.min,
                         children: [
                           Icon(Icons.login, size: 20, color: Colors.grey[600]),
                           const SizedBox(width: 8),
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Nhận phòng',
-                                style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                              ),
-                              Text(
-                                dateFormat.format(widget.booking.checkInDate),
-                                style: const TextStyle(fontWeight: FontWeight.w500),
-                              ),
-                            ],
+                          Flexible(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  'Nhận phòng',
+                                  style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                                ),
+                                Text(
+                                  dateFormat.format(widget.booking.checkInDate),
+                                  style: const TextStyle(fontWeight: FontWeight.w500),
+                                ),
+                              ],
+                            ),
                           ),
                         ],
                       ),
                     ),
+                    const SizedBox(width: 16),
                     Expanded(
                       child: Row(
+                        mainAxisSize: MainAxisSize.min,
                         children: [
                           Icon(Icons.logout, size: 20, color: Colors.grey[600]),
                           const SizedBox(width: 8),
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Trả phòng',
-                                style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                              ),
-                              Text(
-                                dateFormat.format(widget.booking.checkOutDate),
-                                style: const TextStyle(fontWeight: FontWeight.w500),
-                              ),
-                            ],
+                          Flexible(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  'Trả phòng',
+                                  style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                                ),
+                                Text(
+                                  dateFormat.format(widget.booking.checkOutDate),
+                                  style: const TextStyle(fontWeight: FontWeight.w500),
+                                ),
+                              ],
+                            ),
                           ),
                         ],
                       ),
@@ -339,22 +348,32 @@ class _BookingCardState extends State<BookingCard> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-              Row(
-                children: [
-                        Icon(_getPaymentIcon(), size: 20, color: Colors.grey[600]),
-                        const SizedBox(width: 8),
-                        Text(
-                          widget.booking.paymentMethodText,
-                          style: TextStyle(color: Colors.grey[700]),
-                        ),
-                      ],
+                    Flexible(
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(_getPaymentIcon(), size: 20, color: Colors.grey[600]),
+                          const SizedBox(width: 8),
+                          Flexible(
+                            child: Text(
+                              widget.booking.paymentMethodText,
+                              style: TextStyle(color: Colors.grey[700]),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                    Text(
-                      CurrencyFormatter.format(widget.booking.finalPrice),
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 18,
-                        color: Color(0xFF8B4513),
+                    Flexible(
+                      child: Text(
+                        CurrencyFormatter.format(widget.booking.finalPrice),
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 18,
+                          color: Color(0xFF8B4513),
+                        ),
+                        textAlign: TextAlign.end,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
                   ],
@@ -434,19 +453,26 @@ class _BookingCardState extends State<BookingCard> {
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Row(
-                              children: [
-                                Icon(Icons.check_circle, color: Colors.green[700], size: 20),
-                                const SizedBox(width: 8),
-                                Text(
-                                  'Hủy miễn phí',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.green[900],
+                            Flexible(
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.check_circle, color: Colors.green[700], size: 20),
+                                  const SizedBox(width: 8),
+                                  Flexible(
+                                    child: Text(
+                                      'Hủy miễn phí',
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.green[900],
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
                                   ),
-                                ),
-                              ],
+                                ],
+                              ),
                             ),
+                            const SizedBox(width: 8),
                             SizedBox(
                               height: 36,
                               child: ElevatedButton(
@@ -526,24 +552,29 @@ class _BookingCardState extends State<BookingCard> {
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Row(
-                              children: [
-                                Icon(Icons.warning_amber_rounded, color: Colors.orange[700], size: 20),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: Text(
-                                    widget.booking.cancellationAllowed 
-                                        ? 'Hủy có thể không hoàn tiền hoặc mất phí'
-                                        : 'Hủy không hoàn tiền',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.orange[900],
-                                      fontSize: 13,
+                            Flexible(
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.warning_amber_rounded, color: Colors.orange[700], size: 20),
+                                  const SizedBox(width: 8),
+                                  Flexible(
+                                    child: Text(
+                                      widget.booking.cancellationAllowed 
+                                          ? 'Hủy có thể không hoàn tiền hoặc mất phí'
+                                          : 'Hủy không hoàn tiền',
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.orange[900],
+                                        fontSize: 13,
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
                                     ),
                                   ),
-                                ),
-                              ],
+                                ],
+                              ),
                             ),
+                            const SizedBox(width: 8),
                             SizedBox(
                               height: 36,
                               child: ElevatedButton(

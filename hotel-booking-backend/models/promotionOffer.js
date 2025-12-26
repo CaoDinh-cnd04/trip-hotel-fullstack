@@ -403,19 +403,43 @@ class PromotionOffer {
   async cancelOffer(offerId) {
     const pool = await getPool();
     try {
-      const query = `
+      // Kiểm tra xem cột updated_at có tồn tại không
+      let query = `
         UPDATE ${this.tableName}
-        SET trang_thai = 0, updated_at = GETDATE()
+        SET trang_thai = 0
         WHERE id = @offer_id
       `;
-
-      const request = pool.request();
-      request.input('offer_id', sql.Int, offerId);
-
-      const result = await request.query(query);
-      return result.rowsAffected[0] > 0;
+      
+      // Thử update với updated_at trước
+      try {
+        const testQuery = `
+          UPDATE ${this.tableName}
+          SET trang_thai = 0, updated_at = GETDATE()
+          WHERE id = @offer_id
+        `;
+        const request = pool.request();
+        request.input('offer_id', sql.Int, offerId);
+        const result = await request.query(testQuery);
+        return result.rowsAffected[0] > 0;
+      } catch (updateError) {
+        // Nếu lỗi là do cột updated_at không tồn tại, thử lại không có updated_at
+        if (updateError.number === 207 || updateError.message?.includes('Invalid column name')) {
+          console.warn('⚠️ Column updated_at not found, updating without it');
+          const request = pool.request();
+          request.input('offer_id', sql.Int, offerId);
+          const result = await request.query(query);
+          return result.rowsAffected[0] > 0;
+        }
+        throw updateError;
+      }
     } catch (error) {
-      console.error('Error canceling offer:', error);
+      console.error('❌ Error canceling offer:', error);
+      console.error('❌ Error details:', {
+        message: error.message,
+        number: error.number,
+        code: error.code,
+        originalError: error.originalError?.message
+      });
       throw error;
     }
   }
@@ -504,18 +528,35 @@ class PromotionOffer {
   async toggleActive(offerId, isActive) {
     const pool = await getPool();
     try {
-      const query = `
-        UPDATE ${this.tableName}
-        SET trang_thai = @is_active, updated_at = GETDATE()
-        WHERE id = @offer_id
-      `;
-
-      const request = pool.request();
-      request.input('offer_id', sql.Int, offerId);
-      request.input('is_active', sql.Bit, isActive ? 1 : 0);
-
-      const result = await request.query(query);
-      return result.rowsAffected[0] > 0;
+      // Thử với updated_at trước
+      try {
+        const queryWithUpdate = `
+          UPDATE ${this.tableName}
+          SET trang_thai = @is_active, updated_at = GETDATE()
+          WHERE id = @offer_id
+        `;
+        const request = pool.request();
+        request.input('offer_id', sql.Int, offerId);
+        request.input('is_active', sql.Bit, isActive ? 1 : 0);
+        const result = await request.query(queryWithUpdate);
+        return result.rowsAffected[0] > 0;
+      } catch (updateError) {
+        // Nếu lỗi là do cột updated_at không tồn tại
+        if (updateError.number === 207 || updateError.message?.includes('Invalid column name')) {
+          console.warn('⚠️ Column updated_at not found, updating without it');
+          const query = `
+            UPDATE ${this.tableName}
+            SET trang_thai = @is_active
+            WHERE id = @offer_id
+          `;
+          const request = pool.request();
+          request.input('offer_id', sql.Int, offerId);
+          request.input('is_active', sql.Bit, isActive ? 1 : 0);
+          const result = await request.query(query);
+          return result.rowsAffected[0] > 0;
+        }
+        throw updateError;
+      }
     } catch (error) {
       console.error('Error toggling active status:', error);
       throw error;
@@ -529,18 +570,35 @@ class PromotionOffer {
       // Map status to trang_thai: 'approved' = 1, 'pending'/'rejected' = 0
       const trangThai = status === 'approved' ? 1 : 0;
       
-      const query = `
-        UPDATE ${this.tableName}
-        SET trang_thai = @trang_thai, updated_at = GETDATE()
-        WHERE id = @offer_id
-      `;
-
-      const request = pool.request();
-      request.input('offer_id', sql.Int, offerId);
-      request.input('trang_thai', sql.Bit, trangThai);
-
-      const result = await request.query(query);
-      return result.rowsAffected[0] > 0;
+      // Thử với updated_at trước
+      try {
+        const queryWithUpdate = `
+          UPDATE ${this.tableName}
+          SET trang_thai = @trang_thai, updated_at = GETDATE()
+          WHERE id = @offer_id
+        `;
+        const request = pool.request();
+        request.input('offer_id', sql.Int, offerId);
+        request.input('trang_thai', sql.Bit, trangThai);
+        const result = await request.query(queryWithUpdate);
+        return result.rowsAffected[0] > 0;
+      } catch (updateError) {
+        // Nếu lỗi là do cột updated_at không tồn tại
+        if (updateError.number === 207 || updateError.message?.includes('Invalid column name')) {
+          console.warn('⚠️ Column updated_at not found, updating without it');
+          const query = `
+            UPDATE ${this.tableName}
+            SET trang_thai = @trang_thai
+            WHERE id = @offer_id
+          `;
+          const request = pool.request();
+          request.input('offer_id', sql.Int, offerId);
+          request.input('trang_thai', sql.Bit, trangThai);
+          const result = await request.query(query);
+          return result.rowsAffected[0] > 0;
+        }
+        throw updateError;
+      }
     } catch (error) {
       console.error('Error updating status:', error);
       throw error;

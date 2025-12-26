@@ -7,7 +7,6 @@ import android.content.IntentFilter
 import android.os.Build
 import android.os.Bundle
 import android.util.Log
-import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
@@ -46,8 +45,15 @@ class MainActivity : FlutterActivity() {
         }
         
         // Đăng ký receiver để nhận kết quả từ VnPayResultActivity
-        val filter = IntentFilter("vnpay.payment.result")
-        LocalBroadcastManager.getInstance(this).registerReceiver(paymentResultReceiver, filter)
+        val filter = IntentFilter("vnpay.payment.result").apply {
+            addCategory(Intent.CATEGORY_DEFAULT)
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(paymentResultReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            @Suppress("DEPRECATION")
+            registerReceiver(paymentResultReceiver, filter)
+        }
     }
 
     // TODO: Uncomment khi đã copy VNPay AAR file vào libs/
@@ -160,6 +166,11 @@ class MainActivity : FlutterActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
-        LocalBroadcastManager.getInstance(this).unregisterReceiver(paymentResultReceiver)
+        try {
+            unregisterReceiver(paymentResultReceiver)
+        } catch (e: Exception) {
+            // Receiver might not be registered
+            Log.d("VNPaySDK", "Receiver already unregistered or not registered")
+        }
     }
 }

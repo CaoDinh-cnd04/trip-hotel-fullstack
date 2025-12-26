@@ -16,6 +16,7 @@ router.get('/test-page', bankTransferController.testPage);
 
 // Return from bank (callback)
 router.get('/return', bankTransferController.bankTransferReturn);
+router.post('/return', bankTransferController.bankTransferReturn); // Support POST for manual confirmation
 
 // Get payment status
 router.get('/payment-status/:orderId', bankTransferController.getPaymentStatus);

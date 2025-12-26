@@ -18,10 +18,13 @@ import 'package:hotel_mobile/presentation/screens/map/map_view_screen.dart';
 import 'package:hotel_mobile/presentation/screens/map/map_view_screen_simple.dart';
 import 'package:hotel_mobile/presentation/screens/service/amenity_detail_screen.dart';
 import 'package:hotel_mobile/data/models/amenity.dart';
+import 'package:hotel_mobile/data/services/booking_history_service.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:intl/intl.dart';
 import '../../../core/widgets/skeleton_loading_widget.dart';
 import '../../../core/widgets/empty_state_widget.dart';
+import '../../../core/utils/currency_formatter.dart';
+import '../../../l10n/app_localizations.dart';
 
 /// Màn hình chi tiết khách sạn - Thiết kế theo phong cách Agoda
 /// Gồm 9 phần chính:
@@ -57,6 +60,7 @@ class _PropertyDetailScreenState extends State<PropertyDetailScreen>
   final ScrollController _scrollController = ScrollController();
   final ApiService _apiService = ApiService();
   final AppliedPromotionService _promotionService = AppliedPromotionService();
+  final BookingHistoryService _bookingService = BookingHistoryService();
   
   List<Room> _rooms = [];
   bool _isLoadingRooms = true;
@@ -75,6 +79,13 @@ class _PropertyDetailScreenState extends State<PropertyDetailScreen>
   // Amenities
   List<Amenity> _amenities = [];
   bool _isLoadingAmenities = false;
+  
+  // Booking active check
+  bool _canBook = true;
+  bool _isCheckingBooking = false;
+  String? _bookingBlockMessage;
+  bool _requiresOnlinePayment = false; // Yêu cầu thanh toán online (VNPay/Bank Transfer)
+  int _minPaymentPercentage = 0; // Tối thiểu % thanh toán
   
   // Animation controllers
   late AnimationController _fadeController;
@@ -114,6 +125,49 @@ class _PropertyDetailScreenState extends State<PropertyDetailScreen>
     _loadRooms();
     _loadSimilarHotels();
     _loadAmenities();
+    _checkActiveBooking();
+  }
+
+  /// Kiểm tra xem user có booking active ở khách sạn khác không
+  Future<void> _checkActiveBooking() async {
+    try {
+      setState(() {
+        _isCheckingBooking = true;
+      });
+
+      print('🔍 Checking active booking for hotel: ${widget.hotel.id} (${widget.hotel.ten})');
+      
+      final result = await _bookingService.checkActiveBooking(
+        hotelId: widget.hotel.id,
+      );
+
+      print('🔍 Check active booking result:');
+      print('   - canBook: ${result['canBook']}');
+      print('   - hasOtherHotelBooking: ${result['hasOtherHotelBooking']}');
+      print('   - hasSameHotelBooking: ${result['hasSameHotelBooking']}');
+      print('   - requiresOnlinePayment: ${result['requiresOnlinePayment']}');
+      print('   - minPaymentPercentage: ${result['minPaymentPercentage']}');
+      print('   - message: ${result['message']}');
+
+      setState(() {
+        _canBook = result['canBook'] ?? true;
+        _bookingBlockMessage = result['message'];
+        _requiresOnlinePayment = result['requiresOnlinePayment'] ?? false;
+        _minPaymentPercentage = result['minPaymentPercentage'] ?? 0;
+        _isCheckingBooking = false;
+      });
+      
+      print('✅ Updated state: canBook=$_canBook, requiresOnlinePayment=$_requiresOnlinePayment, minPaymentPercentage=$_minPaymentPercentage');
+    } catch (e) {
+      print('⚠️ Error checking active booking: $e');
+      // Fail-safe: cho phép đặt phòng nếu có lỗi
+      setState(() {
+        _canBook = true;
+        _requiresOnlinePayment = false;
+        _minPaymentPercentage = 0;
+        _isCheckingBooking = false;
+      });
+    }
   }
 
   @override
@@ -331,9 +385,10 @@ class _PropertyDetailScreenState extends State<PropertyDetailScreen>
       }
       
       if (searchQuery.isEmpty || searchQuery == widget.hotel.ten) {
+        final l10n = AppLocalizations.of(context)!;
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Không có địa chỉ để hiển thị trên bản đồ'),
+          SnackBar(
+            content: Text(l10n.noAddressForMap),
             backgroundColor: Colors.orange,
           ),
         );
@@ -370,19 +425,21 @@ class _PropertyDetailScreenState extends State<PropertyDetailScreen>
       }
 
       if (!launched) {
+        final l10n = AppLocalizations.of(context)!;
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Không thể mở Google Maps. Vui lòng cài đặt Google Maps hoặc trình duyệt.'),
+          SnackBar(
+            content: Text(l10n.cannotOpenGoogleMaps),
             backgroundColor: Colors.red,
-            duration: Duration(seconds: 3),
+            duration: const Duration(seconds: 3),
           ),
         );
       }
     } catch (e) {
       print('❌ Error opening Google Maps: $e');
+      final l10n = AppLocalizations.of(context)!;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Lỗi mở bản đồ: ${e.toString()}'),
+          content: Text('${l10n.mapError}: ${e.toString()}'),
           backgroundColor: Colors.red,
         ),
       );
@@ -407,6 +464,12 @@ class _PropertyDetailScreenState extends State<PropertyDetailScreen>
   }
 
   void _navigateToPayment(Room room, double selectedPrice, {int roomCount = 1}) {
+    // ✅ Kiểm tra xem có thể đặt phòng không
+    if (!_canBook) {
+      _showBookingBlockedDialog();
+      return;
+    }
+
     final nights = _checkOutDate.difference(_checkInDate).inDays;
     
     // ✅ Reload room availability sau khi quay lại từ payment screen
@@ -422,13 +485,39 @@ class _PropertyDetailScreenState extends State<PropertyDetailScreen>
           nights: nights,
           roomPrice: selectedPrice,
           roomCount: roomCount,
+          requiresOnlinePayment: _requiresOnlinePayment, // ✅ Truyền yêu cầu thanh toán online
+          minPaymentPercentage: _minPaymentPercentage, // ✅ Truyền % thanh toán tối thiểu
         ),
       ),
     ).then((_) {
       // Reload room availability sau khi quay lại (có thể đã đặt phòng thành công)
       print('🔄 Reloading room availability after returning from payment...');
       _loadRooms();
+      _checkActiveBooking(); // Kiểm tra lại booking active
     });
+  }
+
+  /// Hiển thị dialog thông báo không được đặt phòng
+  void _showBookingBlockedDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            const Icon(Icons.info_outline, color: Colors.orange),
+            const SizedBox(width: 8),
+            Text(AppLocalizations.of(context)!.cannotBookRoom),
+          ],
+        ),
+        content: Text(_bookingBlockMessage ?? 'Bạn đang có đặt phòng tại khách sạn khác. Vui lòng đợi đến sau ngày checkout để đặt khách sạn khác.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(AppLocalizations.of(context)!.understood),
+          ),
+        ],
+      ),
+    );
   }
   
   Future<void> _selectDates() async {
@@ -557,30 +646,111 @@ class _PropertyDetailScreenState extends State<PropertyDetailScreen>
                     setModalState,
                   ),
                   const SizedBox(height: 24),
-                  SizedBox(
-                    width: double.infinity,
-                    height: 50,
-                    child: ElevatedButton(
-                      onPressed: () {
-                        Navigator.pop(context);
-                        _navigateToPayment(room, _selectedPrice);
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF003580),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
+                  // ✅ Ẩn nút đặt phòng nếu có booking active ở khách sạn khác
+                  if (!_canBook) ...[
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.orange[50],
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.orange[300]!),
                       ),
-                      child: const Text(
-                        'Tiếp tục đặt phòng',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.white,
+                      child: Row(
+                        children: [
+                          Icon(Icons.info_outline, color: Colors.orange[700], size: 20),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              _bookingBlockMessage ?? 'Bạn đang có đặt phòng tại khách sạn khác. Vui lòng đợi đến sau ngày checkout để đặt khách sạn khác.',
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: Colors.orange[900],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ] else if (_requiresOnlinePayment) ...[
+                    // ✅ Hiển thị thông báo khi đặt thêm phòng ở cùng khách sạn
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.blue[50],
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.blue[300]!),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(Icons.info_outline, color: Colors.blue[700], size: 20),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              _minPaymentPercentage > 0
+                                  ? 'Bạn đang có đặt phòng tại khách sạn này. Để đặt thêm phòng, vui lòng sử dụng thanh toán VNPay hoặc chuyển khoản ngân hàng (tối thiểu $_minPaymentPercentage% tổng giá trị).'
+                                  : 'Bạn đang có đặt phòng tại khách sạn này. Để đặt thêm phòng, vui lòng sử dụng thanh toán VNPay hoặc chuyển khoản ngân hàng.',
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: Colors.blue[900],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 50,
+                      child: ElevatedButton(
+                        onPressed: () {
+                          Navigator.pop(context);
+                          _navigateToPayment(room, _selectedPrice);
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF003580),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        child: const Text(
+                          'Tiếp tục đặt phòng',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white,
+                          ),
                         ),
                       ),
                     ),
-                  ),
+                  ] else ...[
+                    SizedBox(
+                      width: double.infinity,
+                      height: 50,
+                      child: ElevatedButton(
+                        onPressed: () {
+                          Navigator.pop(context);
+                          _navigateToPayment(room, _selectedPrice);
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF003580),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        child: const Text(
+                          'Tiếp tục đặt phòng',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                   SizedBox(height: MediaQuery.of(context).padding.bottom),
                 ],
               ),
@@ -732,7 +902,8 @@ class _PropertyDetailScreenState extends State<PropertyDetailScreen>
   }
 
   String _formatPrice(double price) {
-    return '${(price / 1000).toStringAsFixed(0)}K VND';
+    // ✅ Sử dụng CurrencyFormatter để format theo currency đã chọn
+    return CurrencyFormatter.format(price);
   }
 
   @override

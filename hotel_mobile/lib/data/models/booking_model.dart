@@ -93,64 +93,127 @@ class BookingModel {
     required this.secondsLeftToCancel,
   });
 
+  /// Helper method to safely extract string from field that might be array or string
+  static String? _extractString(dynamic value) {
+    if (value == null) return null;
+    if (value is String) return value.isEmpty ? null : value;
+    if (value is List && value.isNotEmpty) {
+      // ✅ FIX: Check if first element is actually null
+      final first = value.first;
+      if (first == null) return null;
+      final str = first.toString();
+      return str.isEmpty || str == 'null' ? null : str;
+    }
+    final str = value.toString();
+    return str.isEmpty || str == 'null' ? null : str;
+  }
+
   /// Tạo đối tượng BookingModel từ JSON
   /// 
   /// [json] - Map chứa dữ liệu JSON từ API
   /// 
   /// Parse các trường từ snake_case sang camelCase
   /// Chuyển đổi an toàn các kiểu dữ liệu số và DateTime
+  /// ⚠️ FIX: Handle fields that might be arrays (hotel_name, refund_status, etc.)
   factory BookingModel.fromJson(Map<String, dynamic> json) {
-    return BookingModel(
-      id: (json['id'] as num).toInt(),
-      bookingCode: json['booking_code'] as String,
-      userId: (json['user_id'] as num).toInt(),
-      userEmail: json['user_email'] as String,
-      userName: json['user_name'] as String?,
-      userPhone: json['user_phone'] as String?,
-      hotelId: (json['hotel_id'] as num).toInt(),
-      hotelName: json['hotel_name'] as String?,
-      roomId: (json['room_id'] as num).toInt(),
-      roomNumber: json['room_number'] as String?,
-      roomType: json['room_type'] as String?,
-      checkInDate: DateTime.parse(json['check_in_date'] as String),
-      checkOutDate: DateTime.parse(json['check_out_date'] as String),
-      guestCount: (json['guest_count'] as num).toInt(),
-      roomCount: (json['room_count'] as num).toInt(),
-      nights: (json['nights'] as num).toInt(),
-      roomPrice: (json['room_price'] as num).toDouble(),
-      totalPrice: (json['total_price'] as num).toDouble(),
-      discountAmount: (json['discount_amount'] as num?)?.toDouble() ?? 0,
-      finalPrice: (json['final_price'] as num).toDouble(),
-      paymentMethod: json['payment_method'] as String,
-      paymentStatus: json['payment_status'] as String,
-      paymentTransactionId: json['payment_transaction_id'] as String?,
-      paymentDate: json['payment_date'] != null 
-          ? DateTime.parse(json['payment_date'] as String) 
-          : null,
-      refundStatus: json['refund_status'] as String?,
-      refundAmount: (json['refund_amount'] as num?)?.toDouble() ?? 0,
-      refundTransactionId: json['refund_transaction_id'] as String?,
-      refundDate: json['refund_date'] != null 
-          ? DateTime.parse(json['refund_date'] as String) 
-          : null,
-      refundReason: json['refund_reason'] as String?,
-      bookingStatus: json['booking_status'] as String,
-      cancellationAllowed: json['cancellation_allowed'] is bool 
-          ? json['cancellation_allowed'] as bool
-          : (json['cancellation_allowed'] as int?) == 1,
-      createdAt: DateTime.parse(json['created_at'] as String),
-      updatedAt: DateTime.parse(json['updated_at'] as String),
-      cancelledAt: json['cancelled_at'] != null 
-          ? DateTime.parse(json['cancelled_at'] as String) 
-          : null,
-      specialRequests: json['special_requests'] as String?,
-      adminNotes: json['admin_notes'] as String?,
-      canCancelNow: json['can_cancel_now'] is bool
-          ? json['can_cancel_now'] as bool
-          : (json['can_cancel_now'] as num?)?.toInt() == 1,
-      secondsLeftToCancel: (json['cancel_time_left_minutes'] as num?)?.toInt() ?? 
-                           (json['seconds_left_to_cancel'] as num?)?.toInt() ?? 0,
-    );
+    try {
+      // ✅ FIX: Safe parse DateTime với null check
+      DateTime? _parseDateTime(dynamic value) {
+        if (value == null) return null;
+        final str = _extractString(value);
+        if (str == null || str.isEmpty) return null;
+        try {
+          return DateTime.parse(str);
+        } catch (e) {
+          print('⚠️ Error parsing DateTime from "$str": $e');
+          return null;
+        }
+      }
+
+      // ✅ FIX: Safe parse String với null check
+      String? _parseString(dynamic value) {
+        if (value == null) return null;
+        if (value is String) return value.isEmpty ? null : value;
+        return value.toString();
+      }
+
+      // ✅ FIX: Safe parse num với null check
+      int _parseInt(dynamic value, {int defaultValue = 0}) {
+        if (value == null) return defaultValue;
+        if (value is num) return value.toInt();
+        if (value is String) {
+          final parsed = int.tryParse(value);
+          return parsed ?? defaultValue;
+        }
+        return defaultValue;
+      }
+
+      double _parseDouble(dynamic value, {double defaultValue = 0.0}) {
+        if (value == null) return defaultValue;
+        if (value is num) return value.toDouble();
+        if (value is String) {
+          final parsed = double.tryParse(value);
+          return parsed ?? defaultValue;
+        }
+        return defaultValue;
+      }
+
+      return BookingModel(
+        id: _parseInt(json['id']),
+        bookingCode: _parseString(json['booking_code']) ?? '',
+        userId: _parseInt(json['user_id']),
+        userEmail: _parseString(json['user_email']) ?? '',
+        userName: _extractString(json['user_name']),
+        userPhone: _extractString(json['user_phone']),
+        hotelId: _parseInt(json['hotel_id']),
+        hotelName: _extractString(json['hotel_name']),  // ✅ FIX: Handle array
+        roomId: _parseInt(json['room_id']),
+        roomNumber: _extractString(json['room_number']),
+        roomType: _extractString(json['room_type']),
+        checkInDate: _parseDateTime(json['check_in_date']) ?? DateTime.now(),
+        checkOutDate: _parseDateTime(json['check_out_date']) ?? DateTime.now(),
+        guestCount: _parseInt(json['guest_count'], defaultValue: 1),
+        roomCount: _parseInt(json['room_count'], defaultValue: 1),
+        nights: _parseInt(json['nights'], defaultValue: 1),
+        roomPrice: _parseDouble(json['room_price']),
+        totalPrice: _parseDouble(json['total_price']),
+        discountAmount: _parseDouble(json['discount_amount']),
+        finalPrice: _parseDouble(json['final_price']),
+        paymentMethod: _parseString(json['payment_method']) ?? 'cash',
+        paymentStatus: _parseString(json['payment_status']) ?? 'pending',
+        paymentTransactionId: _extractString(json['payment_transaction_id']),
+        paymentDate: _parseDateTime(json['payment_date']),
+        refundStatus: _extractString(json['refund_status']),  // ✅ FIX: Handle array
+        refundAmount: _parseDouble(json['refund_amount']),
+        refundTransactionId: _extractString(json['refund_transaction_id']),
+        refundDate: _parseDateTime(json['refund_date']),
+        refundReason: _extractString(json['refund_reason']),  // ✅ FIX: Handle array
+        bookingStatus: _parseString(json['booking_status']) ?? 'pending',
+        cancellationAllowed: json['cancellation_allowed'] is bool 
+            ? json['cancellation_allowed'] as bool
+            : (json['cancellation_allowed'] as int?) == 1,
+        createdAt: _parseDateTime(json['created_at']) ?? DateTime.now(),
+        updatedAt: _parseDateTime(json['updated_at']) ?? DateTime.now(),
+        cancelledAt: _parseDateTime(json['cancelled_at']),  // ✅ FIX: Handle array
+        specialRequests: _parseString(json['special_requests']),
+        adminNotes: _parseString(json['admin_notes']),
+        // ✅ FIX: Backend returns 'can_cancel', not 'can_cancel_now'
+        canCancelNow: json['can_cancel_now'] is bool
+            ? json['can_cancel_now'] as bool
+            : (json['can_cancel_now'] as num?)?.toInt() == 1
+                ? true
+                : json['can_cancel'] is bool
+                    ? json['can_cancel'] as bool
+                    : (json['can_cancel'] as num?)?.toInt() == 1,
+        secondsLeftToCancel: (json['cancel_time_left_minutes'] as num?)?.toInt() ?? 
+                             (json['seconds_left_to_cancel'] as num?)?.toInt() ?? 0,
+      );
+    } catch (e, stackTrace) {
+      print('❌ Error parsing BookingModel from JSON: $e');
+      print('❌ Stack trace: $stackTrace');
+      print('❌ JSON data: $json');
+      rethrow;
+    }
   }
 
   /// Chuyển đổi đối tượng BookingModel sang JSON

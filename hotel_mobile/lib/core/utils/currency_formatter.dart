@@ -1,22 +1,51 @@
 /**
  * Currency Formatter Utility
  * 
- * Format số tiền theo định dạng VND
+ * Format số tiền theo currency setting của user
+ * Hỗ trợ: VND, USD, EUR, JPY
  */
 
 import 'package:intl/intl.dart';
+import '../services/currency_service.dart';
 
 class CurrencyFormatter {
-  /// Format số tiền sang định dạng VND
+  /// Format số tiền theo currency setting hiện tại
   /// 
-  /// Example: 1000000 -> "1.000.000 ₫"
+  /// Example VND: 1000000 -> "1.000.000 ₫"
+  /// Example USD: 100 -> "$100.00"
   static String format(double amount) {
-    final formatter = NumberFormat('#,###', 'vi_VN');
-    return '${formatter.format(amount)} ₫';
+    final currencyService = CurrencyService.instance;
+    final currencyCode = currencyService.getCurrencyCode();
+    final currencySymbol = currencyService.getCurrencySymbol();
+    
+    // Nếu không phải VND, convert từ VND sang currency khác
+    double displayAmount = amount;
+    if (currencyCode != 'VND') {
+      displayAmount = currencyService.convertFromVND(amount);
+    }
+    
+    switch (currencyCode) {
+      case 'USD':
+        final formatter = NumberFormat.currency(locale: 'en_US', symbol: currencySymbol, decimalDigits: 2);
+        return formatter.format(displayAmount);
+      case 'EUR':
+        final formatter = NumberFormat.currency(locale: 'de_DE', symbol: currencySymbol, decimalDigits: 2);
+        return formatter.format(displayAmount);
+      case 'JPY':
+        final formatter = NumberFormat.currency(locale: 'ja_JP', symbol: currencySymbol, decimalDigits: 0);
+        return formatter.format(displayAmount);
+      default: // VND
+        final formatter = NumberFormat('#,###', 'vi_VN');
+        return '${formatter.format(displayAmount)} $currencySymbol';
+    }
   }
   
+  /// Format số tiền sang định dạng VND (luôn dùng VND, không convert)
+  /// 
+  /// Example: 1000000 -> "1.000.000 ₫"
   static String formatVND(double amount) {
-    return format(amount);
+    final formatter = NumberFormat('#,###', 'vi_VN');
+    return '${formatter.format(amount)} ₫';
   }
 
   /// Format số tiền sang định dạng VND (compact)

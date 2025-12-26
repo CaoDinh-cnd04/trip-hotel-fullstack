@@ -10,6 +10,7 @@ class PaymentOptions extends StatefulWidget {
   final double totalAmount;
   final bool canUseCash;
   final bool mustUseOnlinePayment;
+  final bool requiresOnlinePayment; // ✅ Yêu cầu thanh toán online (khi đặt thêm phòng ở cùng khách sạn)
 
   const PaymentOptions({
     super.key,
@@ -19,6 +20,7 @@ class PaymentOptions extends StatefulWidget {
     this.totalAmount = 0,
     this.canUseCash = true,
     this.mustUseOnlinePayment = false,
+    this.requiresOnlinePayment = false, // ✅ Default: không yêu cầu
   });
 
   @override
@@ -86,8 +88,8 @@ class _PaymentOptionsState extends State<PaymentOptions> {
 
             const SizedBox(height: 12),
 
-            // Chỉ hiển thị Cash nếu đủ điều kiện
-            if (widget.canUseCash && !widget.mustUseOnlinePayment)
+            // ✅ Chỉ hiển thị Cash nếu đủ điều kiện VÀ không yêu cầu thanh toán online
+            if (widget.canUseCash && !widget.mustUseOnlinePayment && !widget.requiresOnlinePayment)
               _buildPaymentCard(
                 method: PaymentMethod.cash,
                 title: 'Thanh toán tiền mặt',
@@ -96,9 +98,38 @@ class _PaymentOptionsState extends State<PaymentOptions> {
                 iconColor: Colors.green[600]!,
                 isEnabled: true,
               )
-            else if (!widget.mustUseOnlinePayment)
+            else if (!widget.mustUseOnlinePayment && !widget.requiresOnlinePayment)
               // Hiển thị thông báo tại sao không thể dùng Cash
               _buildDisabledCashCard(),
+            
+            // ✅ Hiển thị thông báo khi yêu cầu thanh toán online (đặt thêm phòng ở cùng khách sạn)
+            if (widget.requiresOnlinePayment) ...[
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.orange[50],
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.orange[300]!, width: 1),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.info_outline, color: Colors.orange[700], size: 20),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        'Bạn đang có đặt phòng tại khách sạn này. Để đặt thêm phòng, vui lòng sử dụng thanh toán VNPay hoặc chuyển khoản ngân hàng (tối thiểu 50% tổng giá trị).',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Colors.orange[900],
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ],
         ),
       ),

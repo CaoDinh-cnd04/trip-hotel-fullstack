@@ -14,7 +14,7 @@ import '../../../data/services/booking_history_service.dart';
 import '../../../data/models/hotel.dart';
 import '../../../data/models/room.dart';
 import '../../../core/utils/currency_formatter.dart';
-import '../../../core/services/backend_auth_service.dart';
+import '../../../data/services/backend_auth_service.dart';
 import '../../../core/services/vnpay_signature_service.dart';
 import '../../../core/config/payment_config.dart';
 import 'vnpay_payment_result_screen.dart';
@@ -267,6 +267,18 @@ class _VNPaySandboxScreenState extends State<VNPaySandboxScreen> {
     final url = request.url;
     print('🔗 Navigation Request: $url');
     
+    // ✅ FIX: Check deep link schemes (vnpaypayment:// or banktransfer://)
+    if (url.startsWith('vnpaypayment://') || url.startsWith('banktransfer://')) {
+      print('✅ Deep link detected in WebView: $url');
+      try {
+        // Parse deep link và extract params
+        _handleNavigationUrl(url);
+      } catch (e) {
+        print('❌ Error parsing deep link: $e');
+      }
+      return NavigationDecision.prevent; // Prevent WebView from loading deep link
+    }
+    
     // Check VNPay error page (code 71 = Website chưa được phê duyệt)
     if (url.contains('Payment/Error.html') || url.contains('code=71')) {
       print('❌ VNPay Error detected: Website chưa được phê duyệt (code 71)');
@@ -277,9 +289,11 @@ class _VNPaySandboxScreenState extends State<VNPaySandboxScreen> {
       return NavigationDecision.prevent; // Không cho load error page
     }
     
-    // Check return URL từ VNPay (backend return URL)
+    // Check return URL từ VNPay or Bank Transfer (backend return URL)
     // Backend trả về: /api/payment/vnpay-return?vnp_ResponseCode=00&...
-    if (url.contains('vnpay-return') || url.contains('vnp_ResponseCode')) {
+    // hoặc: /api/bank-transfer/return?orderId=...&success=...
+    if (url.contains('vnpay-return') || url.contains('vnp_ResponseCode') || 
+        url.contains('bank-transfer/return')) {
       _handleNavigationUrl(url);
       // Vẫn cho phép navigate để WebView load trang return
       return NavigationDecision.navigate;

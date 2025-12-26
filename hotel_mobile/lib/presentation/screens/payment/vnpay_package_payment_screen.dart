@@ -22,10 +22,12 @@ import '../../../data/services/booking_history_service.dart';
 import '../../../data/models/hotel.dart';
 import '../../../data/models/room.dart';
 import '../../../core/utils/currency_formatter.dart';
-import '../../../core/services/backend_auth_service.dart';
+import '../../../l10n/app_localizations.dart';
+import '../../../data/services/backend_auth_service.dart';
 import '../../../data/services/auth_service.dart';
 import '../../../core/config/payment_config.dart';
 import 'vnpay_payment_result_screen.dart';
+import 'payment_success_screen_v2.dart';
 
 class VNPayPackagePaymentScreen extends StatefulWidget {
   final int bookingId;
@@ -270,20 +272,31 @@ class _VNPayPackagePaymentScreenState extends State<VNPayPackagePaymentScreen> w
       return;
     }
     
-    // Navigate to result screen
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(
-        builder: (context) => VNPayPaymentResultScreen(
-          isSuccess: isSuccess,
-          transactionNo: transactionNo,
-          orderId: _orderId,
-          amount: amount != null ? amount.toDouble() : widget.amount,
-          message: message,
-          errorCode: isSuccess ? null : responseCode,
-          paymentTime: DateTime.now(),
+    // Navigate to success screen nếu thanh toán thành công
+    if (isSuccess && _orderId != null) {
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(
+          builder: (context) => PaymentSuccessScreenV2(
+            orderId: _orderId!,
+            paymentMethod: 'vnpay',
+          ),
         ),
-      ),
-    );
+      );
+    } else {
+      // Navigate to error screen nếu thất bại
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(
+          builder: (context) => VNPayPaymentResultScreen(
+            isSuccess: false,
+            orderId: _orderId,
+            amount: amount != null ? amount.toDouble() : widget.amount,
+            message: message,
+            errorCode: responseCode,
+            paymentTime: DateTime.now(),
+          ),
+        ),
+      );
+    }
     
     _isProcessing = false;
   }
@@ -401,9 +414,9 @@ class _VNPayPackagePaymentScreenState extends State<VNPayPackagePaymentScreen> w
         if (mounted && !_isProcessing) {
           // Hiển thị thông báo cho user
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Đang chờ kết quả thanh toán. Vui lòng kiểm tra lại sau hoặc liên hệ hỗ trợ.'),
-              duration: Duration(seconds: 5),
+            SnackBar(
+              content: Text(AppLocalizations.of(context)!.waitingPaymentResult),
+              duration: const Duration(seconds: 5),
             ),
           );
         }
@@ -439,15 +452,9 @@ class _VNPayPackagePaymentScreenState extends State<VNPayPackagePaymentScreen> w
         // Navigate to success screen
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(
-            builder: (context) => VNPayPaymentResultScreen(
-              isSuccess: true,
-              transactionNo: status['transactionNo'],
-              orderId: _orderId,
-              amount: status['amount']?.toDouble() ?? widget.amount,
-              message: status['responseMessage'] ?? 'Thanh toán thành công',
-              paymentTime: status['paidAt'] != null 
-                  ? DateTime.parse(status['paidAt'])
-                  : DateTime.now(),
+            builder: (context) => PaymentSuccessScreenV2(
+              orderId: _orderId!,
+              paymentMethod: 'vnpay',
             ),
           ),
         );
@@ -624,12 +631,12 @@ class _VNPayPackagePaymentScreenState extends State<VNPayPackagePaymentScreen> w
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
               ),
-              title: const Text('Hủy thanh toán?'),
-              content: const Text('Bạn có chắc muốn hủy giao dịch thanh toán?'),
+              title: Text(AppLocalizations.of(context)!.cancelPayment),
+              content: Text(AppLocalizations.of(context)!.confirmCancelPayment),
               actions: [
                 TextButton(
                   onPressed: () => Navigator.pop(context),
-                  child: const Text('Không'),
+                  child: Text(AppLocalizations.of(context)!.no),
                 ),
                 TextButton(
                   onPressed: () {
@@ -861,8 +868,8 @@ class _VNPayPackagePaymentScreenState extends State<VNPayPackagePaymentScreen> w
                       });
                       
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Đã mở lại trang thanh toán'),
+                        SnackBar(
+                          content: Text(AppLocalizations.of(context)!.reopenedPaymentPage),
                           backgroundColor: Colors.green,
                         ),
                       );
