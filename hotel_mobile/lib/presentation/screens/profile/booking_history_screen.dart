@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:hotel_mobile/data/models/booking.dart';
 import 'package:hotel_mobile/presentation/widgets/booking_card.dart';
-import 'package:hotel_mobile/presentation/screens/reviews/create_review_screen.dart';
+import 'package:hotel_mobile/presentation/screens/reviews/write_review_screen.dart';
 
 class BookingHistoryScreen extends StatefulWidget {
   const BookingHistoryScreen({super.key});
@@ -574,16 +574,13 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen>
   }
 
   void _handleWriteReview(Booking booking) {
-    // Navigate to new review screen with 2 tabs
-    Navigator.push(
+    // Show write review screen as modal bottom sheet
+    WriteReviewScreen.showAsModal(
       context,
-      MaterialPageRoute(
-        builder: (context) => CreateReviewScreen(
-          bookingId: booking.maDatPhong ?? booking.id.toString(),
-          hotelId: booking.khachSanId ?? 0,
-          hotelName: booking.tenKhachSan ?? 'Khách sạn',
-        ),
-      ),
+      bookingId: booking.maDatPhong ?? booking.id.toString(),
+      hotelId: booking.khachSanId ?? 0,
+      hotelName: booking.tenKhachSan ?? 'Khách sạn',
+      hotelImage: booking.hinhAnhKhachSan,
     ).then((shouldRefresh) {
       if (shouldRefresh == true) {
         _loadBookings(); // Refresh bookings after review

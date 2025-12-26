@@ -235,7 +235,7 @@ const userController = {
         });
       }
       
-      const { booking_id, rating, content } = req.body;
+      const { booking_id, rating, content, service_ratings, images } = req.body;
       const pool = await getPool();
       
       console.log('📝 Create review request:', { 
@@ -245,6 +245,9 @@ const userController = {
         rating_type: typeof rating,
         content,
         contentLength: content?.length,
+        service_ratings,
+        images,
+        imagesCount: images?.length,
         userId,
         user_object: { ma_nguoi_dung: req.user.ma_nguoi_dung, id: req.user.id }
       });
@@ -393,6 +396,10 @@ const userController = {
       
       // ✅ FIX: Try to insert with bookings.id directly
       // If FK constraint fails, we'll catch and provide a better error message
+      // Lưu images vào bảng danh_gia (nếu có cột hinh_anh hoặc images)
+      // Giả sử bảng danh_gia có cột hinh_anh (NVARCHAR(MAX) hoặc JSON)
+      const imagesJson = images && images.length > 0 ? JSON.stringify(images) : null;
+      
       const insertQuery = `
         INSERT INTO danh_gia (
           phieu_dat_phong_id,
@@ -402,6 +409,7 @@ const userController = {
           binh_luan, 
           ngay,
           trang_thai
+          ${imagesJson ? ', hinh_anh' : ''}
         )
         VALUES (
           @bookingIdInt,
@@ -411,22 +419,164 @@ const userController = {
           @content, 
           GETDATE(),
           N'Đã duyệt'
-        )
+          ${imagesJson ? ', @imagesJson' : ''}
+        );
+        SELECT SCOPE_IDENTITY() as review_id;
       `;
       
-      await pool.request()
+      const request = pool.request()
         .input('bookingIdInt', sql.Int, bookingIdInt)
         .input('userId', sql.Int, userId)
         .input('hotelId', sql.Int, hotelId)
         .input('rating', sql.Int, rating)
-        .input('content', sql.NVarChar, content || '')
-        .query(insertQuery);
+        .input('content', sql.NVarChar, content || '');
       
-      console.log('✅ Review created successfully for booking:', bookingIdInt);
+      if (imagesJson) {
+        request.input('imagesJson', sql.NVarChar(sql.MAX), imagesJson);
+      }
+      
+      const insertResult = await request.query(insertQuery);
+      const reviewId = insertResult.recordset[0]?.review_id;
+      
+      console.log('✅ Review created successfully for booking:', bookingIdInt, 'Review ID:', reviewId);
+      
+      // Lưu đánh giá dịch vụ vào bảng dich_vu_reviews (nếu có)
+      // Format: { "amenity_id": { "rating": 5, "comment": "...", "images": [...] } }
+      if (service_ratings && typeof service_ratings === 'object' && Object.keys(service_ratings).length > 0) {
+        try {
+          // Bảng dich_vu_reviews có cấu trúc:
+          // - danh_gia_id (FK to danh_gia.id)
+          // - tien_nghi_id (FK to tien_nghi.id) - ID của tiện nghi được đánh giá
+          // - diem (INT) - 1-5
+          // - nhan_xet (NVARCHAR) - Nhận xét về tiện nghi (tùy chọn)
+          // - hinh_anh (NVARCHAR hoặc JSON) - Danh sách URL ảnh (tùy chọn)
+          // - ngay_tao (DATETIME)
+          
+          for (const [amenityIdStr, serviceData] of Object.entries(service_ratings)) {
+            // serviceData có thể là số (rating cũ) hoặc object (rating mới với comment và images)
+            let rating, comment, images;
+            
+            if (typeof serviceData === 'number') {
+              // Format cũ: { "amenity_id": rating }
+              rating = serviceData;
+              comment = null;
+              images = null;
+            } else if (typeof serviceData === 'object' && serviceData !== null) {
+              // Format mới: { "amenity_id": { "rating": 5, "comment": "...", "images": [...] } }
+              rating = serviceData.rating;
+              comment = serviceData.comment || null;
+              images = serviceData.images || null;
+            } else {
+              continue;
+            }
+            
+            if (!rating || rating < 1 || rating > 5) {
+              continue;
+            }
+            
+            const amenityId = parseInt(amenityIdStr, 10);
+            
+            if (isNaN(amenityId) || amenityId <= 0) {
+              console.warn(`⚠️ Invalid amenity ID: ${amenityIdStr}`);
+              continue;
+            }
+            
+            // Kiểm tra xem tiện nghi có tồn tại không
+            const checkAmenityQuery = `SELECT id, ten FROM dbo.tien_nghi WHERE id = @amenityId AND trang_thai = 1`;
+            const amenityCheck = await pool.request()
+              .input('amenityId', sql.Int, amenityId)
+              .query(checkAmenityQuery);
+            
+            if (!amenityCheck.recordset || amenityCheck.recordset.length === 0) {
+              console.warn(`⚠️ Amenity ID ${amenityId} not found or inactive`);
+              continue;
+            }
+            
+            const amenityName = amenityCheck.recordset[0].ten;
+            
+            // Chuyển images array thành JSON string nếu có
+            let imagesJson = null;
+            if (images && Array.isArray(images) && images.length > 0) {
+              imagesJson = JSON.stringify(images);
+            }
+            
+            // Insert với tất cả các cột, set NULL cho các cột không có giá trị
+            // Nếu bảng không có cột nhan_xet hoặc hinh_anh, sẽ báo lỗi và skip
+            try {
+              const insertServiceQuery = `
+                INSERT INTO dich_vu_reviews (
+                  danh_gia_id,
+                  tien_nghi_id,
+                  diem,
+                  nhan_xet,
+                  hinh_anh,
+                  ngay_tao
+                )
+                VALUES (
+                  @reviewId,
+                  @amenityId,
+                  @serviceRating,
+                  @comment,
+                  @images,
+                  GETDATE()
+                )
+              `;
+              
+              await pool.request()
+                .input('reviewId', sql.Int, reviewId)
+                .input('amenityId', sql.Int, amenityId)
+                .input('serviceRating', sql.Int, rating)
+                .input('comment', sql.NVarChar(sql.MAX), comment || null)
+                .input('images', sql.NVarChar(sql.MAX), imagesJson || null)
+                .query(insertServiceQuery);
+            } catch (insertError) {
+              // Nếu bảng không có cột nhan_xet hoặc hinh_anh, thử insert chỉ với rating
+              if (insertError.message && insertError.message.includes('Invalid column name')) {
+                console.warn(`⚠️ Table dich_vu_reviews may not have nhan_xet or hinh_anh columns, trying without them`);
+                const insertServiceQuerySimple = `
+                  INSERT INTO dich_vu_reviews (
+                    danh_gia_id,
+                    tien_nghi_id,
+                    diem,
+                    ngay_tao
+                  )
+                  VALUES (
+                    @reviewId,
+                    @amenityId,
+                    @serviceRating,
+                    GETDATE()
+                  )
+                `;
+                
+                await pool.request()
+                  .input('reviewId', sql.Int, reviewId)
+                  .input('amenityId', sql.Int, amenityId)
+                  .input('serviceRating', sql.Int, rating)
+                  .query(insertServiceQuerySimple);
+                
+                console.warn(`⚠️ Saved service rating without comment/images (table structure may need update)`);
+              } else {
+                throw insertError;
+              }
+            }
+            
+            console.log(`✅ Service rating saved: ${amenityName} (ID: ${amenityId}) = ${rating} stars${comment ? `, comment: ${comment.substring(0, 50)}...` : ''}${images && images.length > 0 ? `, ${images.length} images` : ''}`);
+          }
+        } catch (serviceError) {
+          console.error('⚠️ Error saving service ratings (continuing anyway):', serviceError);
+          // Không fail toàn bộ request nếu lưu service ratings thất bại
+          // Có thể bảng dich_vu_reviews chưa tồn tại hoặc cấu trúc khác
+        }
+      }
       
       res.status(201).json({
         success: true,
-        message: 'Đã tạo nhận xét thành công'
+        message: 'Đã tạo nhận xét thành công',
+        data: {
+          review_id: reviewId,
+          has_service_ratings: service_ratings && Object.keys(service_ratings).length > 0,
+          has_images: images && images.length > 0
+        }
       });
     } catch (error) {
       console.error('❌ Create review error:', error);

@@ -1262,6 +1262,8 @@ class _PropertyDetailScreenState extends State<PropertyDetailScreen>
                   ),
                   child: ReviewsSection(
                     hotelId: widget.hotel.id ?? 0,
+                    hotelName: widget.hotel.ten,
+                    hotelImage: widget.hotel.hinhAnh,
                     onReviewAdded: () {},
                   ),
                 ),

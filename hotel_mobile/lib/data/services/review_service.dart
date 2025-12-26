@@ -75,6 +75,10 @@ class ReviewService {
   /// [bookingId] - ID của booking cần đánh giá (bắt buộc)
   /// [rating] - Điểm đánh giá từ 1-5 (bắt buộc)
   /// [content] - Nội dung đánh giá (bắt buộc)
+  /// [serviceRatings] - Đánh giá các dịch vụ (tùy chọn): 
+  ///   Format cũ: { "amenity_id": rating }
+  ///   Format mới: { "amenity_id": { "rating": 5, "comment": "...", "images": [...] } }
+  /// [imageUrls] - Danh sách URL ảnh đã upload (tùy chọn)
   /// 
   /// Yêu cầu đăng nhập (JWT token)
   /// 
@@ -83,6 +87,8 @@ class ReviewService {
     required String bookingId,
     required int rating,
     required String content,
+    Map<String, dynamic>? serviceRatings,
+    List<String>? imageUrls,
   }) async {
     try {
       final token = await _authService.getToken();
@@ -93,13 +99,27 @@ class ReviewService {
         );
       }
 
+      // Chuẩn bị dữ liệu
+      // Gửi service ratings và images riêng biệt để backend có thể lưu vào 2 bảng
+      final requestData = <String, dynamic>{
+        'booking_id': bookingId,
+        'rating': rating,
+        'content': content,
+      };
+
+      // Thêm service ratings nếu có (sẽ lưu vào bảng dich_vu_reviews)
+      if (serviceRatings != null && serviceRatings.isNotEmpty) {
+        requestData['service_ratings'] = serviceRatings;
+      }
+
+      // Thêm image URLs nếu có (sẽ lưu vào bảng danh_gia)
+      if (imageUrls != null && imageUrls.isNotEmpty) {
+        requestData['images'] = imageUrls;
+      }
+
       final response = await _dio.post(
         '/api/user/reviews',
-        data: {
-          'booking_id': bookingId,
-          'rating': rating,
-          'content': content,
-        },
+        data: requestData,
         options: Options(
           headers: {'Authorization': 'Bearer $token'},
         ),

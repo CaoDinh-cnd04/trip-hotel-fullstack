@@ -3,15 +3,21 @@ import 'package:hotel_mobile/data/models/hotel_review.dart';
 import 'package:hotel_mobile/data/services/api_service.dart';
 import 'package:intl/intl.dart';
 import '../../core/widgets/empty_state_widget.dart';
-import '../screens/reviews/create_review_screen.dart';
+import '../screens/reviews/write_review_screen.dart';
 
 class ReviewsSection extends StatefulWidget {
   final int hotelId;
+  final String? hotelName;
+  final String? hotelImage;
+  final String? bookingId; // Optional: để viết review từ booking
   final VoidCallback? onReviewAdded;
 
   const ReviewsSection({
     super.key,
     required this.hotelId,
+    this.hotelName,
+    this.hotelImage,
+    this.bookingId,
     this.onReviewAdded,
   });
 
@@ -355,21 +361,30 @@ class _ReviewsSectionState extends State<ReviewsSection> {
                           ),
                           // Nút viết đánh giá
                           TextButton.icon(
-                            onPressed: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => CreateReviewScreen(
-                                    hotelId: widget.hotelId,
-                                    hotelName: 'Khách sạn', // Có thể lấy từ context nếu cần
-                                  ),
-                                ),
-                              ).then((shouldRefresh) {
-                                if (shouldRefresh == true) {
-                                  refreshReviews();
-                                }
-                              });
-                            },
+                            onPressed: widget.bookingId == null
+                                ? () {
+                                    // Hiển thị thông báo cần booking để viết review
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text('Vui lòng đặt phòng và hoàn thành chuyến đi để viết đánh giá'),
+                                        backgroundColor: Colors.orange,
+                                      ),
+                                    );
+                                  }
+                                : () {
+                                    WriteReviewScreen.showAsModal(
+                                      context,
+                                      bookingId: widget.bookingId!,
+                                      hotelId: widget.hotelId,
+                                      hotelName: widget.hotelName ?? 'Khách sạn',
+                                      hotelImage: widget.hotelImage,
+                                    ).then((shouldRefresh) {
+                                      if (shouldRefresh == true) {
+                                        refreshReviews();
+                                        widget.onReviewAdded?.call();
+                                      }
+                                    });
+                                  },
                             icon: const Icon(Icons.edit, size: 16),
                             label: const Text('Viết đánh giá'),
                             style: TextButton.styleFrom(
